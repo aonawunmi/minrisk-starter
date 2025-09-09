@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Upload, Plus, Search, RefreshCw, Settings, Table, Pencil, Trash2, ChevronsUpDown, FileUp, AlertTriangle, ArrowUpDown, Sparkles } from "lucide-react";
 import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
+import { askGemini, ChatMsg } from '@/lib/ai';
 
 /**
  * MinRisk — Version 1.7.2 (Final - Level 2)
@@ -138,52 +139,74 @@ function exportToCsv(filename: string, rows: any[]) {
 }
 
 // ===== GEMINI API HELPER =====
-const callGeminiAPI = async (prompt: string, schema?: object) => {
-    const apiKey = ""; // Leave empty
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+// NEW: routes all AI calls through our Vercel endpoint,
+// and auto-injects a "return JSON only" instruction based on the schema.
+const callGeminiAPI = async (prompt: string, schema?: any): Promise<any> => {
+  // Build a concise instruction from the caller's schema
+  function schemaInstruction(s?: any): string {
+    try {
+      const isArray = s?.type?.toUpperCase?.() === 'ARRAY';
+      const propsObj = s?.items?.properties ?? {};
+      const required = Array.isArray(s?.items?.required) ? s.items.required : [];
 
-    const payload: any = {
-        contents: [{ parts: [{ text: prompt }] }],
-    };
+      const props = Object.keys(propsObj);
+      const propsLine = props.length
+        ? `Fields: ${props.map((k) => `"${k}" (${String(propsObj[k]?.type || 'STRING').toLowerCase()})`).join(', ')}.`
+        : '';
 
-    if (schema) {
-        payload.generationConfig = {
-            responseMimeType: "application/json",
-            responseSchema: schema,
-        };
+      const reqLine = required.length ? `Required: ${required.map((k: string) => `"${k}"`).join(', ')}.` : '';
+
+      return [
+        'You are a senior enterprise risk & controls expert.',
+        isArray ? 'Return a JSON array of objects.' : 'Return a single JSON object.',
+        propsLine,
+        reqLine,
+        'Output must be JSON only — no commentary, no markdown fences.',
+      ]
+        .filter(Boolean)
+        .join('\n');
+    } catch {
+      return 'Return JSON only — no commentary, no markdown fences.';
     }
-    
-    let attempts = 0;
-    while (attempts < 5) {
-        try {
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+  }
 
-            if (!response.ok) {
-                throw new Error(`API call failed with status: ${response.status}`);
-            }
+  // Prepend instruction (when schema provided) so model returns parseable JSON
+  const fullPrompt = schema ? `${schemaInstruction(schema)}\n\n${prompt}` : prompt;
 
-            const result = await response.json();
-            const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-            
-            if (!text) {
-                 throw new Error("No text returned from API.");
-            }
-            
-            return schema ? JSON.parse(text) : text;
-            
-        } catch (error) {
-            attempts++;
-            console.error(`Attempt ${attempts} failed:`, error);
-            if (attempts >= 5) {
-                throw error; // Rethrow after final attempt
-            }
-            await new Promise(resolve => setTimeout(resolve, 2 ** attempts * 100)); // Exponential backoff
-        }
+  const text = await askGemini(fullPrompt); // calls /api/gemini under the hood
+
+  // Robust JSON parsing (handles ```json fences and extra prose)
+  const tryParse = (s: string) => {
+    try {
+      return JSON.parse(s);
+    } catch {
+      return null;
     }
+  };
+
+  let parsed = tryParse(text);
+  if (parsed !== null) return parsed;
+
+  // If model wrapped JSON in ```json … ```
+  parsed = tryParse(text.replace(/```json|```/g, '').trim());
+  if (parsed !== null) return parsed;
+
+  // Extract array/object if surrounded by text
+  const a0 = text.indexOf('['),
+    a1 = text.lastIndexOf(']');
+  if (a0 !== -1 && a1 !== -1) {
+    parsed = tryParse(text.slice(a0, a1 + 1));
+    if (parsed !== null) return parsed;
+  }
+  const o0 = text.indexOf('{'),
+    o1 = text.lastIndexOf('}');
+  if (o0 !== -1 && o1 !== -1) {
+    parsed = tryParse(text.slice(o0, o1 + 1));
+    if (parsed !== null) return parsed;
+  }
+
+  // Last resort — callers already handle "no suggestions"
+  return [];
 };
 
 
@@ -817,42 +840,73 @@ function AIAssistantTab({ onAddMultipleRisks, config, onSwitchTab }: { onAddMult
     }, [selectedSuggestions, suggestionData]);
 
     const handleGenerateRisks = async () => {
-        if (!prompt.trim()) {
-            setError("Please enter a description of the project or process.");
-            return;
-        }
-        setIsLoading(true);
-        setError(null);
-        setSuggestions([]);
-        setSelectedSuggestions(new Set());
-        setSuggestionData({});
+  if (!prompt.trim()) {
+    setError("Please enter a description of the project or process.");
+    return;
+  }
 
-        try {
-            const apiPrompt = `Based on the following description of a project/process: "${prompt}". Identify potential risks. For each risk, provide a concise title and a brief one-sentence description.`;
-            const schema = {
-                type: "ARRAY",
-                items: {
-                    type: "OBJECT",
-                    properties: {
-                        risk_title: { type: "STRING" },
-                        risk_description: { type: "STRING" },
-                    },
-                    required: ["risk_title", "risk_description"]
-                }
-            };
-            const result = await callGeminiAPI(apiPrompt, schema) as AISuggestedRisk[];
-            if (result && result.length > 0) {
-                setSuggestions(result);
-            } else {
-                setError("The AI could not identify any risks for the given description.");
-            }
-        } catch (err) {
-            console.error(err);
-            setError("An error occurred while communicating with the AI. Please try again.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
+  setIsLoading(true);
+  setError(null);
+  setSuggestions([]);
+  setSelectedSuggestions(new Set());
+  setSuggestionData({});
+
+  // Safely parse JSON from model output (handles ```json fences, extra text)
+  function parseRisks(text: string) {
+    try {
+      const start = text.indexOf("[");
+      const end = text.lastIndexOf("]");
+      const slice = start !== -1 && end !== -1 ? text.slice(start, end + 1) : text;
+      return JSON.parse(slice);
+    } catch {
+      const cleaned = text.replace(/```json|```/g, "").trim();
+      try {
+        return JSON.parse(cleaned);
+      } catch {
+        return [];
+      }
+    }
+  }
+
+  try {
+    // Steer Gemini to return strict JSON
+    const instruction = [
+      "You are a senior enterprise risk manager.",
+      "From the business description below, generate 3–5 *inherent* risk candidates.",
+      "Return JSON only: an array of objects like:",
+      `{ "risk_title": "<short title>", "risk_description": "<1–2 sentence description>" }`,
+      "No commentary or markdown fences — JSON array only."
+    ].join("\n");
+
+    const fullPrompt = `${instruction}\n\nBusiness description:\n${prompt}`;
+
+    // Calls our /api/gemini via '@/lib/ai'
+    const text = await askGemini(fullPrompt);
+
+    const parsed = parseRisks(text);
+
+    const items = (Array.isArray(parsed) ? parsed : [])
+      .map((r: any) => ({
+        risk_title: String(r?.risk_title ?? r?.title ?? "").trim().slice(0, 120),
+        risk_description: String(r?.risk_description ?? r?.description ?? "").trim(),
+      }))
+      .filter((r: any) => r.risk_title && r.risk_description);
+
+    if (!items.length) {
+      console.error("AI raw response:", text);
+      setError("AI returned an unexpected format. Try rephrasing the description.");
+      return;
+    }
+
+    // If your state is typed: use AISuggestedRisk[]
+    setSuggestions(items as AISuggestedRisk[]);
+  } catch (e: any) {
+    console.error("AI error:", e);
+    setError(e?.message || "An error occurred while communicating with the AI.");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
     const handleSelectionChange = (index: number, checked: boolean) => {
         setSelectedSuggestions(prev => {
