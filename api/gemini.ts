@@ -1,82 +1,137 @@
-// /api/gemini.ts — Vercel Serverless Function (Node 18+), with CORS
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+// api/gemini.ts
+// Edge/WHATWG Request+Response with CORS + retry + model fallback.
 
-const ALLOWED_ORIGINS = [
-  'http://localhost:5173',
-  'https://minrisk-starter.vercel.app',
+export const runtime = "edge";
+
+const CORS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Max-Age": "86400",
+};
+
+const PRIMARY_MODELS = [
+  "gemini-1.5-flash",     // preferred
+  "gemini-1.5-flash-8b",  // fast fallback
+  // You can add "gemini-1.5-flash-latest" here if you want another fallback
 ];
 
-function setCORS(req: VercelRequest, res: VercelResponse) {
-  const origin = (req.headers.origin as string) || '';
-  const allow = ALLOWED_ORIGINS.includes(origin) ? origin : 'https://minrisk-starter.vercel.app';
-  res.setHeader('Access-Control-Allow-Origin', allow);
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
+const isOverloaded = (status: number, data: any) => {
+  const msg =
+    (data?.error?.message || data?.error || "").toString().toLowerCase();
+  const code =
+    (data?.error?.status || data?.error?.code || "").toString().toLowerCase();
+  return (
+    status === 429 ||
+    status === 503 ||
+    msg.includes("overload") ||
+    msg.includes("resource") && msg.includes("exhaust") ||
+    code.includes("resource_exhausted")
+  );
+};
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  setCORS(req, res);
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-  // Handle preflight
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
+export default async function handler(req: Request): Promise<Response> {
+  // Preflight
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: CORS });
   }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== "POST") {
+    return new Response("Method Not Allowed", { status: 405, headers: CORS });
   }
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'Missing GEMINI_API_KEY on server' });
-  }
-
-  // Body can arrive as string or object depending on runtime
-  let body: any = req.body;
-  if (typeof body === 'string') {
-    try { body = JSON.parse(body); } catch { body = {}; }
-  }
-
-  const { prompt, history } = (body ?? {}) as {
-    prompt?: string;
-    history?: Array<{ role: 'user' | 'model'; content: string }>;
-  };
-
-  if (!prompt || typeof prompt !== 'string') {
-    return res.status(400).json({ error: 'Missing prompt' });
-  }
-
-  const model = 'gemini-1.5-flash-latest';
-
-  const contents = [
-    ...(Array.isArray(history) ? history : []).map((m) => ({
-      role: m.role === 'model' ? 'model' : 'user',
-      parts: [{ text: String(m.content ?? '') }],
-    })),
-    { role: 'user', parts: [{ text: prompt }] },
-  ];
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   try {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ contents }),
-    });
+    const body = await req.json().catch(() => ({}));
+    const prompt: string = body?.prompt ?? "";
+    const history: Array<{ content?: string }> = Array.isArray(body?.history) ? body.history : [];
+    // allow client to request a model, but default to our list
+    const requestedModel: string | undefined = body?.model;
 
-    const data = await r.json();
-
-    if (!r.ok) {
-      return res.status(r.status).json({ error: data?.error?.message || 'Gemini API error' });
+    const apiKey = process.env.GEMINI_API_KEY || "";
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: "Missing GEMINI_API_KEY" }), {
+        status: 500,
+        headers: { ...CORS, "Content-Type": "application/json" },
+      });
+    }
+    if (!prompt && history.length === 0) {
+      return new Response(JSON.stringify({ error: "Missing prompt" }), {
+        status: 400,
+        headers: { ...CORS, "Content-Type": "application/json" },
+      });
     }
 
-    const text =
-      data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || '').join('') ?? '';
+    // Build contents once
+    const contents: Array<{ parts: Array<{ text: string }> }> = [];
+    for (const m of history) contents.push({ parts: [{ text: String(m?.content ?? "") }] });
+    contents.push({ parts: [{ text: String(prompt) }] });
 
-    return res.status(200).json({ text });
+    // Choose models to try (requested model first, else our defaults)
+    const modelsToTry = requestedModel
+      ? [requestedModel, ...PRIMARY_MODELS.filter(m => m !== requestedModel)]
+      : PRIMARY_MODELS;
+
+    // Retry settings
+    const MAX_ATTEMPTS_PER_MODEL = 3;
+    const BASE_DELAY = 400; // ms
+
+    let lastError: any = null;
+
+    for (const model of modelsToTry) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+        model
+      )}:generateContent?key=${apiKey}`;
+
+      for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_MODEL; attempt++) {
+        try {
+          const r = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents }),
+          });
+
+          const data = await r.json().catch(() => ({}));
+
+          if (!r.ok) {
+            if (isOverloaded(r.status, data) && attempt < MAX_ATTEMPTS_PER_MODEL - 1) {
+              // exponential backoff + jitter
+              const delay = BASE_DELAY * Math.pow(2, attempt) + Math.floor(Math.random() * 200);
+              await sleep(delay);
+              continue; // retry same model
+            }
+            // Not overloaded or retries exhausted -> try next model or fail
+            lastError = data?.error?.message || `${r.status} ${r.statusText}`;
+          } else {
+            // success
+            const text =
+              data?.candidates?.[0]?.content?.parts
+                ?.map((p: any) => p?.text ?? "")
+                .join("") ?? "";
+            return new Response(JSON.stringify({ text, modelUsed: model }), {
+              status: 200,
+              headers: { ...CORS, "Content-Type": "application/json" },
+            });
+          }
+        } catch (err: any) {
+          lastError = err?.message || String(err);
+          // small delay before retry on transport error
+          const delay = BASE_DELAY * Math.pow(2, attempt) + Math.floor(Math.random() * 200);
+          await sleep(delay);
+        }
+      }
+      // exhausted retries for this model → try next model
+    }
+
+    // All models failed
+    return new Response(JSON.stringify({ error: String(lastError || "Model unavailable") }), {
+      status: 502,
+      headers: { ...CORS, "Content-Type": "application/json" },
+    });
   } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Server error' });
+    return new Response(JSON.stringify({ error: err?.message || "Server error" }), {
+      status: 500,
+      headers: { ...CORS, "Content-Type": "application/json" },
+    });
   }
 }
