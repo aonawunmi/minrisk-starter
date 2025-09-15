@@ -15,6 +15,11 @@ import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
 import { askGemini, ChatMsg } from '@/lib/ai';
 
+// Make the endpoint visible in DevTools:
+;(window as any).__MINRISK_AI_PATH = import.meta.env.VITE_AI_PATH ?? '/api/gemini'
+console.log('AI endpoint:', (window as any).__MINRISK_AI_PATH)
+
+
 /**
  * MinRisk — Version 1.7.2 (Final - Level 2)
  * - Enhanced Heatmap Popover: Inherent risk list now displays the corresponding Residual L & I values for each risk.
@@ -412,26 +417,105 @@ function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onR
         exportToCsv("priority_risk_register.csv", dataToExport);
     };
 
-    return (<Card className="rounded-2xl shadow-sm"><CardContent className="p-4"><div className="flex items-center justify-between mb-3"><div className="text-sm text-gray-500">Showing {sortedData.length} of {rowCount} risks</div><div className="flex items-center gap-2"><Button variant="outline" size="sm" onClick={handleExport}><Table className="mr-2 h-4 w-4"/>Export CSV</Button><AddRiskDialog rows={rows} onAdd={onAdd} config={config}/></div></div><div className="overflow-auto rounded-xl border bg-white"><table className="min-w-[980px] w-full text-sm"><thead className="bg-gray-100"><tr>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700 w-12">S/N</th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700 w-24">
-            <div className="flex items-center gap-2">
-                <Checkbox id="select-all" checked={isAllSelected ? true : isSomeSelected ? 'indeterminate' : false} onCheckedChange={handleSelectAll} />
-                <Label htmlFor="select-all">Priority</Label>
-            </div>
-        </th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700">Code</th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700">Title</th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700">Category</th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700">Owner</th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700"><Button variant="ghost" size="sm" onClick={() => requestSort('inherent_score')}>LxI (Inh) <ArrowUpDown className="ml-2 h-4 w-4" /></Button></th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700"><Button variant="ghost" size="sm" onClick={() => requestSort('residual_score')}>LxI (Res) <ArrowUpDown className="ml-2 h-4 w-4" /></Button></th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700">Bucket (Res)</th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700">Status</th>
-        <th></th>
-    </tr></thead><tbody>{sortedData.map((r,index)=>{const tag=bucket(r.likelihood_residual,r.impact_residual, config.matrixSize); const textColor = scoreColorText(tag); const bgColorClass = scoreColorClass(tag); return(<tr key={r.risk_code} className="border-t"><td className="px-3 py-2 text-center">{index+1}</td>
-    <td className="px-3 py-2 text-center"><Checkbox checked={priorityRisks.has(r.risk_code)} onCheckedChange={checked => handlePriorityChange(r.risk_code, checked)} /></td>
-    <td className="px-3 py-2 font-medium">{r.risk_code}</td><td className="px-3 py-2">{r.risk_title}</td><td className="px-3 py-2">{r.category}</td><td className="px-3 py-2">{r.owner}</td><td className="px-3 py-2">{r.inherent_score.toFixed(1)}</td><td className="px-3 py-2 font-semibold">{r.residual_score.toFixed(1)}</td><td className="px-3 py-2"><span className={`px-2 py-1 rounded-full text-xs ${bgColorClass} ${textColor}`}>{tag}</span></td><td className="px-3 py-2">{r.status}</td><td className="px-3 py-2"><div className="flex items-center gap-1"><Button size="sm" variant="ghost" onClick={() => onEdit(r)}><Pencil className="h-4 w-4"/></Button><DeleteConfirmationDialog onConfirm={()=>onRemove(r.risk_code)} riskCode={r.risk_code}/></div></td></tr>)})}</tbody></table></div></CardContent></Card>);
+return (
+  <>
+    <Card className="rounded-2xl shadow-sm">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm text-gray-500">
+            Showing {sortedData.length} of {rowCount} risks
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleExport}>
+              <Table className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
+            <AddRiskDialog rows={rows} onAdd={onAdd} config={config} />
+          </div>
+        </div>
+
+        <div className="overflow-auto rounded-xl border bg-white">
+          <table className="min-w-[980px] w-full text-sm">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700 w-12">S/N</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700 w-24">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="select-all"
+                      checked={isAllSelected ? true : isSomeSelected ? 'indeterminate' : false}
+                      onCheckedChange={handleSelectAll}
+                    />
+                    <Label htmlFor="select-all">Priority</Label>
+                  </div>
+                </th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">Code</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">Title</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">Category</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">Owner</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">
+                  <Button variant="ghost" size="sm" onClick={() => requestSort('inherent_score')}>
+                    LxI (Inh) <ArrowUpDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">
+                  <Button variant="ghost" size="sm" onClick={() => requestSort('residual_score')}>
+                    LxI (Res) <ArrowUpDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">Bucket (Res)</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">Status</th>
+                <th></th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {sortedData.map((r, index) => {
+                const tag = bucket(r.likelihood_residual, r.impact_residual, config.matrixSize);
+                const textColor = scoreColorText(tag);
+                const bgColorClass = scoreColorClass(tag);
+                return (
+                  <tr key={r.risk_code} className="border-t">
+                    <td className="px-3 py-2 text-center">{index + 1}</td>
+                    <td className="px-3 py-2 text-center">
+                      <Checkbox
+                        checked={priorityRisks.has(r.risk_code)}
+                        onCheckedChange={(checked) => handlePriorityChange(r.risk_code, checked)}
+                      />
+                    </td>
+                    <td className="px-3 py-2 font-medium">{r.risk_code}</td>
+                    <td className="px-3 py-2">{r.risk_title}</td>
+                    <td className="px-3 py-2">{r.category}</td>
+                    <td className="px-3 py-2">{r.owner}</td>
+                    <td className="px-3 py-2">{r.inherent_score.toFixed(1)}</td>
+                    <td className="px-3 py-2 font-semibold">{r.residual_score.toFixed(1)}</td>
+                    <td className="px-3 py-2">
+                      <span className={`px-2 py-1 rounded-full text-xs ${bgColorClass} ${textColor}`}>
+                        {tag}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">{r.status}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => onEdit(r)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <DeleteConfirmationDialog
+                          onConfirm={() => onRemove(r.risk_code)}
+                          riskCode={r.risk_code}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  </>
+);
 }
 
 function ControlRegisterTab({ allRisks }: { allRisks: RiskRow[] }) {
