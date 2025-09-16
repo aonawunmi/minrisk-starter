@@ -10,7 +10,7 @@ export default function SupaPing() {
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase
-        .from<Row>('ping')
+        .from('ping')
         .select('*')
         .order('id', { ascending: false })
         .limit(3);
