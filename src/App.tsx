@@ -14,6 +14,12 @@ import { Upload, Plus, Search, RefreshCw, Settings, Table, Pencil, Trash2, Chevr
 import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
 import { askGemini, ChatMsg } from '@/lib/ai';
+import SupaPing from "@/components/SupaPing";
+
+// Make the endpoint visible in DevTools:
+;(window as any).__MINRISK_AI_PATH = import.meta.env.VITE_AI_PATH ?? '/api/gemini'
+console.log('AI endpoint:', (window as any).__MINRISK_AI_PATH)
+
 
 /**
  * MinRisk — Version 1.7.2 (Final - Level 2)
@@ -85,7 +91,7 @@ const scoreColorClass = (t: string) => {
 };
 const scoreColorText = (t: string) => (t === "Catastrophic" || t === "Severe" || t === "High") ? "text-white" : "text-black";
 const cap3 = (s: string) => (s || "").replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() || "NEW";
-const nextRiskCode = (rows: RiskRow[], div: string, cat: string) => { const pre = `${cap3(div)}-${cap3(cat)}`; const nums = rows.filter(r => r && r.risk_code && r.risk_code.startsWith(pre)).map(r => Number((r.risk_code.split("-")[2] || "0").replace(/[^0-9]/g, ""))).filter(Number.isFinite).sort((a, b) => a - b); const n = (nums.at(-1) || 0) + 1; return `${pre}-${String(n).padStart(3, '0')}` };
+const nextRiskCode = (rows: RiskRow[], div: string, cat: string) => { const pre = `${cap3(div)}-${cap3(cat)}`; const nums = rows.filter(r => r && r.risk_code && r.risk_code.startsWith(pre)).map(r => Number((r.risk_code.split("-")[2] || "0").replace(/[^0-9]/g, ""))).filter(Number.isFinite).sort((a, b) => a - b); const n = (nums.length > 0 ? nums[nums.length - 1] : 0) + 1; return `${pre}-${String(n).padStart(3, '0')}` };
 const calculateControlEffectiveness = (control: Control): number => { if (control.design === 0 || control.implementation === 0) return 0; const totalScore = control.design + control.implementation + control.monitoring + control.effectiveness_evaluation; return totalScore / 12; };
 const calculateResidualRisk = (risk: RiskRow) => { const likelihoodControls = risk.controls.filter(c => c.target === 'Likelihood'); const impactControls = risk.controls.filter(c => c.target === 'Impact'); const maxLikelihoodReduction = likelihoodControls.length > 0 ? Math.max(...likelihoodControls.map(calculateControlEffectiveness)) : 0; const maxImpactReduction = impactControls.length > 0 ? Math.max(...impactControls.map(calculateControlEffectiveness)) : 0; const residualLikelihood = risk.likelihood_inherent - (risk.likelihood_inherent - 1) * maxLikelihoodReduction; const residualImpact = risk.impact_inherent - (risk.impact_inherent - 1) * maxImpactReduction; return { likelihood: Math.max(1, residualLikelihood), impact: Math.max(1, residualImpact) }; };
 
@@ -333,6 +339,14 @@ export default function MinRiskLatest() {
             <Select value={filters.status} onValueChange={v => setFilters({ ...filters, status: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["All", "Open", "In Progress", "Closed"].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
         </div>
 
+        {import.meta.env.DEV && (
+  <div className="mb-4 p-3 rounded-xl border bg-white">
+    <strong>Supabase check</strong>
+    <SupaPing />
+  </div>
+)}
+
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="mb-4"><TabsTrigger value="register">Risk Register</TabsTrigger><TabsTrigger value="control_register">Control Register</TabsTrigger><TabsTrigger value="heatmap">Heat Map</TabsTrigger><TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger><TabsTrigger value="import_risks">Risk Import</TabsTrigger><TabsTrigger value="import_controls">Control Import</TabsTrigger></TabsList>
             
@@ -412,26 +426,105 @@ function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onR
         exportToCsv("priority_risk_register.csv", dataToExport);
     };
 
-    return (<Card className="rounded-2xl shadow-sm"><CardContent className="p-4"><div className="flex items-center justify-between mb-3"><div className="text-sm text-gray-500">Showing {sortedData.length} of {rowCount} risks</div><div className="flex items-center gap-2"><Button variant="outline" size="sm" onClick={handleExport}><Table className="mr-2 h-4 w-4"/>Export CSV</Button><AddRiskDialog rows={rows} onAdd={onAdd} config={config}/></div></div><div className="overflow-auto rounded-xl border bg-white"><table className="min-w-[980px] w-full text-sm"><thead className="bg-gray-100"><tr>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700 w-12">S/N</th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700 w-24">
-            <div className="flex items-center gap-2">
-                <Checkbox id="select-all" checked={isAllSelected ? true : isSomeSelected ? 'indeterminate' : false} onCheckedChange={handleSelectAll} />
-                <Label htmlFor="select-all">Priority</Label>
-            </div>
-        </th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700">Code</th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700">Title</th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700">Category</th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700">Owner</th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700"><Button variant="ghost" size="sm" onClick={() => requestSort('inherent_score')}>LxI (Inh) <ArrowUpDown className="ml-2 h-4 w-4" /></Button></th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700"><Button variant="ghost" size="sm" onClick={() => requestSort('residual_score')}>LxI (Res) <ArrowUpDown className="ml-2 h-4 w-4" /></Button></th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700">Bucket (Res)</th>
-        <th className="px-3 py-2 text-left font-semibold text-gray-700">Status</th>
-        <th></th>
-    </tr></thead><tbody>{sortedData.map((r,index)=>{const tag=bucket(r.likelihood_residual,r.impact_residual, config.matrixSize); const textColor = scoreColorText(tag); const bgColorClass = scoreColorClass(tag); return(<tr key={r.risk_code} className="border-t"><td className="px-3 py-2 text-center">{index+1}</td>
-    <td className="px-3 py-2 text-center"><Checkbox checked={priorityRisks.has(r.risk_code)} onCheckedChange={checked => handlePriorityChange(r.risk_code, checked)} /></td>
-    <td className="px-3 py-2 font-medium">{r.risk_code}</td><td className="px-3 py-2">{r.risk_title}</td><td className="px-3 py-2">{r.category}</td><td className="px-3 py-2">{r.owner}</td><td className="px-3 py-2">{r.inherent_score.toFixed(1)}</td><td className="px-3 py-2 font-semibold">{r.residual_score.toFixed(1)}</td><td className="px-3 py-2"><span className={`px-2 py-1 rounded-full text-xs ${bgColorClass} ${textColor}`}>{tag}</span></td><td className="px-3 py-2">{r.status}</td><td className="px-3 py-2"><div className="flex items-center gap-1"><Button size="sm" variant="ghost" onClick={() => onEdit(r)}><Pencil className="h-4 w-4"/></Button><DeleteConfirmationDialog onConfirm={()=>onRemove(r.risk_code)} riskCode={r.risk_code}/></div></td></tr>)})}</tbody></table></div></CardContent></Card>);
+return (
+  <>
+    <Card className="rounded-2xl shadow-sm">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm text-gray-500">
+            Showing {sortedData.length} of {rowCount} risks
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleExport}>
+              <Table className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
+            <AddRiskDialog rows={rows} onAdd={onAdd} config={config} />
+          </div>
+        </div>
+
+        <div className="overflow-auto rounded-xl border bg-white">
+          <table className="min-w-[980px] w-full text-sm">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700 w-12">S/N</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700 w-24">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="select-all"
+                      checked={isAllSelected ? true : isSomeSelected ? 'indeterminate' : false}
+                      onCheckedChange={handleSelectAll}
+                    />
+                    <Label htmlFor="select-all">Priority</Label>
+                  </div>
+                </th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">Code</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">Title</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">Category</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">Owner</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">
+                  <Button variant="ghost" size="sm" onClick={() => requestSort('inherent_score')}>
+                    LxI (Inh) <ArrowUpDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">
+                  <Button variant="ghost" size="sm" onClick={() => requestSort('residual_score')}>
+                    LxI (Res) <ArrowUpDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">Bucket (Res)</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">Status</th>
+                <th></th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {sortedData.map((r, index) => {
+                const tag = bucket(r.likelihood_residual, r.impact_residual, config.matrixSize);
+                const textColor = scoreColorText(tag);
+                const bgColorClass = scoreColorClass(tag);
+                return (
+                  <tr key={r.risk_code} className="border-t">
+                    <td className="px-3 py-2 text-center">{index + 1}</td>
+                    <td className="px-3 py-2 text-center">
+                      <Checkbox
+                        checked={priorityRisks.has(r.risk_code)}
+                        onCheckedChange={(checked) => handlePriorityChange(r.risk_code, checked)}
+                      />
+                    </td>
+                    <td className="px-3 py-2 font-medium">{r.risk_code}</td>
+                    <td className="px-3 py-2">{r.risk_title}</td>
+                    <td className="px-3 py-2">{r.category}</td>
+                    <td className="px-3 py-2">{r.owner}</td>
+                    <td className="px-3 py-2">{r.inherent_score.toFixed(1)}</td>
+                    <td className="px-3 py-2 font-semibold">{r.residual_score.toFixed(1)}</td>
+                    <td className="px-3 py-2">
+                      <span className={`px-2 py-1 rounded-full text-xs ${bgColorClass} ${textColor}`}>
+                        {tag}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">{r.status}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => onEdit(r)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <DeleteConfirmationDialog
+                          onConfirm={() => onRemove(r.risk_code)}
+                          riskCode={r.risk_code}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  </>
+);
 }
 
 function ControlRegisterTab({ allRisks }: { allRisks: RiskRow[] }) {
