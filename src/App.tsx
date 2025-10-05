@@ -14,6 +14,7 @@ import { Upload, Plus, Search, RefreshCw, Settings, Table, Pencil, Trash2, Chevr
 import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
 import { askGemini, ChatMsg } from '@/lib/ai';
+import SupaPing from "@/components/SupaPing";
 
 // Make the endpoint visible in DevTools:
 ;(window as any).__MINRISK_AI_PATH = import.meta.env.VITE_AI_PATH ?? '/api/gemini'
@@ -90,7 +91,7 @@ const scoreColorClass = (t: string) => {
 };
 const scoreColorText = (t: string) => (t === "Catastrophic" || t === "Severe" || t === "High") ? "text-white" : "text-black";
 const cap3 = (s: string) => (s || "").replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() || "NEW";
-const nextRiskCode = (rows: RiskRow[], div: string, cat: string) => { const pre = `${cap3(div)}-${cap3(cat)}`; const nums = rows.filter(r => r && r.risk_code && r.risk_code.startsWith(pre)).map(r => Number((r.risk_code.split("-")[2] || "0").replace(/[^0-9]/g, ""))).filter(Number.isFinite).sort((a, b) => a - b); const n = (nums.at(-1) || 0) + 1; return `${pre}-${String(n).padStart(3, '0')}` };
+const nextRiskCode = (rows: RiskRow[], div: string, cat: string) => { const pre = `${cap3(div)}-${cap3(cat)}`; const nums = rows.filter(r => r && r.risk_code && r.risk_code.startsWith(pre)).map(r => Number((r.risk_code.split("-")[2] || "0").replace(/[^0-9]/g, ""))).filter(Number.isFinite).sort((a, b) => a - b); const n = (nums.length > 0 ? nums[nums.length - 1] : 0) + 1; return `${pre}-${String(n).padStart(3, '0')}` };
 const calculateControlEffectiveness = (control: Control): number => { if (control.design === 0 || control.implementation === 0) return 0; const totalScore = control.design + control.implementation + control.monitoring + control.effectiveness_evaluation; return totalScore / 12; };
 const calculateResidualRisk = (risk: RiskRow) => { const likelihoodControls = risk.controls.filter(c => c.target === 'Likelihood'); const impactControls = risk.controls.filter(c => c.target === 'Impact'); const maxLikelihoodReduction = likelihoodControls.length > 0 ? Math.max(...likelihoodControls.map(calculateControlEffectiveness)) : 0; const maxImpactReduction = impactControls.length > 0 ? Math.max(...impactControls.map(calculateControlEffectiveness)) : 0; const residualLikelihood = risk.likelihood_inherent - (risk.likelihood_inherent - 1) * maxLikelihoodReduction; const residualImpact = risk.impact_inherent - (risk.impact_inherent - 1) * maxImpactReduction; return { likelihood: Math.max(1, residualLikelihood), impact: Math.max(1, residualImpact) }; };
 
@@ -337,6 +338,14 @@ export default function MinRiskLatest() {
             <Select value={filters.category} onValueChange={v => setFilters({ ...filters, category: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["All", ...config.categories].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
             <Select value={filters.status} onValueChange={v => setFilters({ ...filters, status: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["All", "Open", "In Progress", "Closed"].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
         </div>
+
+        {import.meta.env.DEV && (
+  <div className="mb-4 p-3 rounded-xl border bg-white">
+    <strong>Supabase check</strong>
+    <SupaPing />
+  </div>
+)}
+
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="mb-4"><TabsTrigger value="register">Risk Register</TabsTrigger><TabsTrigger value="control_register">Control Register</TabsTrigger><TabsTrigger value="heatmap">Heat Map</TabsTrigger><TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger><TabsTrigger value="import_risks">Risk Import</TabsTrigger><TabsTrigger value="import_controls">Control Import</TabsTrigger></TabsList>
