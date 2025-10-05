@@ -3,6 +3,51 @@ import { Sparkles } from "lucide-react";
 
 type Msg = { role: "user" | "model"; content: string };
 
+/** Resolve the AI endpoint in this order:
+ *  1) window.__MINRISK_AT_PATH (set by App at runtime / logged in console)
+ *  2) Vite env VITE_AT_PATH
+ *  3) Fallback to /api/gemini (local dev API route)
+ */
+function getAIEndpoint(): string {
+  try {
+    const w = window as any;
+    if (w && typeof w.__MINRISK_AT_PATH === "string" && w.__MINRISK_AT_PATH) {
+      return w.__MINRISK_AT_PATH;
+    }
+  } catch {
+    /* noop */
+  }
+  return import.meta.env.VITE_AT_PATH || "/api/gemini";
+}
+
+/** Be liberal in what we accept back from the server and normalize to a string */
+function normalizeAIResponse(data: unknown): string {
+  // If server already returned a string
+  if (typeof data === "string") return data;
+
+  // If server returned { text: "..." }
+  if (data && typeof (data as any).text === "string") return (data as any).text;
+
+  // If a raw Gemini shape was forwarded
+  try {
+    const d: any = data;
+    const parts = d?.candidates?.[0]?.content?.parts;
+    if (Array.isArray(parts)) {
+      const txt = parts.map((p: any) => p?.text).filter(Boolean).join("\n");
+      if (txt) return txt;
+    }
+  } catch {
+    /* noop */
+  }
+
+  // Last resort: JSON stringify so caller sees _something_ helpful
+  try {
+    return JSON.stringify(data);
+  } catch {
+    return String(data);
+  }
+}
+
 export default function AskAI() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -12,29 +57,52 @@ export default function AskAI() {
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+    listRef.current?.scrollTo({
+      top: listRef.current.scrollHeight,
+      behavior: "smooth",
+    });
   }, [history, open]);
 
   async function send() {
     const prompt = input.trim();
     if (!prompt || busy) return;
+
     setBusy(true);
     setError(null);
-    setHistory(h => [...h, { role: "user", content: prompt }]);
+    setHistory((h) => [...h, { role: "user", content: prompt }]);
     setInput("");
+
     try {
-      const r = await fetch("/api/gemini", {
+      const url = getAIEndpoint();
+
+      const res = await fetch(url, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "Content-Type": "application/json" },
+        // include prior messages so your API can keep context (safe if ignored)
         body: JSON.stringify({ prompt, history }),
       });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data?.error || "Gemini error");
-      const text = String(data?.text ?? "");
-      setHistory(h => [...h, { role: "model", content: text }]);
+
+      // Non-2xx: capture any text body so we see the real error
+      if (!res.ok) {
+        const details = await res.text().catch(() => "");
+        throw new Error(details || `AI endpoint error ${res.status} ${res.statusText}`);
+      }
+
+      // Some servers return JSON, some return text—handle both
+      const raw = await res.text();
+      let data: unknown;
+      try {
+        data = raw ? JSON.parse(raw) : "";
+      } catch {
+        data = raw; // plain text
+      }
+
+      const text = normalizeAIResponse(data);
+      setHistory((h) => [...h, { role: "model", content: text }]);
     } catch (e: any) {
       setError(e?.message || "Request failed");
-      setHistory(h => h.slice(0, -1)); // remove the last user message if call failed
+      // remove the just-added user turn to keep the thread tidy on failure
+      setHistory((h) => h.slice(0, -1));
     } finally {
       setBusy(false);
     }
@@ -51,7 +119,7 @@ export default function AskAI() {
     <>
       {/* Floating launcher */}
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={() => setOpen((v) => !v)}
         className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 shadow-md hover:shadow-lg"
         aria-label="Ask AI"
       >

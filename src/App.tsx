@@ -15,6 +15,9 @@ import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
 import { askGemini, ChatMsg } from '@/lib/ai';
 import SupaPing from "@/components/SupaPing";
+import UserMenu from "@/components/UserMenu";
+import AdminDashboard from "@/components/AdminDashboard";
+import { loadRisks, createRisk, updateRisk, deleteRisk, loadConfig, saveConfig as saveConfigToDb } from '@/lib/database';
 
 // Make the endpoint visible in DevTools:
 ;(window as any).__MINRISK_AI_PATH = import.meta.env.VITE_AI_PATH ?? '/api/gemini'
@@ -218,7 +221,8 @@ const callGeminiAPI = async (prompt: string, schema?: any): Promise<any> => {
 
 // ===== MAIN APP COMPONENT =====
 export default function MinRiskLatest() {
-    const [rows, setRows] = useState<RiskRow[]>(SEED);
+    const [rows, setRows] = useState<RiskRow[]>([]);
+    const [loading, setLoading] = useState(true);
     const [query, setQuery] = useState("");
     const [config, setConfig] = useState<AppConfig>(DEFAULT_APP_CONFIG);
     const [filters, setFilters] = useState({ divisions: [] as string[], departments: [] as string[], category: "All", status: "All" });
@@ -227,6 +231,56 @@ export default function MinRiskLatest() {
     const [priorityRisks, setPriorityRisks] = useState(new Set<string>());
     const [activeTab, setActiveTab] = useState("register");
     const [editingRisk, setEditingRisk] = useState<ProcessedRisk | null>(null);
+
+    // Load data from database on mount
+    useEffect(() => {
+        async function fetchData() {
+            setLoading(true);
+            console.log('🚀 Starting data load...');
+            try {
+                // Import dynamically to avoid circular dependency
+                const { getOrCreateUserProfile } = await import('@/lib/database');
+                const { supabase } = await import('@/lib/supabase');
+
+                // Get current user
+                console.log('👤 Getting current user...');
+                const { data: { user } } = await supabase.auth.getUser();
+                console.log('👤 User:', user?.id || 'No user');
+
+                if (user) {
+                    // Ensure user profile exists (creates if doesn't exist)
+                    console.log('📝 Creating/checking user profile...');
+                    const profileResult = await getOrCreateUserProfile(user.id);
+                    console.log('📝 Profile result:', profileResult);
+                }
+
+                console.log('⚠️  Loading risks...');
+                const risks = await loadRisks();
+                console.log('⚠️  Loaded risks:', risks.length);
+                setRows(risks);
+
+                console.log('⚙️  Loading config...');
+                const dbConfig = await loadConfig();
+                console.log('⚙️  Config loaded:', dbConfig);
+                if (dbConfig) {
+                    setConfig({
+                        matrixSize: dbConfig.matrix_size,
+                        likelihoodLabels: dbConfig.likelihood_labels,
+                        impactLabels: dbConfig.impact_labels,
+                        divisions: dbConfig.divisions,
+                        departments: dbConfig.departments,
+                        categories: dbConfig.categories,
+                    });
+                }
+                console.log('✅ Data load complete!');
+            } catch (error) {
+                console.error('❌ Failed to load data:', error);
+            } finally {
+                setLoading(false);
+            }
+        }
+        fetchData();
+    }, []);
 
     const filtered = useMemo(() => { const q = query.trim().toLowerCase(); return rows.filter(r => { const m = !q || [r.risk_code, r.risk_title, r.risk_description, r.owner, r.category, r.division, r.department].join(" ").toLowerCase().includes(q); const d = filters.divisions.length === 0 || filters.divisions.includes(r.division); const de = filters.departments.length === 0 || filters.departments.includes(r.department); const c = filters.category === "All" || r.category === filters.category; const s = filters.status === "All" || r.status === filters.status; return m && d && de && c && s; }); }, [rows, query, filters]);
     const processedData = useMemo(() => { return filtered.map(r => { const residual = calculateResidualRisk(r); return { ...r, likelihood_residual: residual.likelihood, impact_residual: residual.impact, inherent_score: r.likelihood_inherent * r.impact_inherent, residual_score: residual.likelihood * residual.impact }; }); }, [filtered]);
@@ -243,68 +297,137 @@ export default function MinRiskLatest() {
         return sortableItems;
     }, [processedData, sortConfig]);
     
-    const addMultipleRisks = (risksToAdd: Omit<RiskRow, 'risk_code'>[]) => {
-        setRows(prevRows => {
-            let tempRows = [...prevRows];
-            const newRisksWithCodes = risksToAdd.map(risk => {
-                const newRisk = { ...risk, risk_code: nextRiskCode(tempRows, risk.division, risk.category) };
-                tempRows.push(newRisk);
-                return newRisk;
-            });
-            return [...prevRows, ...newRisksWithCodes];
-        });
+    const addMultipleRisks = async (risksToAdd: Omit<RiskRow, 'risk_code'>[]) => {
+        for (const risk of risksToAdd) {
+            const riskCode = nextRiskCode(rows, risk.division, risk.category);
+            console.log('Attempting to create risk:', riskCode);
+            const result = await createRisk({ ...risk, risk_code: riskCode });
+            console.log('Create risk result:', result);
+            if (result.success && result.data) {
+                setRows(prev => [...prev, result.data!]);
+                console.log('Risk added to state successfully');
+            } else {
+                console.error('Failed to create risk:', result.error);
+                alert(`Failed to create risk: ${result.error || 'Unknown error'}`);
+            }
+        }
     };
 
     const add = (payload: Omit<RiskRow, 'risk_code'>) => addMultipleRisks([payload]);
-    
-    const save = (code: string, payload: Omit<RiskRow, 'risk_code'>) => setRows(p => p.map(r => r.risk_code === code ? { ...payload, risk_code: code } : r));
-    const remove = (code: string) => {
-        setRows(p => p.filter(r => r.risk_code !== code));
-        setPriorityRisks(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(code);
-            return newSet;
-        });
+
+    const save = async (code: string, payload: Omit<RiskRow, 'risk_code'>) => {
+        const result = await updateRisk(code, payload);
+        if (result.success) {
+            setRows(p => p.map(r => r.risk_code === code ? { ...payload, risk_code: code } : r));
+        } else {
+            console.error('Failed to update risk:', result.error);
+            alert(`Failed to update risk: ${result.error}`);
+        }
+    };
+
+    const remove = async (code: string) => {
+        const result = await deleteRisk(code);
+        if (result.success) {
+            setRows(p => p.filter(r => r.risk_code !== code));
+            setPriorityRisks(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(code);
+                return newSet;
+            });
+        } else {
+            console.error('Failed to delete risk:', result.error);
+            alert(`Failed to delete risk: ${result.error}`);
+        }
     };
     
-    const handleRiskBulkImport = (newRisks: ParsedRisk[], discoveredConfig: DiscoveredConfig) => {
+    const handleRiskBulkImport = async (newRisks: ParsedRisk[], discoveredConfig: DiscoveredConfig) => {
+        console.log('🔄 Bulk importing', newRisks.length, 'risks...');
+
+        // Update config with new divisions/departments/categories
         setConfig(prevConfig => ({
             ...prevConfig,
             divisions: [...new Set([...prevConfig.divisions, ...discoveredConfig.divisions])],
             departments: [...new Set([...prevConfig.departments, ...discoveredConfig.departments])],
             categories: [...new Set([...prevConfig.categories, ...discoveredConfig.categories])],
         }));
-        setRows(prevRows => {
-            let tempRowsForCodeGeneration = [...prevRows];
-            const processedNewRisks = newRisks.map(riskWithoutCode => {
-                const newRiskWithCode = { ...riskWithoutCode, risk_code: nextRiskCode(tempRowsForCodeGeneration, riskWithoutCode.division, riskWithoutCode.category) };
-                tempRowsForCodeGeneration.push(newRiskWithCode as RiskRow);
-                return newRiskWithCode;
-            });
-            return [...prevRows, ...processedNewRisks as RiskRow[]];
+
+        // Generate risk codes and prepare for bulk insert
+        let tempRowsForCodeGeneration = [...rows];
+        const risksWithCodes = newRisks.map(riskWithoutCode => {
+            const newRiskWithCode = {
+                ...riskWithoutCode,
+                risk_code: nextRiskCode(tempRowsForCodeGeneration, riskWithoutCode.division, riskWithoutCode.category)
+            };
+            tempRowsForCodeGeneration.push(newRiskWithCode as RiskRow);
+            return newRiskWithCode as RiskRow;
         });
+
+        // Import to database using bulkImportRisks
+        const { bulkImportRisks } = await import('@/lib/database');
+        const result = await bulkImportRisks(risksWithCodes);
+
+        if (result.success) {
+            console.log('✅ Bulk import successful:', result.count, 'risks saved');
+            // Reload all risks from database to get the complete data with IDs
+            const allRisks = await loadRisks();
+            setRows(allRisks);
+        } else {
+            console.error('❌ Bulk import failed:', result.error);
+            alert(`Failed to import risks: ${result.error}`);
+        }
     };
 
-    const handleControlBulkImport = (newControls: ParsedControl[]) => {
-        setRows(currentRows => {
-            const rowsMap = new Map(currentRows.map(r => [r.risk_code, { ...r, controls: [...r.controls] }]));
-            newControls.forEach(controlData => {
-                const risk = rowsMap.get(controlData.risk_code);
-                if (risk) {
-                    const newControl: Control = {
-                        id: crypto.randomUUID(),
-                        description: controlData.description,
-                        target: controlData.target,
-                        design: controlData.design,
-                        implementation: controlData.implementation,
-                        monitoring: controlData.monitoring,
-                        effectiveness_evaluation: controlData.effectiveness_evaluation,
-                    };
-                    risk.controls.push(newControl);
-                }
-            });
-            return Array.from(rowsMap.values());
+    const handleControlBulkImport = async (newControls: ParsedControl[]) => {
+        console.log('🔄 Bulk importing', newControls.length, 'controls...');
+
+        // Add controls to existing risks in state
+        const rowsMap = new Map(rows.map(r => [r.risk_code, { ...r, controls: [...r.controls] }]));
+
+        newControls.forEach(controlData => {
+            const risk = rowsMap.get(controlData.risk_code);
+            if (risk) {
+                const newControl: Control = {
+                    id: crypto.randomUUID(),
+                    description: controlData.description,
+                    target: controlData.target,
+                    design: controlData.design,
+                    implementation: controlData.implementation,
+                    monitoring: controlData.monitoring,
+                    effectiveness_evaluation: controlData.effectiveness_evaluation,
+                };
+                risk.controls.push(newControl);
+            }
         });
+
+        const updatedRisks = Array.from(rowsMap.values());
+
+        // Save each updated risk to database
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (const risk of updatedRisks) {
+            // Only update risks that had controls added
+            const originalRisk = rows.find(r => r.risk_code === risk.risk_code);
+            if (originalRisk && risk.controls.length !== originalRisk.controls.length) {
+                const result = await updateRisk(risk.risk_code, risk);
+                if (result.success) {
+                    successCount++;
+                } else {
+                    errorCount++;
+                    console.error('Failed to update risk', risk.risk_code, ':', result.error);
+                }
+            }
+        }
+
+        console.log(`✅ Control import complete: ${successCount} risks updated, ${errorCount} errors`);
+
+        if (errorCount > 0) {
+            alert(`Some controls failed to save: ${errorCount} errors. Check console for details.`);
+        }
+
+        // Reload all risks from database to get fresh data
+        const allRisks = await loadRisks();
+        setRows(allRisks);
     };
     
     const requestSort = (key: keyof ProcessedRisk) => {
@@ -322,12 +445,118 @@ export default function MinRiskLatest() {
         }
     };
 
+    const handleResetDemo = async () => {
+        if (!confirm('⚠️ This will DELETE ALL your data and reset to demo data. This cannot be undone. Continue?')) return;
+
+        setLoading(true);
+        console.log('🗑️ Clearing all database data...');
+
+        try {
+            // Delete all existing risks (controls will be deleted automatically via CASCADE)
+            const existingRisks = await loadRisks();
+            console.log(`Found ${existingRisks.length} risks to delete`);
+
+            for (const risk of existingRisks) {
+                const result = await deleteRisk(risk.risk_code);
+                if (!result.success) {
+                    console.error('Failed to delete risk:', risk.risk_code, result.error);
+                }
+            }
+
+            console.log('✅ All data cleared');
+
+            // Load demo data into database
+            console.log('📦 Loading demo data...');
+            const { bulkImportRisks } = await import('@/lib/database');
+            const result = await bulkImportRisks(SEED);
+
+            if (result.success) {
+                console.log('✅ Demo data loaded:', result.count, 'risks');
+                // Reload from database
+                const allRisks = await loadRisks();
+                setRows(allRisks);
+            } else {
+                console.error('❌ Failed to load demo data:', result.error);
+                alert(`Failed to load demo data: ${result.error}`);
+            }
+
+            // Reset config to defaults
+            setConfig(DEFAULT_APP_CONFIG);
+
+            console.log('🎉 Reset complete!');
+        } catch (error) {
+            console.error('❌ Reset failed:', error);
+            alert('Failed to reset data. Check console for details.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleClearAllData = async () => {
+        if (!confirm('⚠️ This will DELETE ALL your risks and controls from the database. This cannot be undone. Continue?')) return;
+
+        setLoading(true);
+        console.log('🗑️ Clearing all database data...');
+
+        try {
+            // Delete all existing risks (controls will be deleted automatically via CASCADE)
+            const existingRisks = await loadRisks();
+            console.log(`Found ${existingRisks.length} risks to delete`);
+
+            for (const risk of existingRisks) {
+                const result = await deleteRisk(risk.risk_code);
+                if (!result.success) {
+                    console.error('Failed to delete risk:', risk.risk_code, result.error);
+                }
+            }
+
+            console.log('✅ All data cleared');
+            setRows([]);
+            console.log('🎉 Clear complete!');
+        } catch (error) {
+            console.error('❌ Clear failed:', error);
+            alert('Failed to clear data. Check console for details.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSaveConfig = async (newConfig: AppConfig) => {
+        const result = await saveConfigToDb({
+            matrix_size: newConfig.matrixSize,
+            likelihood_labels: newConfig.likelihoodLabels,
+            impact_labels: newConfig.impactLabels,
+            divisions: newConfig.divisions,
+            departments: newConfig.departments,
+            categories: newConfig.categories,
+        });
+        if (result.success) {
+            setConfig(newConfig);
+        } else {
+            console.error('Failed to save config:', result.error);
+            alert(`Failed to save configuration: ${result.error}`);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen w-full bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2 text-gray-400" />
+                    <p className="text-gray-600">Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
     return <div className="min-h-screen w-full bg-gray-50 p-6">
         <div className="flex items-center justify-between mb-6">
             <div><h1 className="text-2xl md:text-3xl font-bold">MinRisk</h1><p className="text-sm text-gray-500">Version 1.6.1 (Final)</p></div>
             <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={() => { setRows(SEED); setConfig(DEFAULT_APP_CONFIG); }}><RefreshCw className="mr-2 h-4 w-4" />Reset Demo</Button>
-                <ConfigDialog config={config} onSave={setConfig} />
+                <Button variant="outline" onClick={handleClearAllData}><Trash2 className="mr-2 h-4 w-4" />Clear All</Button>
+                <Button variant="outline" onClick={handleResetDemo}><RefreshCw className="mr-2 h-4 w-4" />Reset Demo</Button>
+                <ConfigDialog config={config} onSave={handleSaveConfig} />
+                <UserMenu />
             </div>
         </div>
 
@@ -348,14 +577,15 @@ export default function MinRiskLatest() {
 
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="mb-4"><TabsTrigger value="register">Risk Register</TabsTrigger><TabsTrigger value="control_register">Control Register</TabsTrigger><TabsTrigger value="heatmap">Heat Map</TabsTrigger><TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger><TabsTrigger value="import_risks">Risk Import</TabsTrigger><TabsTrigger value="import_controls">Control Import</TabsTrigger></TabsList>
-            
+            <TabsList className="mb-4"><TabsTrigger value="register">Risk Register</TabsTrigger><TabsTrigger value="control_register">Control Register</TabsTrigger><TabsTrigger value="heatmap">Heat Map</TabsTrigger><TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger><TabsTrigger value="import_risks">Risk Import</TabsTrigger><TabsTrigger value="import_controls">Control Import</TabsTrigger><TabsTrigger value="admin">👥 Admin</TabsTrigger></TabsList>
+
             <TabsContent value="register"><RiskRegisterTab sortedData={sortedData} rowCount={rows.length} requestSort={requestSort} onAdd={add} onEdit={setEditingRisk} onRemove={remove} config={config} rows={rows} priorityRisks={priorityRisks} setPriorityRisks={setPriorityRisks} /></TabsContent>
             <TabsContent value="control_register"><ControlRegisterTab allRisks={rows} /></TabsContent>
             <TabsContent value="heatmap"><HeatmapTab processedData={processedData} heatMapView={heatMapView} setHeatMapView={setHeatMapView} priorityRisks={priorityRisks} config={config} onEditRisk={setEditingRisk}/></TabsContent>
             <TabsContent value="ai_assistant"><AIAssistantTab onAddMultipleRisks={addMultipleRisks} config={config} onSwitchTab={setActiveTab}/></TabsContent>
             <TabsContent value="import_risks"><RiskImportTab onImport={handleRiskBulkImport} currentConfig={config}/></TabsContent>
             <TabsContent value="import_controls"><ControlImportTab onImport={handleControlBulkImport} allRisks={rows} /></TabsContent>
+            <TabsContent value="admin"><AdminDashboard /></TabsContent>
         </Tabs>
         
         {editingRisk && (
@@ -804,7 +1034,7 @@ function RiskFields({ form, setForm, config, codePreview, codeLocked }: { form: 
         }
         setIsSuggesting(true);
         try {
-            const prompt = `Based on the risk titled "${form.risk_title}" with the description "${form.risk_description}", suggest 3 relevant control measures. For each, provide a brief description and specify if it primarily targets 'Likelihood' or 'Impact'.`;
+            const prompt = `Based on the risk titled "${form.risk_title}" with the description "${form.risk_description}", suggest 3 relevant control measures. Include a mix of controls: some that reduce the 'Likelihood' of the risk occurring, and some that reduce the 'Impact' if it does occur. For each control, provide a brief description and specify whether it primarily targets 'Likelihood' or 'Impact'.`;
             const schema = {
               type: "ARRAY",
               items: {
