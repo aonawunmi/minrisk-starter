@@ -4,7 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, Users, FileText, Shield, AlertTriangle, Check, X, UserCheck, UserX } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RefreshCw, Users, FileText, Shield, AlertTriangle, Check, X, UserCheck, UserX, Archive, BookOpen } from 'lucide-react';
+import ArchiveManagement from './ArchiveManagement';
+import AuditTrail from './AuditTrail';
+import HelpTab from './HelpTab';
 
 type UserData = {
   id: string;
@@ -145,7 +149,27 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <Tabs defaultValue="users" className="space-y-6">
+      <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+        <TabsTrigger value="users">
+          <Users className="h-4 w-4 mr-2" />
+          Users
+        </TabsTrigger>
+        <TabsTrigger value="archive">
+          <Archive className="h-4 w-4 mr-2" />
+          Archive
+        </TabsTrigger>
+        <TabsTrigger value="audit">
+          <FileText className="h-4 w-4 mr-2" />
+          Audit Trail
+        </TabsTrigger>
+        <TabsTrigger value="help">
+          <BookOpen className="h-4 w-4 mr-2" />
+          Help
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="users" className="space-y-6">
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
@@ -332,6 +356,19 @@ export default function AdminDashboard() {
           </div>
         </CardContent>
       </Card>
-    </div>
+      </TabsContent>
+
+      <TabsContent value="archive">
+        <ArchiveManagement />
+      </TabsContent>
+
+      <TabsContent value="audit">
+        <AuditTrail />
+      </TabsContent>
+
+      <TabsContent value="help">
+        <HelpTab />
+      </TabsContent>
+    </Tabs>
   );
 }

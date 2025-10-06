@@ -17,6 +17,7 @@ import { askGemini, ChatMsg } from '@/lib/ai';
 import SupaPing from "@/components/SupaPing";
 import UserMenu from "@/components/UserMenu";
 import AdminDashboard from "@/components/AdminDashboard";
+import BulkDeletionDialog from "@/components/BulkDeletionDialog";
 import { loadRisks, createRisk, updateRisk, deleteRisk, loadConfig, saveConfig as saveConfigToDb } from '@/lib/database';
 
 // Make the endpoint visible in DevTools:
@@ -661,6 +662,7 @@ export default function MinRiskLatest() {
 // ===== CHILD COMPONENTS =====
 
 function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onRemove, config, rows, allRows, priorityRisks, setPriorityRisks, canEdit, filters, setFilters, isAdmin }: { sortedData: ProcessedRisk[]; rowCount: number; requestSort: (key: keyof ProcessedRisk) => void; onAdd: (r: Omit<RiskRow, 'risk_code'>) => void; onEdit: (risk: ProcessedRisk) => void; onRemove: (code: string) => void; config: AppConfig; rows: RiskRow[]; allRows: RiskRow[]; priorityRisks: Set<string>; setPriorityRisks: React.Dispatch<React.SetStateAction<Set<string>>>; canEdit: boolean; filters: { divisions: string[]; departments: string[]; category: string; status: string; users: string[] }; setFilters: React.Dispatch<React.SetStateAction<{ divisions: string[]; departments: string[]; category: string; status: string; users: string[] }>>; isAdmin: boolean }) {
+    const [showBulkDelete, setShowBulkDelete] = useState(false);
 
     // Always show all sorted data - priority checkboxes are just for marking/selection
     const displayedData = sortedData;
@@ -723,6 +725,30 @@ function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onR
         exportToCsv("priority_risk_register.csv", dataToExport);
     };
 
+    const handleBulkDelete = () => {
+        if (priorityRisks.size === 0) {
+            alert("Please select at least one risk to delete.");
+            return;
+        }
+        setShowBulkDelete(true);
+    };
+
+    const handleBulkDeleteComplete = async () => {
+        // Reload risks from database
+        const updatedRisks = await loadRisks();
+        // This would need to be passed from parent - for now just close dialog
+        setShowBulkDelete(false);
+        setPriorityRisks(new Set()); // Clear selections
+        // Trigger a re-render by updating the parent
+        window.location.reload(); // Simple solution - could be improved
+    };
+
+    const selectedRisksForBulkDelete = useMemo(() => {
+        return displayedData
+            .filter(r => isPriorityRisk(priorityRisks, r.user_id, r.risk_code))
+            .map(r => ({ risk_code: r.risk_code, risk_title: r.risk_title }));
+    }, [displayedData, priorityRisks]);
+
 return (
   <>
     <Card className="rounded-2xl shadow-sm">
@@ -730,12 +756,23 @@ return (
         <div className="flex items-center justify-between mb-3">
           <div className="text-sm text-gray-500">
             Showing {displayedData.length} of {rowCount} risks
+            {priorityRisks.size > 0 && (
+              <span className="ml-2 text-blue-600 font-medium">
+                ({priorityRisks.size} selected)
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleExport}>
               <Table className="mr-2 h-4 w-4" />
               Export CSV
             </Button>
+            {canEdit && priorityRisks.size > 0 && (
+              <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Bulk Delete ({priorityRisks.size})
+              </Button>
+            )}
             {canEdit && <AddRiskDialog rows={rows} onAdd={onAdd} config={config} />}
           </div>
         </div>
@@ -835,6 +872,13 @@ return (
         </div>
       </CardContent>
     </Card>
+
+    <BulkDeletionDialog
+      open={showBulkDelete}
+      onOpenChange={setShowBulkDelete}
+      selectedRisks={selectedRisksForBulkDelete}
+      onComplete={handleBulkDeleteComplete}
+    />
   </>
 );
 }
