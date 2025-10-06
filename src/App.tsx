@@ -304,8 +304,11 @@ export default function MinRiskLatest() {
         let sortableItems = [...processedData];
         if (sortConfig !== null) {
             sortableItems.sort((a, b) => {
-                if (a[sortConfig.key] < b[sortConfig.key]) { return sortConfig.direction === 'asc' ? -1 : 1; }
-                if (a[sortConfig.key] > b[sortConfig.key]) { return sortConfig.direction === 'asc' ? 1 : -1; }
+                const aVal = a[sortConfig.key];
+                const bVal = b[sortConfig.key];
+                if (aVal === undefined || bVal === undefined) return 0;
+                if (aVal < bVal) { return sortConfig.direction === 'asc' ? -1 : 1; }
+                if (aVal > bVal) { return sortConfig.direction === 'asc' ? 1 : -1; }
                 return 0;
             });
         }
@@ -610,7 +613,7 @@ export default function MinRiskLatest() {
             <MultiSelectPopover title="Departments" options={config.departments} selected={filters.departments} setSelected={v => setFilters(f => ({ ...f, departments: v }))} />
             <Select value={filters.category} onValueChange={v => setFilters({ ...filters, category: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["All", ...config.categories].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
             <Select value={filters.status} onValueChange={v => setFilters({ ...filters, status: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["All", "Open", "In Progress", "Closed"].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
-            {isAdmin && <Select value={filters.user} onValueChange={v => setFilters({ ...filters, user: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["All Users", ...Array.from(new Set(rows.map(r => r.user_email).filter(Boolean)))].map(x => <SelectItem key={x} value={x === "All Users" ? "All" : x}>{x}</SelectItem>)}</SelectContent></Select>}
+            {isAdmin && <Select value={filters.user} onValueChange={v => setFilters({ ...filters, user: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["All Users", ...Array.from(new Set(rows.map(r => r.user_email).filter((e): e is string => Boolean(e))))].map(x => <SelectItem key={x} value={x === "All Users" ? "All" : x}>{x}</SelectItem>)}</SelectContent></Select>}
         </div>
 
         {import.meta.env.DEV && (
