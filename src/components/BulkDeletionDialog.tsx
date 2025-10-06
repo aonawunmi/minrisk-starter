@@ -70,7 +70,7 @@ export default function BulkDeletionDialog({
       // Reset form
       setAction('archive');
       setReason('');
-      setPassword('');
+      setConfirmText('');
     } catch (error: any) {
       console.error('Bulk deletion error:', error);
       alert(`Error: ${error.message}`);
