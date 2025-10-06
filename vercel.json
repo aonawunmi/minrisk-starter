@@ -1,10 +1,10 @@
 {
   "env": {
-    "GEMINI_API_KEY": "AIzaSyCP2w7h6UhRR8QTrw6mOOVAkyX6bGmPcHs"
+    "GEMINI_API_KEY": "AIzaSyDzjgFFVs75HUbTXVu3xVsDFxBvQRa4mzQ"
   },
   "build": {
     "env": {
-      "GEMINI_API_KEY": "AIzaSyCP2w7h6UhRR8QTrw6mOOVAkyX6bGmPcHs"
+      "GEMINI_API_KEY": "AIzaSyDzjgFFVs75HUbTXVu3xVsDFxBvQRa4mzQ"
     }
   }
 }
