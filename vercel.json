@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "nodejs20.x"
+    }
+  },
   "env": {
     "GEMINI_API_KEY": "AIzaSyCjG2LgeHwdCDIkzyuGUK0OEFl6PelGYBY"
   },
