@@ -627,8 +627,8 @@ export default function MinRiskLatest() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="mb-4"><TabsTrigger value="register">Risk Register</TabsTrigger><TabsTrigger value="control_register">Control Register</TabsTrigger><TabsTrigger value="heatmap">Heat Map</TabsTrigger>{/* <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger> */}{canEdit && <TabsTrigger value="import_risks">Risk Import</TabsTrigger>}{canEdit && <TabsTrigger value="import_controls">Control Import</TabsTrigger>}{isAdmin && <TabsTrigger value="admin">👥 Admin</TabsTrigger>}</TabsList>
 
-            <TabsContent value="register"><RiskRegisterTab sortedData={sortedData} rowCount={rows.length} requestSort={requestSort} onAdd={add} onEdit={setEditingRisk} onRemove={remove} config={config} rows={rows} priorityRisks={priorityRisks} setPriorityRisks={setPriorityRisks} canEdit={canEdit} /></TabsContent>
-            <TabsContent value="control_register"><ControlRegisterTab allRisks={rows} canEdit={canEdit} /></TabsContent>
+            <TabsContent value="register"><RiskRegisterTab sortedData={sortedData} rowCount={filtered.length} requestSort={requestSort} onAdd={add} onEdit={setEditingRisk} onRemove={remove} config={config} rows={filtered} priorityRisks={priorityRisks} setPriorityRisks={setPriorityRisks} canEdit={canEdit} /></TabsContent>
+            <TabsContent value="control_register"><ControlRegisterTab allRisks={filtered} canEdit={canEdit} /></TabsContent>
             <TabsContent value="heatmap"><HeatmapTab processedData={processedData} heatMapView={heatMapView} setHeatMapView={setHeatMapView} priorityRisks={priorityRisks} config={config} onEditRisk={setEditingRisk} canEdit={canEdit} /></TabsContent>
             {/* <TabsContent value="ai_assistant"><AIAssistantTab onAddMultipleRisks={addMultipleRisks} config={config} onSwitchTab={setActiveTab}/></TabsContent> */}
             <TabsContent value="import_risks"><RiskImportTab onImport={handleRiskBulkImport} currentConfig={config} canEdit={canEdit} /></TabsContent>
