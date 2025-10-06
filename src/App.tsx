@@ -231,6 +231,8 @@ export default function MinRiskLatest() {
     const [priorityRisks, setPriorityRisks] = useState(new Set<string>());
     const [activeTab, setActiveTab] = useState("register");
     const [editingRisk, setEditingRisk] = useState<ProcessedRisk | null>(null);
+    const [userRole, setUserRole] = useState<'admin' | 'edit' | 'view_only' | null>(null);
+    const [userStatus, setUserStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null);
 
     // Load data from database on mount
     useEffect(() => {
@@ -252,6 +254,19 @@ export default function MinRiskLatest() {
                     console.log('📝 Creating/checking user profile...');
                     const profileResult = await getOrCreateUserProfile(user.id);
                     console.log('📝 Profile result:', profileResult);
+
+                    // Load user role and status
+                    const { data: profile } = await supabase
+                        .from('user_profiles')
+                        .select('role, status')
+                        .eq('id', user.id)
+                        .single();
+
+                    if (profile) {
+                        setUserRole(profile.role);
+                        setUserStatus(profile.status);
+                        console.log('👤 User role:', profile.role, 'Status:', profile.status);
+                    }
                 }
 
                 console.log('⚠️  Loading risks...');
@@ -549,13 +564,41 @@ export default function MinRiskLatest() {
         );
     }
 
+    // Check if user needs approval
+    const needsApproval = userStatus === 'pending' || userStatus === 'rejected';
+    const canEdit = userRole === 'admin' || userRole === 'edit';
+
+    if (needsApproval) {
+        return <div className="min-h-screen w-full bg-gray-50 p-6 flex items-center justify-center">
+            <Card className="max-w-md">
+                <CardHeader>
+                    <CardTitle>{userStatus === 'pending' ? '⏳ Awaiting Approval' : '❌ Access Denied'}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-gray-600 mb-4">
+                        {userStatus === 'pending'
+                            ? 'Your account is pending approval from an administrator. You will receive access once approved.'
+                            : 'Your account access has been rejected. Please contact an administrator for more information.'
+                        }
+                    </p>
+                    <UserMenu />
+                </CardContent>
+            </Card>
+        </div>;
+    }
+
     return <div className="min-h-screen w-full bg-gray-50 p-6">
         <div className="flex items-center justify-between mb-6">
-            <div><h1 className="text-2xl md:text-3xl font-bold">MinRisk</h1><p className="text-sm text-gray-500">Version 1.6.1 (Final)</p></div>
+            <div>
+                <h1 className="text-2xl md:text-3xl font-bold">MinRisk</h1>
+                <p className="text-sm text-gray-500">
+                    Version 1.6.1 (Final) • Role: <span className="font-semibold capitalize">{userRole === 'view_only' ? 'View Only' : userRole}</span>
+                </p>
+            </div>
             <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={handleClearAllData}><Trash2 className="mr-2 h-4 w-4" />Clear All</Button>
-                <Button variant="outline" onClick={handleResetDemo}><RefreshCw className="mr-2 h-4 w-4" />Reset Demo</Button>
-                <ConfigDialog config={config} onSave={handleSaveConfig} />
+                {canEdit && <Button variant="outline" onClick={handleClearAllData}><Trash2 className="mr-2 h-4 w-4" />Clear All</Button>}
+                {canEdit && <Button variant="outline" onClick={handleResetDemo}><RefreshCw className="mr-2 h-4 w-4" />Reset Demo</Button>}
+                {canEdit && <ConfigDialog config={config} onSave={handleSaveConfig} />}
                 <UserMenu />
             </div>
         </div>
@@ -577,15 +620,15 @@ export default function MinRiskLatest() {
 
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="mb-4"><TabsTrigger value="register">Risk Register</TabsTrigger><TabsTrigger value="control_register">Control Register</TabsTrigger><TabsTrigger value="heatmap">Heat Map</TabsTrigger>{/* <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger> */}<TabsTrigger value="import_risks">Risk Import</TabsTrigger><TabsTrigger value="import_controls">Control Import</TabsTrigger><TabsTrigger value="admin">👥 Admin</TabsTrigger></TabsList>
+            <TabsList className="mb-4"><TabsTrigger value="register">Risk Register</TabsTrigger><TabsTrigger value="control_register">Control Register</TabsTrigger><TabsTrigger value="heatmap">Heat Map</TabsTrigger>{/* <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger> */}{canEdit && <TabsTrigger value="import_risks">Risk Import</TabsTrigger>}{canEdit && <TabsTrigger value="import_controls">Control Import</TabsTrigger>}{userRole === 'admin' && <TabsTrigger value="admin">👥 Admin</TabsTrigger>}</TabsList>
 
-            <TabsContent value="register"><RiskRegisterTab sortedData={sortedData} rowCount={rows.length} requestSort={requestSort} onAdd={add} onEdit={setEditingRisk} onRemove={remove} config={config} rows={rows} priorityRisks={priorityRisks} setPriorityRisks={setPriorityRisks} /></TabsContent>
-            <TabsContent value="control_register"><ControlRegisterTab allRisks={rows} /></TabsContent>
-            <TabsContent value="heatmap"><HeatmapTab processedData={processedData} heatMapView={heatMapView} setHeatMapView={setHeatMapView} priorityRisks={priorityRisks} config={config} onEditRisk={setEditingRisk}/></TabsContent>
+            <TabsContent value="register"><RiskRegisterTab sortedData={sortedData} rowCount={rows.length} requestSort={requestSort} onAdd={add} onEdit={setEditingRisk} onRemove={remove} config={config} rows={rows} priorityRisks={priorityRisks} setPriorityRisks={setPriorityRisks} canEdit={canEdit} /></TabsContent>
+            <TabsContent value="control_register"><ControlRegisterTab allRisks={rows} canEdit={canEdit} /></TabsContent>
+            <TabsContent value="heatmap"><HeatmapTab processedData={processedData} heatMapView={heatMapView} setHeatMapView={setHeatMapView} priorityRisks={priorityRisks} config={config} onEditRisk={setEditingRisk} canEdit={canEdit} /></TabsContent>
             {/* <TabsContent value="ai_assistant"><AIAssistantTab onAddMultipleRisks={addMultipleRisks} config={config} onSwitchTab={setActiveTab}/></TabsContent> */}
-            <TabsContent value="import_risks"><RiskImportTab onImport={handleRiskBulkImport} currentConfig={config}/></TabsContent>
-            <TabsContent value="import_controls"><ControlImportTab onImport={handleControlBulkImport} allRisks={rows} /></TabsContent>
-            <TabsContent value="admin"><AdminDashboard /></TabsContent>
+            <TabsContent value="import_risks"><RiskImportTab onImport={handleRiskBulkImport} currentConfig={config} canEdit={canEdit} /></TabsContent>
+            <TabsContent value="import_controls"><ControlImportTab onImport={handleControlBulkImport} allRisks={rows} canEdit={canEdit} /></TabsContent>
+            {userRole === 'admin' && <TabsContent value="admin"><AdminDashboard /></TabsContent>}
         </Tabs>
         
         {editingRisk && (
@@ -603,7 +646,7 @@ export default function MinRiskLatest() {
 
 // ===== CHILD COMPONENTS =====
 
-function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onRemove, config, rows, priorityRisks, setPriorityRisks }: { sortedData: ProcessedRisk[]; rowCount: number; requestSort: (key: keyof ProcessedRisk) => void; onAdd: (r: Omit<RiskRow, 'risk_code'>) => void; onEdit: (risk: ProcessedRisk) => void; onRemove: (code: string) => void; config: AppConfig; rows: RiskRow[]; priorityRisks: Set<string>; setPriorityRisks: React.Dispatch<React.SetStateAction<Set<string>>> }) {
+function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onRemove, config, rows, priorityRisks, setPriorityRisks, canEdit }: { sortedData: ProcessedRisk[]; rowCount: number; requestSort: (key: keyof ProcessedRisk) => void; onAdd: (r: Omit<RiskRow, 'risk_code'>) => void; onEdit: (risk: ProcessedRisk) => void; onRemove: (code: string) => void; config: AppConfig; rows: RiskRow[]; priorityRisks: Set<string>; setPriorityRisks: React.Dispatch<React.SetStateAction<Set<string>>>; canEdit: boolean }) {
     
     const visibleRiskCodes = useMemo(() => sortedData.map(r => r.risk_code), [sortedData]);
     const selectedVisibleCount = useMemo(() => visibleRiskCodes.filter(code => priorityRisks.has(code)).length, [visibleRiskCodes, priorityRisks]);
@@ -669,7 +712,7 @@ return (
               <Table className="mr-2 h-4 w-4" />
               Export CSV
             </Button>
-            <AddRiskDialog rows={rows} onAdd={onAdd} config={config} />
+            {canEdit && <AddRiskDialog rows={rows} onAdd={onAdd} config={config} />}
           </div>
         </div>
 
@@ -735,15 +778,19 @@ return (
                     </td>
                     <td className="px-3 py-2">{r.status}</td>
                     <td className="px-3 py-2">
-                      <div className="flex items-center gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => onEdit(r)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <DeleteConfirmationDialog
-                          onConfirm={() => onRemove(r.risk_code)}
-                          riskCode={r.risk_code}
-                        />
-                      </div>
+                      {canEdit ? (
+                        <div className="flex items-center gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => onEdit(r)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <DeleteConfirmationDialog
+                            onConfirm={() => onRemove(r.risk_code)}
+                            riskCode={r.risk_code}
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">View only</span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -757,7 +804,7 @@ return (
 );
 }
 
-function ControlRegisterTab({ allRisks }: { allRisks: RiskRow[] }) {
+function ControlRegisterTab({ allRisks, canEdit }: { allRisks: RiskRow[]; canEdit: boolean }) {
     const allControls = useMemo(() => {
         return allRisks.flatMap(risk =>
             risk.controls.map(control => ({
@@ -804,7 +851,7 @@ function ControlRegisterTab({ allRisks }: { allRisks: RiskRow[] }) {
     );
 }
 
-function HeatmapTab({ processedData, heatMapView, setHeatMapView, priorityRisks, config, onEditRisk }: { processedData: ProcessedRisk[]; heatMapView: { inherent: boolean, residual: boolean }; setHeatMapView: React.Dispatch<React.SetStateAction<{ inherent: boolean; residual: boolean; }>>; priorityRisks: Set<string>; config: AppConfig; onEditRisk: (risk: ProcessedRisk) => void; }) {
+function HeatmapTab({ processedData, heatMapView, setHeatMapView, priorityRisks, config, onEditRisk, canEdit }: { processedData: ProcessedRisk[]; heatMapView: { inherent: boolean, residual: boolean }; setHeatMapView: React.Dispatch<React.SetStateAction<{ inherent: boolean; residual: boolean; }>>; priorityRisks: Set<string>; config: AppConfig; onEditRisk: (risk: ProcessedRisk) => void; canEdit: boolean }) {
     
     const heatmapData = useMemo(() => {
         const grid: { inherent: ProcessedRisk[], residual: ProcessedRisk[] }[][] = Array(config.matrixSize).fill(0).map(() => Array(config.matrixSize).fill(0).map(() => ({ inherent: [], residual: [] })));
@@ -915,7 +962,7 @@ function HeatmapTab({ processedData, heatMapView, setHeatMapView, priorityRisks,
 }
 
 
-function RiskImportTab({ onImport, currentConfig }: { onImport: (risks: ParsedRisk[], discovered: DiscoveredConfig) => void; currentConfig: AppConfig; }) {
+function RiskImportTab({ onImport, currentConfig, canEdit }: { onImport: (risks: ParsedRisk[], discovered: DiscoveredConfig) => void; currentConfig: AppConfig; canEdit: boolean }) {
     const [parsedData, setParsedData] = useState<ParsedRisk[]>([]);
     const [fileName, setFileName] = useState<string | null>(null);
     const [discoveredConfig, setDiscoveredConfig] = useState<DiscoveredConfig | null>(null);
@@ -941,7 +988,7 @@ function RiskImportTab({ onImport, currentConfig }: { onImport: (risks: ParsedRi
     return (<Card className="rounded-2xl shadow-sm"><CardHeader><CardTitle>Import Risks from CSV</CardTitle></CardHeader><CardContent className="space-y-4"><div {...getRootProps()} className={`p-8 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}`}><input {...getInputProps()} /><FileUp className="mx-auto h-12 w-12 text-gray-400" /><p className="mt-2 text-sm text-gray-600">{isDragActive ? "Drop the file here ..." : "Drag 'n' drop a CSV file here, or click to select file"}</p><p className="text-xs text-gray-500">Required columns: risk_title, risk_description, division, department, category, owner, likelihood_inherent, impact_inherent, status</p></div>{fileName && <p className="text-sm font-medium">Previewing file: <span className="font-normal text-gray-700">{fileName}</span></p>}{parsedData.length > 0 && (<div className="space-y-4"><div className="overflow-auto rounded-xl border bg-white max-h-96"><table className="w-full text-sm"><thead className="bg-gray-100 sticky top-0"><tr>{["Title", "Category", "Owner", "L (Inh)", "I (Inh)", "Status", "Errors"].map(h => <th key={h} className="px-3 py-2 text-left font-semibold text-gray-700">{h}</th>)}</tr></thead><tbody>{parsedData.map((row, index) => (<tr key={index} className={`border-t ${row.errors && row.errors.length > 0 ? 'bg-red-50' : ''}`}><td className="px-3 py-2">{row.risk_title}</td><td className="px-3 py-2">{row.category}</td><td className="px-3 py-2">{row.owner}</td><td className="px-3 py-2">{isNaN(row.likelihood_inherent) ? '' : row.likelihood_inherent}</td><td className="px-3 py-2">{isNaN(row.impact_inherent) ? '' : row.impact_inherent}</td><td className="px-3 py-2">{row.status}</td><td className="px-3 py-2 text-red-600 text-xs">{row.errors?.join(', ')}</td></tr>))}</tbody></table></div><div className="flex justify-between items-center"><div className="text-sm text-gray-600 space-y-1">{invalidRowsCount > 0 ? <span className="text-red-600 font-semibold flex items-center"><AlertTriangle className="h-4 w-4 mr-2"/>{invalidRowsCount} row(s) have errors and will be skipped.</span> : <span className="text-green-600 font-semibold">All {parsedData.length} rows look good!</span>}{newDiscoveries && newDiscoveries.total > 0 && <span className="text-blue-600 font-semibold">Found {newDiscoveries.counts.join(', ')}. These will be added to your configuration.</span>}</div><Button onClick={handleImport} disabled={validRows.length === 0}>Import {validRows.length > 0 ? validRows.length : ''} Valid Risks</Button></div></div>)}</CardContent></Card>);
 }
 
-function ControlImportTab({ onImport, allRisks }: { onImport: (controls: ParsedControl[]) => void; allRisks: RiskRow[] }) {
+function ControlImportTab({ onImport, allRisks, canEdit }: { onImport: (controls: ParsedControl[]) => void; allRisks: RiskRow[]; canEdit: boolean }) {
     const [parsedData, setParsedData] = useState<ParsedControl[]>([]);
     const [fileName, setFileName] = useState<string | null>(null);
 

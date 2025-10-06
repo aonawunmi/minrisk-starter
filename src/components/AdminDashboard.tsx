@@ -3,18 +3,20 @@ import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table } from '@/components/ui/table';
-import { RefreshCw, Users, FileText, Shield, AlertTriangle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RefreshCw, Users, FileText, Shield, AlertTriangle, Check, X, UserCheck, UserX } from 'lucide-react';
 
 type UserData = {
   id: string;
   email: string | null;
   full_name: string | null;
-  role: string;
+  role: 'admin' | 'edit' | 'view_only';
+  status: 'pending' | 'approved' | 'rejected';
   organization_id: string;
-  is_anonymous: boolean;
   risk_count: number;
   control_count: number;
   created_at: string;
+  approved_at: string | null;
 };
 
 export default function AdminDashboard() {
@@ -24,7 +26,7 @@ export default function AdminDashboard() {
     totalUsers: 0,
     totalRisks: 0,
     totalControls: 0,
-    anonymousUsers: 0,
+    pendingUsers: 0,
   });
 
   const loadAdminData = async () => {
@@ -32,74 +34,41 @@ export default function AdminDashboard() {
     console.log('📊 Loading admin dashboard data...');
 
     try {
-      // Get all user profiles with their risk counts
-      const { data: profiles, error: profilesError } = await supabase
-        .from('user_profiles')
+      // Get all users from the admin view (includes emails)
+      const { data: adminUsers, error: usersError } = await supabase
+        .from('admin_users_view')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (profilesError) {
-        console.error('Error loading profiles:', profilesError);
+      if (usersError) {
+        console.error('Error loading users:', usersError);
         return;
       }
 
-      // Note: We can't use admin.listUsers() without service role key
-      // Instead, we'll query the auth.users view if accessible, or just show profile data
-
-      // Get all risks with counts per user
-      const { data: risks } = await supabase
-        .from('risks')
-        .select('user_id, id');
-
-      // Get all controls count
-      const { data: controls } = await supabase
-        .from('controls')
-        .select('id');
-
-      // Count risks per user
-      const riskCounts = new Map<string, number>();
-      risks?.forEach(risk => {
-        riskCounts.set(risk.user_id, (riskCounts.get(risk.user_id) || 0) + 1);
-      });
-
-      // Count controls per user (via risks)
-      const controlCountsPerUser = new Map<string, number>();
-      const { data: risksWithControls } = await supabase
-        .from('risks')
-        .select('user_id, controls(id)');
-
-      risksWithControls?.forEach((risk: any) => {
-        const count = risk.controls?.length || 0;
-        controlCountsPerUser.set(
-          risk.user_id,
-          (controlCountsPerUser.get(risk.user_id) || 0) + count
-        );
-      });
-
-      // Combine data - for now we'll just show profile data
-      // To get emails, you'd need to set up a server-side function with service role key
-      const userData: UserData[] = profiles?.map(profile => {
-        return {
-          id: profile.id,
-          email: null, // Would need admin API access
-          full_name: profile.full_name,
-          role: profile.role,
-          organization_id: profile.organization_id,
-          is_anonymous: false, // Would need to check auth.users
-          risk_count: riskCounts.get(profile.id) || 0,
-          control_count: controlCountsPerUser.get(profile.id) || 0,
-          created_at: profile.created_at,
-        };
-      }) || [];
+      const userData: UserData[] = adminUsers?.map(user => ({
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name,
+        role: user.role,
+        status: user.status,
+        organization_id: user.organization_id,
+        risk_count: user.risk_count || 0,
+        control_count: user.control_count || 0,
+        created_at: user.created_at,
+        approved_at: user.approved_at,
+      })) || [];
 
       setUsers(userData);
 
       // Calculate stats
+      const { data: risks } = await supabase.from('risks').select('id');
+      const { data: controls } = await supabase.from('controls').select('id');
+
       setStats({
         totalUsers: userData.length,
         totalRisks: risks?.length || 0,
         totalControls: controls?.length || 0,
-        anonymousUsers: userData.filter(u => u.is_anonymous).length,
+        pendingUsers: userData.filter(u => u.status === 'pending').length,
       });
 
       console.log('✅ Admin data loaded:', userData.length, 'users');
@@ -107,6 +76,39 @@ export default function AdminDashboard() {
       console.error('❌ Failed to load admin data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const approveUser = async (userId: string, role: 'admin' | 'edit' | 'view_only') => {
+    try {
+      const { error } = await supabase.rpc('approve_user', {
+        target_user_id: userId,
+        new_role: role,
+      });
+
+      if (error) throw error;
+
+      console.log('✅ User approved:', userId);
+      await loadAdminData();
+    } catch (error: any) {
+      console.error('❌ Failed to approve user:', error);
+      alert('Failed to approve user: ' + error.message);
+    }
+  };
+
+  const rejectUser = async (userId: string) => {
+    try {
+      const { error } = await supabase.rpc('reject_user', {
+        target_user_id: userId,
+      });
+
+      if (error) throw error;
+
+      console.log('✅ User rejected:', userId);
+      await loadAdminData();
+    } catch (error: any) {
+      console.error('❌ Failed to reject user:', error);
+      alert('Failed to reject user: ' + error.message);
     }
   };
 
@@ -134,7 +136,7 @@ export default function AdminDashboard() {
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalUsers}</div>
             <p className="text-xs text-gray-500">
-              {stats.anonymousUsers} anonymous
+              {stats.pendingUsers} pending approval
             </p>
           </CardContent>
         </Card>
@@ -202,11 +204,12 @@ export default function AdminDashboard() {
                 <tr className="border-b">
                   <th className="text-left p-2 font-medium">User</th>
                   <th className="text-left p-2 font-medium">Email</th>
-                  <th className="text-left p-2 font-medium">Type</th>
+                  <th className="text-left p-2 font-medium">Status</th>
                   <th className="text-left p-2 font-medium">Role</th>
                   <th className="text-right p-2 font-medium">Risks</th>
                   <th className="text-right p-2 font-medium">Controls</th>
                   <th className="text-left p-2 font-medium">Created</th>
+                  <th className="text-center p-2 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -228,19 +231,62 @@ export default function AdminDashboard() {
                     <td className="p-2">
                       <span
                         className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          user.is_anonymous
+                          user.status === 'pending'
                             ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-green-100 text-green-800'
+                            : user.status === 'approved'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
                         }`}
                       >
-                        {user.is_anonymous ? 'Guest' : 'Registered'}
+                        {user.status === 'pending' && '⏳ '}
+                        {user.status === 'approved' && '✓ '}
+                        {user.status === 'rejected' && '✗ '}
+                        {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
                       </span>
                     </td>
-                    <td className="p-2 text-gray-600 capitalize">{user.role}</td>
+                    <td className="p-2">
+                      <span className={`text-xs font-medium px-2 py-1 rounded ${
+                        user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                        user.role === 'edit' ? 'bg-blue-100 text-blue-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {user.role === 'view_only' ? 'View Only' : user.role.toUpperCase()}
+                      </span>
+                    </td>
                     <td className="p-2 text-right font-medium">{user.risk_count}</td>
                     <td className="p-2 text-right font-medium">{user.control_count}</td>
                     <td className="p-2 text-gray-600 text-xs">
                       {new Date(user.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="p-2">
+                      {user.status === 'pending' ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <Select
+                            onValueChange={(role) => approveUser(user.id, role as any)}
+                          >
+                            <SelectTrigger className="w-32 h-8 text-xs">
+                              <SelectValue placeholder="Approve as..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="view_only">View Only</SelectItem>
+                              <SelectItem value="edit">Edit</SelectItem>
+                              <SelectItem value="admin">Admin</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => rejectUser(user.id)}
+                            className="h-8"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="text-center text-xs text-gray-500">
+                          {user.status === 'approved' ? '✓ Approved' : '✗ Rejected'}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
