@@ -81,3 +81,4 @@ npm run dev
 ---
 
 If you need a Next.js starter instead (for SSR or the `/app` router), tell me and I’ll generate that too.
+# Force Vercel cache clear
