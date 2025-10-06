@@ -20,12 +20,20 @@ export async function askGemini(
   ];
 
   try {
-    // Use local proxy (configured in vite.config.ts)
-    const r = await fetch('/api/gemini', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents }),
-    });
+    // Call Gemini API directly
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error('VITE_GEMINI_API_KEY not configured');
+    }
+
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents }),
+      }
+    );
 
     if (!r.ok) {
       const errorText = await r.text();
