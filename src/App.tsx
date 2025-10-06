@@ -98,6 +98,16 @@ const nextRiskCode = (rows: RiskRow[], div: string, cat: string) => { const pre 
 const calculateControlEffectiveness = (control: Control): number => { if (control.design === 0 || control.implementation === 0) return 0; const totalScore = control.design + control.implementation + control.monitoring + control.effectiveness_evaluation; return totalScore / 12; };
 const calculateResidualRisk = (risk: RiskRow) => { const likelihoodControls = risk.controls.filter(c => c.target === 'Likelihood'); const impactControls = risk.controls.filter(c => c.target === 'Impact'); const maxLikelihoodReduction = likelihoodControls.length > 0 ? Math.max(...likelihoodControls.map(calculateControlEffectiveness)) : 0; const maxImpactReduction = impactControls.length > 0 ? Math.max(...impactControls.map(calculateControlEffectiveness)) : 0; const residualLikelihood = risk.likelihood_inherent - (risk.likelihood_inherent - 1) * maxLikelihoodReduction; const residualImpact = risk.impact_inherent - (risk.impact_inherent - 1) * maxImpactReduction; return { likelihood: Math.max(1, residualLikelihood), impact: Math.max(1, residualImpact) }; };
 
+// ===== PRIORITY RISK KEY HELPERS =====
+// Create composite key to uniquely identify a risk by user_id and risk_code
+const makePriorityKey = (userId: string | undefined, riskCode: string): string => {
+    return `${userId || 'unknown'}::${riskCode}`;
+};
+// Check if a risk is in the priority set
+const isPriorityRisk = (priorityRisks: Set<string>, userId: string | undefined, riskCode: string): boolean => {
+    return priorityRisks.has(makePriorityKey(userId, riskCode));
+};
+
 // ===== CSV PARSING LOGIC =====
 const parseCsvToJson = (csvText: string): any[] => {
     const lines = csvText.trim().split('\n');
@@ -613,7 +623,6 @@ export default function MinRiskLatest() {
             <MultiSelectPopover title="Departments" options={config.departments} selected={filters.departments} setSelected={v => setFilters(f => ({ ...f, departments: v }))} />
             <Select value={filters.category} onValueChange={v => setFilters({ ...filters, category: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["All", ...config.categories].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
             <Select value={filters.status} onValueChange={v => setFilters({ ...filters, status: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["All", "Open", "In Progress", "Closed"].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
-            {isAdmin && <MultiSelectPopover title="Users" options={Array.from(new Set(rows.map(r => r.user_email).filter((e): e is string => Boolean(e))))} selected={filters.users} setSelected={v => setFilters(f => ({ ...f, users: v }))} />}
         </div>
 
         {import.meta.env.DEV && (
@@ -627,8 +636,8 @@ export default function MinRiskLatest() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="mb-4"><TabsTrigger value="register">Risk Register</TabsTrigger><TabsTrigger value="control_register">Control Register</TabsTrigger><TabsTrigger value="heatmap">Heat Map</TabsTrigger>{/* <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger> */}{canEdit && <TabsTrigger value="import_risks">Risk Import</TabsTrigger>}{canEdit && <TabsTrigger value="import_controls">Control Import</TabsTrigger>}{isAdmin && <TabsTrigger value="admin">👥 Admin</TabsTrigger>}</TabsList>
 
-            <TabsContent value="register"><RiskRegisterTab sortedData={sortedData} rowCount={filtered.length} requestSort={requestSort} onAdd={add} onEdit={setEditingRisk} onRemove={remove} config={config} rows={filtered} priorityRisks={priorityRisks} setPriorityRisks={setPriorityRisks} canEdit={canEdit} /></TabsContent>
-            <TabsContent value="control_register"><ControlRegisterTab allRisks={filtered} canEdit={canEdit} /></TabsContent>
+            <TabsContent value="register"><RiskRegisterTab sortedData={sortedData} rowCount={filtered.length} requestSort={requestSort} onAdd={add} onEdit={setEditingRisk} onRemove={remove} config={config} rows={filtered} allRows={rows} priorityRisks={priorityRisks} setPriorityRisks={setPriorityRisks} canEdit={canEdit} filters={filters} setFilters={setFilters} isAdmin={isAdmin} /></TabsContent>
+            <TabsContent value="control_register"><ControlRegisterTab allRisks={filtered} priorityRisks={priorityRisks} canEdit={canEdit} /></TabsContent>
             <TabsContent value="heatmap"><HeatmapTab processedData={processedData} heatMapView={heatMapView} setHeatMapView={setHeatMapView} priorityRisks={priorityRisks} config={config} onEditRisk={setEditingRisk} canEdit={canEdit} /></TabsContent>
             {/* <TabsContent value="ai_assistant"><AIAssistantTab onAddMultipleRisks={addMultipleRisks} config={config} onSwitchTab={setActiveTab}/></TabsContent> */}
             <TabsContent value="import_risks"><RiskImportTab onImport={handleRiskBulkImport} currentConfig={config} canEdit={canEdit} /></TabsContent>
@@ -651,32 +660,42 @@ export default function MinRiskLatest() {
 
 // ===== CHILD COMPONENTS =====
 
-function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onRemove, config, rows, priorityRisks, setPriorityRisks, canEdit }: { sortedData: ProcessedRisk[]; rowCount: number; requestSort: (key: keyof ProcessedRisk) => void; onAdd: (r: Omit<RiskRow, 'risk_code'>) => void; onEdit: (risk: ProcessedRisk) => void; onRemove: (code: string) => void; config: AppConfig; rows: RiskRow[]; priorityRisks: Set<string>; setPriorityRisks: React.Dispatch<React.SetStateAction<Set<string>>>; canEdit: boolean }) {
-    
-    const visibleRiskCodes = useMemo(() => sortedData.map(r => r.risk_code), [sortedData]);
-    const selectedVisibleCount = useMemo(() => visibleRiskCodes.filter(code => priorityRisks.has(code)).length, [visibleRiskCodes, priorityRisks]);
-    const isAllSelected = selectedVisibleCount > 0 && selectedVisibleCount === visibleRiskCodes.length;
-    const isSomeSelected = selectedVisibleCount > 0 && selectedVisibleCount < visibleRiskCodes.length;
+function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onRemove, config, rows, allRows, priorityRisks, setPriorityRisks, canEdit, filters, setFilters, isAdmin }: { sortedData: ProcessedRisk[]; rowCount: number; requestSort: (key: keyof ProcessedRisk) => void; onAdd: (r: Omit<RiskRow, 'risk_code'>) => void; onEdit: (risk: ProcessedRisk) => void; onRemove: (code: string) => void; config: AppConfig; rows: RiskRow[]; allRows: RiskRow[]; priorityRisks: Set<string>; setPriorityRisks: React.Dispatch<React.SetStateAction<Set<string>>>; canEdit: boolean; filters: { divisions: string[]; departments: string[]; category: string; status: string; users: string[] }; setFilters: React.Dispatch<React.SetStateAction<{ divisions: string[]; departments: string[]; category: string; status: string; users: string[] }>>; isAdmin: boolean }) {
+
+    // Always show all sorted data - priority checkboxes are just for marking/selection
+    const displayedData = sortedData;
+
+    // Get unique user emails for filter from ALL rows (not filtered)
+    const userEmails = useMemo(() =>
+        Array.from(new Set(allRows.map(r => r.user_email).filter((e): e is string => Boolean(e)))),
+        [allRows]
+    );
+
+    const visibleRisks = useMemo(() => displayedData.map(r => ({ userId: r.user_id, riskCode: r.risk_code })), [displayedData]);
+    const selectedVisibleCount = useMemo(() => visibleRisks.filter(r => isPriorityRisk(priorityRisks, r.userId, r.riskCode)).length, [visibleRisks, priorityRisks]);
+    const isAllSelected = selectedVisibleCount > 0 && selectedVisibleCount === visibleRisks.length;
+    const isSomeSelected = selectedVisibleCount > 0 && selectedVisibleCount < visibleRisks.length;
 
     const handleSelectAll = () => {
         setPriorityRisks(prev => {
             const newSet = new Set(prev);
             if (isAllSelected) {
-                visibleRiskCodes.forEach(code => newSet.delete(code));
+                visibleRisks.forEach(r => newSet.delete(makePriorityKey(r.userId, r.riskCode)));
             } else {
-                visibleRiskCodes.forEach(code => newSet.add(code));
+                visibleRisks.forEach(r => newSet.add(makePriorityKey(r.userId, r.riskCode)));
             }
             return newSet;
         });
     };
 
-    const handlePriorityChange = (riskCode: string, checked: boolean | 'indeterminate') => {
+    const handlePriorityChange = (userId: string | undefined, riskCode: string, checked: boolean | 'indeterminate') => {
         setPriorityRisks(prev => {
             const newSet = new Set(prev);
+            const key = makePriorityKey(userId, riskCode);
             if (checked) {
-                newSet.add(riskCode);
+                newSet.add(key);
             } else {
-                newSet.delete(riskCode);
+                newSet.delete(key);
             }
             return newSet;
         });
@@ -687,8 +706,8 @@ function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onR
             alert("Please select at least one priority risk to export.");
             return;
         }
-        const dataToExport = sortedData
-            .filter(r => priorityRisks.has(r.risk_code))
+        const dataToExport = displayedData
+            .filter(r => isPriorityRisk(priorityRisks, r.user_id, r.risk_code))
             .map((r, index) => ({
                 "S/N": index + 1,
                 "Risk Code": r.risk_code,
@@ -710,7 +729,7 @@ return (
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="text-sm text-gray-500">
-            Showing {sortedData.length} of {rowCount} risks
+            Showing {displayedData.length} of {rowCount} risks
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleExport}>
@@ -752,22 +771,32 @@ return (
                 </th>
                 <th className="px-3 py-2 text-left font-semibold text-gray-700">Bucket (Res)</th>
                 <th className="px-3 py-2 text-left font-semibold text-gray-700">Status</th>
-                <th></th>
+                {isAdmin && (
+                  <th className="px-3 py-2 text-left font-semibold text-gray-700">
+                    <MultiSelectPopover
+                      title="User"
+                      options={userEmails}
+                      selected={filters.users}
+                      setSelected={v => setFilters(f => ({ ...f, users: v }))}
+                    />
+                  </th>
+                )}
+                {canEdit && <th className="px-3 py-2 text-center font-semibold text-gray-700">Actions</th>}
               </tr>
             </thead>
 
             <tbody>
-              {sortedData.map((r, index) => {
+              {displayedData.map((r, index) => {
                 const tag = bucket(r.likelihood_residual, r.impact_residual, config.matrixSize);
                 const textColor = scoreColorText(tag);
                 const bgColorClass = scoreColorClass(tag);
                 return (
-                  <tr key={r.risk_code} className="border-t">
+                  <tr key={`${r.user_id}-${r.risk_code}`} className="border-t">
                     <td className="px-3 py-2 text-center">{index + 1}</td>
                     <td className="px-3 py-2 text-center">
                       <Checkbox
-                        checked={priorityRisks.has(r.risk_code)}
-                        onCheckedChange={(checked) => handlePriorityChange(r.risk_code, checked)}
+                        checked={isPriorityRisk(priorityRisks, r.user_id, r.risk_code)}
+                        onCheckedChange={(checked) => handlePriorityChange(r.user_id, r.risk_code, checked)}
                       />
                     </td>
                     <td className="px-3 py-2 font-medium">{r.risk_code}</td>
@@ -782,9 +811,12 @@ return (
                       </span>
                     </td>
                     <td className="px-3 py-2">{r.status}</td>
-                    <td className="px-3 py-2">
-                      {canEdit ? (
-                        <div className="flex items-center gap-1">
+                    {isAdmin && (
+                      <td className="px-3 py-2 text-xs text-gray-600">{r.user_email || 'N/A'}</td>
+                    )}
+                    {canEdit && (
+                      <td className="px-3 py-2">
+                        <div className="flex items-center justify-center gap-1">
                           <Button size="sm" variant="ghost" onClick={() => onEdit(r)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -793,10 +825,8 @@ return (
                             riskCode={r.risk_code}
                           />
                         </div>
-                      ) : (
-                        <span className="text-xs text-gray-400 italic">View only</span>
-                      )}
-                    </td>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -809,15 +839,20 @@ return (
 );
 }
 
-function ControlRegisterTab({ allRisks, canEdit }: { allRisks: RiskRow[]; canEdit: boolean }) {
+function ControlRegisterTab({ allRisks, priorityRisks, canEdit }: { allRisks: RiskRow[]; priorityRisks: Set<string>; canEdit: boolean }) {
     const allControls = useMemo(() => {
-        return allRisks.flatMap(risk =>
+        // Filter risks by priority if any are selected
+        const risksToShow = priorityRisks.size === 0
+            ? allRisks
+            : allRisks.filter(risk => isPriorityRisk(priorityRisks, risk.user_id, risk.risk_code));
+
+        return risksToShow.flatMap(risk =>
             risk.controls.map(control => ({
                 risk_code: risk.risk_code,
                 ...control
             }))
         );
-    }, [allRisks]);
+    }, [allRisks, priorityRisks]);
 
     return (
         <Card className="rounded-2xl shadow-sm">
@@ -860,7 +895,7 @@ function HeatmapTab({ processedData, heatMapView, setHeatMapView, priorityRisks,
     
     const heatmapData = useMemo(() => {
         const grid: { inherent: ProcessedRisk[], residual: ProcessedRisk[] }[][] = Array(config.matrixSize).fill(0).map(() => Array(config.matrixSize).fill(0).map(() => ({ inherent: [], residual: [] })));
-        const priorityData = processedData.filter(r => priorityRisks.has(r.risk_code));
+        const priorityData = processedData.filter(r => isPriorityRisk(priorityRisks, r.user_id, r.risk_code));
 
         priorityData.forEach(risk => {
             if (heatMapView.inherent) {
