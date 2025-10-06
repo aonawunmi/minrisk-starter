@@ -59,7 +59,7 @@ export type AppConfig = {
 /**
  * Convert database risk + controls to app RiskRow format
  */
-function dbToAppRisk(dbRisk: DbRisk, controls: DbControl[]): RiskRow {
+function dbToAppRisk(dbRisk: DbRisk, controls: DbControl[], userEmail?: string): RiskRow {
   return {
     risk_code: dbRisk.risk_code,
     risk_title: dbRisk.risk_title,
@@ -71,6 +71,8 @@ function dbToAppRisk(dbRisk: DbRisk, controls: DbControl[]): RiskRow {
     likelihood_inherent: dbRisk.likelihood_inherent,
     impact_inherent: dbRisk.impact_inherent,
     status: dbRisk.status,
+    user_id: dbRisk.user_id,
+    user_email: userEmail,
     controls: controls.map(c => ({
       id: c.id,
       description: c.description,
@@ -277,8 +279,20 @@ export async function loadRisks(): Promise<RiskRow[]> {
     controlsByRisk.set(control.risk_id, [...existing, control]);
   });
 
+  // Fetch user emails for all unique user_ids
+  const userIds = [...new Set(risks.map(r => r.user_id))];
+  const { data: users } = await supabase
+    .from('admin_users_view')
+    .select('id, email')
+    .in('id', userIds);
+
+  const userEmailMap = new Map<string, string>();
+  (users || []).forEach(u => {
+    if (u.email) userEmailMap.set(u.id, u.email);
+  });
+
   // Convert to app format
-  return risks.map(risk => dbToAppRisk(risk, controlsByRisk.get(risk.id) || []));
+  return risks.map(risk => dbToAppRisk(risk, controlsByRisk.get(risk.id) || [], userEmailMap.get(risk.user_id)));
 }
 
 /**

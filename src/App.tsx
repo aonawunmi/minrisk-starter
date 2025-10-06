@@ -31,7 +31,7 @@ console.log('AI endpoint:', (window as any).__MINRISK_AI_PATH)
 
 // ===== TYPES =====
 export type Control = { id: string; description: string; target: "Likelihood" | "Impact"; design: number; implementation: number; monitoring: number; effectiveness_evaluation: number; };
-export type RiskRow = { risk_code: string; risk_title: string; risk_description: string; division: string; department: string; category: string; owner: string; likelihood_inherent: number; impact_inherent: number; controls: Control[]; status: "Open" | "In Progress" | "Closed"; };
+export type RiskRow = { risk_code: string; risk_title: string; risk_description: string; division: string; department: string; category: string; owner: string; likelihood_inherent: number; impact_inherent: number; controls: Control[]; status: "Open" | "In Progress" | "Closed"; user_id?: string; user_email?: string; };
 export type AppConfig = {
     matrixSize: 5 | 6;
     likelihoodLabels: string[];
@@ -225,7 +225,7 @@ export default function MinRiskLatest() {
     const [loading, setLoading] = useState(true);
     const [query, setQuery] = useState("");
     const [config, setConfig] = useState<AppConfig>(DEFAULT_APP_CONFIG);
-    const [filters, setFilters] = useState({ divisions: [] as string[], departments: [] as string[], category: "All", status: "All" });
+    const [filters, setFilters] = useState({ divisions: [] as string[], departments: [] as string[], category: "All", status: "All", user: "All" });
     const [heatMapView, setHeatMapView] = useState({ inherent: true, residual: true });
     const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
     const [priorityRisks, setPriorityRisks] = useState(new Set<string>());
@@ -297,7 +297,7 @@ export default function MinRiskLatest() {
         fetchData();
     }, []);
 
-    const filtered = useMemo(() => { const q = query.trim().toLowerCase(); return rows.filter(r => { const m = !q || [r.risk_code, r.risk_title, r.risk_description, r.owner, r.category, r.division, r.department].join(" ").toLowerCase().includes(q); const d = filters.divisions.length === 0 || filters.divisions.includes(r.division); const de = filters.departments.length === 0 || filters.departments.includes(r.department); const c = filters.category === "All" || r.category === filters.category; const s = filters.status === "All" || r.status === filters.status; return m && d && de && c && s; }); }, [rows, query, filters]);
+    const filtered = useMemo(() => { const q = query.trim().toLowerCase(); return rows.filter(r => { const m = !q || [r.risk_code, r.risk_title, r.risk_description, r.owner, r.category, r.division, r.department].join(" ").toLowerCase().includes(q); const d = filters.divisions.length === 0 || filters.divisions.includes(r.division); const de = filters.departments.length === 0 || filters.departments.includes(r.department); const c = filters.category === "All" || r.category === filters.category; const s = filters.status === "All" || r.status === filters.status; const u = filters.user === "All" || r.user_email === filters.user; return m && d && de && c && s && u; }); }, [rows, query, filters]);
     const processedData = useMemo(() => { return filtered.map(r => { const residual = calculateResidualRisk(r); return { ...r, likelihood_residual: residual.likelihood, impact_residual: residual.impact, inherent_score: r.likelihood_inherent * r.impact_inherent, residual_score: residual.likelihood * residual.impact }; }); }, [filtered]);
     
     const sortedData = useMemo(() => {
@@ -604,12 +604,13 @@ export default function MinRiskLatest() {
             </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mb-6">
             <div className="col-span-1"><Input placeholder="Search risks..." value={query} onChange={e => setQuery(e.target.value)} /></div>
             <MultiSelectPopover title="Divisions" options={config.divisions} selected={filters.divisions} setSelected={v => setFilters(f => ({ ...f, divisions: v }))} />
             <MultiSelectPopover title="Departments" options={config.departments} selected={filters.departments} setSelected={v => setFilters(f => ({ ...f, departments: v }))} />
             <Select value={filters.category} onValueChange={v => setFilters({ ...filters, category: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["All", ...config.categories].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
             <Select value={filters.status} onValueChange={v => setFilters({ ...filters, status: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["All", "Open", "In Progress", "Closed"].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
+            {isAdmin && <Select value={filters.user} onValueChange={v => setFilters({ ...filters, user: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["All Users", ...Array.from(new Set(rows.map(r => r.user_email).filter(Boolean)))].map(x => <SelectItem key={x} value={x === "All Users" ? "All" : x}>{x}</SelectItem>)}</SelectContent></Select>}
         </div>
 
         {import.meta.env.DEV && (
