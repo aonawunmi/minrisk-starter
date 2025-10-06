@@ -566,7 +566,8 @@ export default function MinRiskLatest() {
 
     // Check if user needs approval
     const needsApproval = userStatus === 'pending' || userStatus === 'rejected';
-    const canEdit = userRole === 'admin' || userRole === 'edit';
+    const canEdit = userRole === 'edit'; // Only 'edit' role can modify data
+    const isAdmin = userRole === 'admin'; // Admin can view all but not edit data
 
     if (needsApproval) {
         return <div className="min-h-screen w-full bg-gray-50 p-6 flex items-center justify-center">
@@ -596,9 +597,9 @@ export default function MinRiskLatest() {
                 </p>
             </div>
             <div className="flex items-center gap-2">
-                {canEdit && <Button variant="outline" onClick={handleClearAllData}><Trash2 className="mr-2 h-4 w-4" />Clear All</Button>}
-                {canEdit && <Button variant="outline" onClick={handleResetDemo}><RefreshCw className="mr-2 h-4 w-4" />Reset Demo</Button>}
-                {canEdit && <ConfigDialog config={config} onSave={handleSaveConfig} />}
+                {isAdmin && <Button variant="outline" onClick={handleClearAllData}><Trash2 className="mr-2 h-4 w-4" />Clear All</Button>}
+                {isAdmin && <Button variant="outline" onClick={handleResetDemo}><RefreshCw className="mr-2 h-4 w-4" />Reset Demo</Button>}
+                {isAdmin && <ConfigDialog config={config} onSave={handleSaveConfig} />}
                 <UserMenu />
             </div>
         </div>
@@ -620,7 +621,7 @@ export default function MinRiskLatest() {
 
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="mb-4"><TabsTrigger value="register">Risk Register</TabsTrigger><TabsTrigger value="control_register">Control Register</TabsTrigger><TabsTrigger value="heatmap">Heat Map</TabsTrigger>{/* <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger> */}{canEdit && <TabsTrigger value="import_risks">Risk Import</TabsTrigger>}{canEdit && <TabsTrigger value="import_controls">Control Import</TabsTrigger>}{userRole === 'admin' && <TabsTrigger value="admin">👥 Admin</TabsTrigger>}</TabsList>
+            <TabsList className="mb-4"><TabsTrigger value="register">Risk Register</TabsTrigger><TabsTrigger value="control_register">Control Register</TabsTrigger><TabsTrigger value="heatmap">Heat Map</TabsTrigger>{/* <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger> */}{canEdit && <TabsTrigger value="import_risks">Risk Import</TabsTrigger>}{canEdit && <TabsTrigger value="import_controls">Control Import</TabsTrigger>}{isAdmin && <TabsTrigger value="admin">👥 Admin</TabsTrigger>}</TabsList>
 
             <TabsContent value="register"><RiskRegisterTab sortedData={sortedData} rowCount={rows.length} requestSort={requestSort} onAdd={add} onEdit={setEditingRisk} onRemove={remove} config={config} rows={rows} priorityRisks={priorityRisks} setPriorityRisks={setPriorityRisks} canEdit={canEdit} /></TabsContent>
             <TabsContent value="control_register"><ControlRegisterTab allRisks={rows} canEdit={canEdit} /></TabsContent>
@@ -628,7 +629,7 @@ export default function MinRiskLatest() {
             {/* <TabsContent value="ai_assistant"><AIAssistantTab onAddMultipleRisks={addMultipleRisks} config={config} onSwitchTab={setActiveTab}/></TabsContent> */}
             <TabsContent value="import_risks"><RiskImportTab onImport={handleRiskBulkImport} currentConfig={config} canEdit={canEdit} /></TabsContent>
             <TabsContent value="import_controls"><ControlImportTab onImport={handleControlBulkImport} allRisks={rows} canEdit={canEdit} /></TabsContent>
-            {userRole === 'admin' && <TabsContent value="admin"><AdminDashboard /></TabsContent>}
+            {isAdmin && <TabsContent value="admin"><AdminDashboard /></TabsContent>}
         </Tabs>
         
         {editingRisk && (

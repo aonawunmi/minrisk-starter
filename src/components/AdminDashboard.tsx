@@ -112,6 +112,26 @@ export default function AdminDashboard() {
     }
   };
 
+  const deleteUser = async (userId: string, userEmail: string) => {
+    if (!confirm(`Are you sure you want to delete user ${userEmail}? This will delete all their risks and controls. This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase.rpc('delete_user', {
+        target_user_id: userId,
+      });
+
+      if (error) throw error;
+
+      console.log('✅ User deleted:', userId);
+      await loadAdminData();
+    } catch (error: any) {
+      console.error('❌ Failed to delete user:', error);
+      alert('Failed to delete user: ' + error.message);
+    }
+  };
+
   useEffect(() => {
     loadAdminData();
   }, []);
@@ -283,8 +303,19 @@ export default function AdminDashboard() {
                           </Button>
                         </div>
                       ) : (
-                        <div className="text-center text-xs text-gray-500">
-                          {user.status === 'approved' ? '✓ Approved' : '✗ Rejected'}
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="text-xs text-gray-500">
+                            {user.status === 'approved' ? '✓ Approved' : '✗ Rejected'}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deleteUser(user.id, user.email || 'Unknown')}
+                            className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            title="Delete user"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
                         </div>
                       )}
                     </td>
