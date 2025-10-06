@@ -387,6 +387,60 @@ const sections = [
     `,
   },
   {
+    id: 'bulk-deletion',
+    title: 'Bulk Deletion (Admin)',
+    icon: '🗑️',
+    content: `
+      <h3>About Bulk Deletion</h3>
+      <p>Delete multiple risks at once - either archive them (safe) or permanently delete them.</p>
+
+      <h3>How to Use Bulk Deletion</h3>
+      <ol>
+        <li>Go to <strong>Admin</strong> → <strong>Bulk Deletion</strong></li>
+        <li>Use filters to find risks to delete:
+          <ul>
+            <li>Search text (searches all fields)</li>
+            <li>Division, Department, Category</li>
+            <li>Status, User</li>
+          </ul>
+        </li>
+        <li>Select risks using checkboxes</li>
+        <li>Click <strong>"Delete Selected Risks"</strong> button</li>
+        <li>Choose deletion type:
+          <ul>
+            <li><strong>Archive (Recommended):</strong> Safe option, risks can be viewed later</li>
+            <li><strong>Permanent Delete:</strong> ⚠️ Cannot be undone!</li>
+          </ul>
+        </li>
+      </ol>
+
+      <h3>Archive Option</h3>
+      <ul>
+        <li>Risks moved to archive table</li>
+        <li>Can be viewed in Archive tab</li>
+        <li>Optional reason field for documentation</li>
+        <li>All controls preserved</li>
+      </ul>
+
+      <h3>Permanent Delete Option</h3>
+      <p><strong>⚠️ WARNING:</strong> This action cannot be undone!</p>
+      <ul>
+        <li>Risks deleted from database completely</li>
+        <li>All controls deleted as well</li>
+        <li>Type <strong>DELETE</strong> (in capitals) to confirm</li>
+        <li>Progress bar shows deletion status</li>
+      </ul>
+
+      <h4>When to Use Each Option:</h4>
+      <ul>
+        <li><strong>Archive:</strong> End of quarter cleanup, outdated risks, general maintenance</li>
+        <li><strong>Permanent:</strong> Test data, duplicates, data that must be removed for compliance</li>
+      </ul>
+
+      <p><strong>Best Practice:</strong> Always use Archive unless you have a specific reason for permanent deletion.</p>
+    `,
+  },
+  {
     id: 'audit-trail',
     title: 'Audit Trail (Admin)',
     icon: '📜',
@@ -396,7 +450,7 @@ const sections = [
       <ul>
         <li>Risk/control creation, updates, deletion</li>
         <li>User approvals and rejections</li>
-        <li>Configuration changes</li>
+        <li>Bulk deletion operations</li>
         <li>Archive operations</li>
         <li>Permanent deletions</li>
       </ul>
@@ -408,7 +462,7 @@ const sections = [
           <ul>
             <li><strong>Search:</strong> User email, risk code, action</li>
             <li><strong>Action Type:</strong> create, update, delete, etc.</li>
-            <li><strong>Entity Type:</strong> risk, control, user, config</li>
+            <li><strong>Entity Type:</strong> risk, control, user</li>
             <li><strong>Load Limit:</strong> 50, 100, 200, or 500 entries</li>
           </ul>
         </li>
@@ -416,12 +470,12 @@ const sections = [
       </ol>
 
       <h3>Entry Details</h3>
-      <p>Each entry includes:</p>
+      <p>Details are shown in formatted cards for easy reading:</p>
       <ul>
-        <li>Who performed the action</li>
-        <li>When it was performed</li>
-        <li>What changed (old vs new values in JSON)</li>
-        <li>Additional context and metadata</li>
+        <li><strong>For risks:</strong> Shows all risk fields in organized layout</li>
+        <li><strong>For controls:</strong> Shows control details and effectiveness ratings</li>
+        <li><strong>For updates:</strong> Side-by-side comparison of before/after values</li>
+        <li><strong>For user actions:</strong> Shows user details and role changes</li>
       </ul>
 
       <h3>Use Cases</h3>
@@ -430,6 +484,7 @@ const sections = [
         <li>Security investigations</li>
         <li>Understanding change history</li>
         <li>Training and process improvement</li>
+        <li>Tracking who deleted/archived risks</li>
       </ul>
     `,
   },
