@@ -268,10 +268,6 @@ const sections = [
         <li>Select target: <strong>Likelihood</strong> or <strong>Impact</strong></li>
         <li>Rate all four effectiveness dimensions</li>
       </ol>
-
-      <h4>How Controls Reduce Risk:</h4>
-      <p>Control effectiveness is averaged (Design + Implementation + Monitoring + Effectiveness) ÷ 4</p>
-      <p>This average reduces the target score (Likelihood or Impact) by half the effectiveness value.</p>
     `,
   },
   {
