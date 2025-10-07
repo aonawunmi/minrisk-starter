@@ -19,6 +19,7 @@ export type DbRisk = {
   department: string;
   category: string;
   owner: string;
+  relevant_period: string | null;
   likelihood_inherent: number;
   impact_inherent: number;
   status: 'Open' | 'In Progress' | 'Closed';
