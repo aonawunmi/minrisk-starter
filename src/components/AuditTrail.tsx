@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { FileText, RefreshCw, Filter, Eye } from 'lucide-react';
+import { FileText, RefreshCw, Filter, Eye, Download } from 'lucide-react';
 import { loadAuditTrail, type AuditTrailEntry } from '@/lib/archive';
 
 // Helper component to display risk details in a formatted way
@@ -154,6 +154,10 @@ export default function AuditTrail() {
   const [searchQuery, setSearchQuery] = useState('');
   const [actionTypeFilter, setActionTypeFilter] = useState<string>('all');
   const [entityTypeFilter, setEntityTypeFilter] = useState<string>('all');
+  const [userFilter, setUserFilter] = useState<string>('all');
+  const [riskCodeFilter, setRiskCodeFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [limit, setLimit] = useState(100);
 
   const loadData = async () => {
@@ -188,6 +192,17 @@ export default function AuditTrail() {
       );
     }
 
+    // Risk code filter
+    if (riskCodeFilter) {
+      const query = riskCodeFilter.toLowerCase();
+      filtered = filtered.filter(e => e.entity_code?.toLowerCase().includes(query));
+    }
+
+    // User filter
+    if (userFilter !== 'all') {
+      filtered = filtered.filter(e => e.user_email === userFilter);
+    }
+
     // Action type filter
     if (actionTypeFilter !== 'all') {
       filtered = filtered.filter(e => e.action_type === actionTypeFilter);
@@ -198,17 +213,60 @@ export default function AuditTrail() {
       filtered = filtered.filter(e => e.entity_type === entityTypeFilter);
     }
 
+    // Date range filter
+    if (startDate) {
+      const start = new Date(startDate);
+      filtered = filtered.filter(e => new Date(e.created_at) >= start);
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999); // Include the entire end date
+      filtered = filtered.filter(e => new Date(e.created_at) <= end);
+    }
+
     setFilteredEntries(filtered);
-  }, [entries, searchQuery, actionTypeFilter, entityTypeFilter]);
+  }, [entries, searchQuery, riskCodeFilter, userFilter, actionTypeFilter, entityTypeFilter, startDate, endDate]);
 
   const handleViewDetails = (entry: AuditTrailEntry) => {
     setSelectedEntry(entry);
     setShowDetailsDialog(true);
   };
 
-  // Get unique action types
+  // CSV Export function
+  const handleExportCSV = () => {
+    const csvRows = [];
+    const headers = ['Timestamp', 'Action', 'Entity Type', 'Entity Code', 'User Email', 'Details'];
+    csvRows.push(headers.join(','));
+
+    filteredEntries.forEach(entry => {
+      const row = [
+        new Date(entry.created_at).toLocaleString(),
+        entry.action_type,
+        entry.entity_type,
+        entry.entity_code || '',
+        entry.user_email || '',
+        JSON.stringify(entry.details || {}).replace(/"/g, '""') // Escape quotes
+      ];
+      csvRows.push(row.map(cell => `"${cell}"`).join(','));
+    });
+
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `audit-trail-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Get unique action types, entity types, and users
   const actionTypes = ['all', ...Array.from(new Set(entries.map(e => e.action_type)))];
   const entityTypes = ['all', ...Array.from(new Set(entries.map(e => e.entity_type)))];
+  const uniqueUsers = ['all', ...Array.from(new Set(entries.map(e => e.user_email).filter(Boolean)))];
 
   // Get action color
   const getActionColor = (actionType: string) => {
@@ -251,10 +309,16 @@ export default function AuditTrail() {
                 Complete log of all system actions and changes
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={loadData}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleExportCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={loadData}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+            </div>
           </div>
         </CardHeader>
       </Card>
@@ -268,60 +332,106 @@ export default function AuditTrail() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="search" className="text-xs">Search</Label>
-              <Input
-                id="search"
-                placeholder="Search by user, code, action..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="search" className="text-xs">Search</Label>
+                <Input
+                  id="search"
+                  placeholder="Search by user, code, action..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="risk-code" className="text-xs">Risk Code</Label>
+                <Input
+                  id="risk-code"
+                  placeholder="Filter by risk code..."
+                  value={riskCodeFilter}
+                  onChange={(e) => setRiskCodeFilter(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="user-filter" className="text-xs">User</Label>
+                <Select value={userFilter} onValueChange={setUserFilter}>
+                  <SelectTrigger id="user-filter">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {uniqueUsers.map(user => (
+                      <SelectItem key={user} value={user}>
+                        {user === 'all' ? 'All Users' : user}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="action-type" className="text-xs">Action Type</Label>
+                <Select value={actionTypeFilter} onValueChange={setActionTypeFilter}>
+                  <SelectTrigger id="action-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {actionTypes.map(type => (
+                      <SelectItem key={type} value={type}>
+                        {type === 'all' ? 'All Actions' : type.replace(/_/g, ' ')}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="action-type" className="text-xs">Action Type</Label>
-              <Select value={actionTypeFilter} onValueChange={setActionTypeFilter}>
-                <SelectTrigger id="action-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {actionTypes.map(type => (
-                    <SelectItem key={type} value={type}>
-                      {type === 'all' ? 'All Actions' : type.replace(/_/g, ' ')}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="entity-type" className="text-xs">Entity Type</Label>
-              <Select value={entityTypeFilter} onValueChange={setEntityTypeFilter}>
-                <SelectTrigger id="entity-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {entityTypes.map(type => (
-                    <SelectItem key={type} value={type}>
-                      {type === 'all' ? 'All Entities' : type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="limit" className="text-xs">Load Limit</Label>
-              <Select value={limit.toString()} onValueChange={(v) => setLimit(parseInt(v))}>
-                <SelectTrigger id="limit">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="50">Last 50</SelectItem>
-                  <SelectItem value="100">Last 100</SelectItem>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="entity-type" className="text-xs">Entity Type</Label>
+                <Select value={entityTypeFilter} onValueChange={setEntityTypeFilter}>
+                  <SelectTrigger id="entity-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {entityTypes.map(type => (
+                      <SelectItem key={type} value={type}>
+                        {type === 'all' ? 'All Entities' : type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="start-date" className="text-xs">Start Date</Label>
+                <Input
+                  id="start-date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="end-date" className="text-xs">End Date</Label>
+                <Input
+                  id="end-date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="limit" className="text-xs">Load Limit</Label>
+                <Select value={limit.toString()} onValueChange={(v) => setLimit(parseInt(v))}>
+                  <SelectTrigger id="limit">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="50">Last 50</SelectItem>
+                    <SelectItem value="100">Last 100</SelectItem>
                   <SelectItem value="200">Last 200</SelectItem>
                   <SelectItem value="500">Last 500</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+          </div>
           </div>
         </CardContent>
       </Card>
