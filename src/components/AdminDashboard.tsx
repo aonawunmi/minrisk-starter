@@ -116,6 +116,23 @@ export default function AdminDashboard() {
     }
   };
 
+  const changeUserRole = async (userId: string, newRole: 'admin' | 'edit' | 'view_only') => {
+    try {
+      const { error } = await supabase.rpc('change_user_role', {
+        target_user_id: userId,
+        new_role: newRole,
+      });
+
+      if (error) throw error;
+
+      console.log('✅ User role changed:', userId, 'to', newRole);
+      await loadAdminData();
+    } catch (error: any) {
+      console.error('❌ Failed to change user role:', error);
+      alert('Failed to change user role: ' + error.message);
+    }
+  };
+
   const deleteUser = async (userId: string, userEmail: string) => {
     if (!confirm(`Are you sure you want to delete user ${userEmail}? This will delete all their risks and controls. This action cannot be undone.`)) {
       return;
@@ -326,11 +343,34 @@ export default function AdminDashboard() {
                             <X className="h-3 w-3" />
                           </Button>
                         </div>
+                      ) : user.status === 'approved' ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <Select
+                            value={user.role}
+                            onValueChange={(role) => changeUserRole(user.id, role as any)}
+                          >
+                            <SelectTrigger className="w-32 h-8 text-xs">
+                              <SelectValue placeholder="Change role..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="view_only">View Only</SelectItem>
+                              <SelectItem value="edit">Edit</SelectItem>
+                              <SelectItem value="admin">Admin</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deleteUser(user.id, user.email || 'Unknown')}
+                            className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            title="Delete user"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
                       ) : (
                         <div className="flex items-center justify-center gap-2">
-                          <span className="text-xs text-gray-500">
-                            {user.status === 'approved' ? '✓ Approved' : '✗ Rejected'}
-                          </span>
+                          <span className="text-xs text-gray-500">✗ Rejected</span>
                           <Button
                             size="sm"
                             variant="ghost"
