@@ -1022,9 +1022,9 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
                 </div>
 
                 <div className="flex">
-                    <div className="flex flex-col justify-between pt-8 pb-8 pr-2">
+                    <div className="flex flex-col justify-start pt-8 pr-2">
                          {Array.from({ length: config.matrixSize }, (_, i) => config.matrixSize - i).map(imp => (
-                            <div key={imp} className="h-20 flex items-center text-xs font-semibold -rotate-90">{config.impactLabels[imp-1]}</div>
+                            <div key={imp} className="h-20 flex items-center justify-center text-xs font-semibold">{config.impactLabels[imp-1]}</div>
                         ))}
                     </div>
                     <div className="flex-grow">
@@ -1042,7 +1042,7 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
                                             <PopoverTrigger asChild>
                                                 <div
                                                      className="h-20 border border-gray-200 flex items-center justify-center p-1 relative cursor-pointer"
-                                                     style={{ backgroundColor: `${bgColor}33` }}>
+                                                     style={{ backgroundColor: `${bgColor}E6` }}>
                                                     <div className="flex gap-2 text-lg font-bold">
                                                         {heatMapView.inherent && cell.inherent.length > 0 && <span className="text-blue-700">{cell.inherent.length}</span>}
                                                         {heatMapView.inherent && heatMapView.residual && cell.inherent.length > 0 && cell.residual.length > 0 && <span className="text-gray-400">/</span>}
