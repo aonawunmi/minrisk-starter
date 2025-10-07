@@ -32,7 +32,7 @@ console.log('AI endpoint:', (window as any).__MINRISK_AI_PATH)
 
 // ===== TYPES =====
 export type Control = { id: string; description: string; target: "Likelihood" | "Impact"; design: number; implementation: number; monitoring: number; effectiveness_evaluation: number; };
-export type RiskRow = { risk_code: string; risk_title: string; risk_description: string; division: string; department: string; category: string; owner: string; likelihood_inherent: number; impact_inherent: number; controls: Control[]; status: "Open" | "In Progress" | "Closed"; user_id?: string; user_email?: string; };
+export type RiskRow = { risk_code: string; risk_title: string; risk_description: string; division: string; department: string; category: string; owner: string; relevant_period: string | null; likelihood_inherent: number; impact_inherent: number; controls: Control[]; status: "Open" | "In Progress" | "Closed"; user_id?: string; user_email?: string; };
 export type AppConfig = {
     matrixSize: 5 | 6;
     likelihoodLabels: string[];
@@ -62,7 +62,7 @@ const CONTROL_IMPLEMENTATION_OPTIONS = [{ value: 3, label: "Always applied as in
 const CONTROL_MONITORING_OPTIONS = [{ value: 3, label: "Always monitored" }, { value: 2, label: "Usually monitored" }, { value: 1, label: "Monitored on an ad-hoc basis" }, { value: 0, label: "Not monitored at all" }];
 const CONTROL_EFFECTIVENESS_OPTIONS = [{ value: 3, label: "Regularly evaluated" }, { value: 2, label: "Occasionally evaluated" }, { value: 1, label: "Infrequently evaluated" }, { value: 0, label: "Never evaluated" }];
 
-const SEED: RiskRow[] = [{ risk_code: "CRD-001", risk_title: "Counterparty default", risk_description: "Clearing member fails to meet obligations; default waterfall.", division: "Clearing", department: "Risk Management", category: "Credit", owner: "Head, Risk", likelihood_inherent: 4, impact_inherent: 5, status: "In Progress", controls: [{ id: "c1", description: "Daily Margin Calls", target: "Impact", design: 3, implementation: 3, monitoring: 3, effectiveness_evaluation: 3 }, { id: "c2", description: "Member Default Fund", target: "Impact", design: 2, implementation: 3, monitoring: 2, effectiveness_evaluation: 2 }] }, { risk_code: "OPR-003", risk_title: "Settlement system outage", risk_description: "Platform unavailable during settlement window.", division: "Operations", department: "IT Ops", category: "Operational", owner: "CTO", likelihood_inherent: 3, impact_inherent: 5, status: "Open", controls: [{ id: "c3", description: "System Redundancy/Failover", target: "Likelihood", design: 3, implementation: 2, monitoring: 3, effectiveness_evaluation: 2 }] }];
+const SEED: RiskRow[] = [{ risk_code: "CRD-001", risk_title: "Counterparty default", risk_description: "Clearing member fails to meet obligations; default waterfall.", division: "Clearing", department: "Risk Management", category: "Credit", owner: "Head, Risk", relevant_period: null, likelihood_inherent: 4, impact_inherent: 5, status: "In Progress", controls: [{ id: "c1", description: "Daily Margin Calls", target: "Impact", design: 3, implementation: 3, monitoring: 3, effectiveness_evaluation: 3 }, { id: "c2", description: "Member Default Fund", target: "Impact", design: 2, implementation: 3, monitoring: 2, effectiveness_evaluation: 2 }] }, { risk_code: "OPR-003", risk_title: "Settlement system outage", risk_description: "Platform unavailable during settlement window.", division: "Operations", department: "IT Ops", category: "Operational", owner: "CTO", relevant_period: null, likelihood_inherent: 3, impact_inherent: 5, status: "Open", controls: [{ id: "c3", description: "System Redundancy/Failover", target: "Likelihood", design: 3, implementation: 2, monitoring: 3, effectiveness_evaluation: 2 }] }];
 
 // ===== LOGIC & HELPERS =====
 const bucket = (l: number, i: number, size: 5 | 6) => {
@@ -236,7 +236,7 @@ export default function MinRiskLatest() {
     const [loading, setLoading] = useState(true);
     const [query, setQuery] = useState("");
     const [config, setConfig] = useState<AppConfig>(DEFAULT_APP_CONFIG);
-    const [filters, setFilters] = useState({ divisions: [] as string[], departments: [] as string[], category: "All", status: "All", users: [] as string[] });
+    const [filters, setFilters] = useState({ divisions: [] as string[], departments: [] as string[], category: "All", status: "All", users: [] as string[], periods: [] as string[] });
     const [heatMapView, setHeatMapView] = useState({ inherent: true, residual: true });
     const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
     const [priorityRisks, setPriorityRisks] = useState(new Set<string>());
@@ -244,6 +244,13 @@ export default function MinRiskLatest() {
     const [editingRisk, setEditingRisk] = useState<ProcessedRisk | null>(null);
     const [userRole, setUserRole] = useState<'admin' | 'edit' | 'view_only' | null>(null);
     const [userStatus, setUserStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null);
+    const [toast, setToast] = useState<{message: string; type: 'success' | 'error'} | null>(null);
+
+    // Toast notification function
+    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 3000);
+    };
 
     // Load data from database on mount
     useEffect(() => {
@@ -308,7 +315,13 @@ export default function MinRiskLatest() {
         fetchData();
     }, []);
 
-    const filtered = useMemo(() => { const q = query.trim().toLowerCase(); return rows.filter(r => { const m = !q || [r.risk_code, r.risk_title, r.risk_description, r.owner, r.category, r.division, r.department].join(" ").toLowerCase().includes(q); const d = filters.divisions.length === 0 || filters.divisions.includes(r.division); const de = filters.departments.length === 0 || filters.departments.includes(r.department); const c = filters.category === "All" || r.category === filters.category; const s = filters.status === "All" || r.status === filters.status; const u = filters.users.length === 0 || (r.user_email && filters.users.includes(r.user_email)); return m && d && de && c && s && u; }); }, [rows, query, filters]);
+    const filtered = useMemo(() => { const q = query.trim().toLowerCase(); return rows.filter(r => { const m = !q || [r.risk_code, r.risk_title, r.risk_description, r.owner, r.category, r.division, r.department].join(" ").toLowerCase().includes(q); const d = filters.divisions.length === 0 || filters.divisions.includes(r.division); const de = filters.departments.length === 0 || filters.departments.includes(r.department); const c = filters.category === "All" || r.category === filters.category; const s = filters.status === "All" || r.status === filters.status; const u = filters.users.length === 0 || (r.user_email && filters.users.includes(r.user_email)); const p = filters.periods.length === 0 || (r.relevant_period && filters.periods.includes(r.relevant_period)); return m && d && de && c && s && u && p; }); }, [rows, query, filters]);
+
+    const uniquePeriods = useMemo(() => {
+        const periods = rows.map(r => r.relevant_period).filter((p): p is string => Boolean(p));
+        return Array.from(new Set(periods)).sort();
+    }, [rows]);
+
     const processedData = useMemo(() => { return filtered.map(r => { const residual = calculateResidualRisk(r); return { ...r, likelihood_residual: residual.likelihood, impact_residual: residual.impact, inherent_score: r.likelihood_inherent * r.impact_inherent, residual_score: residual.likelihood * residual.impact }; }); }, [filtered]);
     
     const sortedData = useMemo(() => {
@@ -335,6 +348,7 @@ export default function MinRiskLatest() {
             if (result.success && result.data) {
                 setRows(prev => [...prev, result.data!]);
                 console.log('Risk added to state successfully');
+                showToast(`✓ Risk ${riskCode} created successfully!`, 'success');
             } else {
                 console.error('Failed to create risk:', result.error);
                 alert(`Failed to create risk: ${result.error || 'Unknown error'}`);
@@ -348,6 +362,7 @@ export default function MinRiskLatest() {
         const result = await updateRisk(code, payload);
         if (result.success) {
             setRows(p => p.map(r => r.risk_code === code ? { ...payload, risk_code: code } : r));
+            showToast(`✓ Risk ${code} updated successfully!`, 'success');
         } else {
             console.error('Failed to update risk:', result.error);
             alert(`Failed to update risk: ${result.error}`);
@@ -622,6 +637,7 @@ export default function MinRiskLatest() {
             <div className="col-span-1"><Input placeholder="Search risks..." value={query} onChange={e => setQuery(e.target.value)} /></div>
             <MultiSelectPopover title="Divisions" options={config.divisions} selected={filters.divisions} setSelected={v => setFilters(f => ({ ...f, divisions: v }))} />
             <MultiSelectPopover title="Departments" options={config.departments} selected={filters.departments} setSelected={v => setFilters(f => ({ ...f, departments: v }))} />
+            <MultiSelectPopover title="Periods" options={uniquePeriods} selected={filters.periods} setSelected={v => setFilters(f => ({ ...f, periods: v }))} />
             <Select value={filters.category} onValueChange={v => setFilters({ ...filters, category: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["All", ...config.categories].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
             <Select value={filters.status} onValueChange={v => setFilters({ ...filters, status: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["All", "Open", "In Progress", "Closed"].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
         </div>
@@ -639,7 +655,7 @@ export default function MinRiskLatest() {
 
             <TabsContent value="register"><RiskRegisterTab sortedData={sortedData} rowCount={filtered.length} requestSort={requestSort} onAdd={add} onEdit={setEditingRisk} onRemove={remove} config={config} rows={filtered} allRows={rows} priorityRisks={priorityRisks} setPriorityRisks={setPriorityRisks} canEdit={canEdit} filters={filters} setFilters={setFilters} isAdmin={isAdmin} /></TabsContent>
             <TabsContent value="control_register"><ControlRegisterTab allRisks={filtered} priorityRisks={priorityRisks} canEdit={canEdit} /></TabsContent>
-            <TabsContent value="heatmap"><HeatmapTab processedData={processedData} heatMapView={heatMapView} setHeatMapView={setHeatMapView} priorityRisks={priorityRisks} config={config} onEditRisk={setEditingRisk} canEdit={canEdit} /></TabsContent>
+            <TabsContent value="heatmap"><HeatmapTab processedData={processedData} allRows={rows} uniquePeriods={uniquePeriods} heatMapView={heatMapView} setHeatMapView={setHeatMapView} priorityRisks={priorityRisks} config={config} onEditRisk={setEditingRisk} canEdit={canEdit} /></TabsContent>
             {/* <TabsContent value="ai_assistant"><AIAssistantTab onAddMultipleRisks={addMultipleRisks} config={config} onSwitchTab={setActiveTab}/></TabsContent> */}
             <TabsContent value="import_risks"><RiskImportTab onImport={handleRiskBulkImport} currentConfig={config} canEdit={canEdit} /></TabsContent>
             <TabsContent value="import_controls"><ControlImportTab onImport={handleControlBulkImport} allRisks={rows} canEdit={canEdit} /></TabsContent>
@@ -656,12 +672,21 @@ export default function MinRiskLatest() {
                 onOpenChange={(isOpen) => !isOpen && setEditingRisk(null)}
             />
         )}
+
+        {/* Toast Notification */}
+        {toast && (
+            <div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-medium animate-in fade-in slide-in-from-bottom-5 duration-300 ${
+                toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+            }`}>
+                {toast.message}
+            </div>
+        )}
     </div>;
 }
 
 // ===== CHILD COMPONENTS =====
 
-function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onRemove, config, rows, allRows, priorityRisks, setPriorityRisks, canEdit, filters, setFilters, isAdmin }: { sortedData: ProcessedRisk[]; rowCount: number; requestSort: (key: keyof ProcessedRisk) => void; onAdd: (r: Omit<RiskRow, 'risk_code'>) => void; onEdit: (risk: ProcessedRisk) => void; onRemove: (code: string) => void; config: AppConfig; rows: RiskRow[]; allRows: RiskRow[]; priorityRisks: Set<string>; setPriorityRisks: React.Dispatch<React.SetStateAction<Set<string>>>; canEdit: boolean; filters: { divisions: string[]; departments: string[]; category: string; status: string; users: string[] }; setFilters: React.Dispatch<React.SetStateAction<{ divisions: string[]; departments: string[]; category: string; status: string; users: string[] }>>; isAdmin: boolean }) {
+function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onRemove, config, rows, allRows, priorityRisks, setPriorityRisks, canEdit, filters, setFilters, isAdmin }: { sortedData: ProcessedRisk[]; rowCount: number; requestSort: (key: keyof ProcessedRisk) => void; onAdd: (r: Omit<RiskRow, 'risk_code'>) => void; onEdit: (risk: ProcessedRisk) => void; onRemove: (code: string) => void; config: AppConfig; rows: RiskRow[]; allRows: RiskRow[]; priorityRisks: Set<string>; setPriorityRisks: React.Dispatch<React.SetStateAction<Set<string>>>; canEdit: boolean; filters: { divisions: string[]; departments: string[]; category: string; status: string; users: string[]; periods: string[] }; setFilters: React.Dispatch<React.SetStateAction<{ divisions: string[]; departments: string[]; category: string; status: string; users: string[]; periods: string[] }>>; isAdmin: boolean }) {
     const [showBulkDelete, setShowBulkDelete] = useState(false);
 
     // Always show all sorted data - priority checkboxes are just for marking/selection
@@ -796,6 +821,7 @@ return (
                 <th className="px-3 py-2 text-left font-semibold text-gray-700">Title</th>
                 <th className="px-3 py-2 text-left font-semibold text-gray-700">Category</th>
                 <th className="px-3 py-2 text-left font-semibold text-gray-700">Owner</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">Period</th>
                 <th className="px-3 py-2 text-left font-semibold text-gray-700">
                   <Button variant="ghost" size="sm" onClick={() => requestSort('inherent_score')}>
                     LxI (Inh) <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -840,6 +866,7 @@ return (
                     <td className="px-3 py-2">{r.risk_title}</td>
                     <td className="px-3 py-2">{r.category}</td>
                     <td className="px-3 py-2">{r.owner}</td>
+                    <td className="px-3 py-2 text-sm text-gray-600">{r.relevant_period || '-'}</td>
                     <td className="px-3 py-2">{r.inherent_score.toFixed(1)}</td>
                     <td className="px-3 py-2 font-semibold">{r.residual_score.toFixed(1)}</td>
                     <td className="px-3 py-2">
@@ -935,11 +962,18 @@ function ControlRegisterTab({ allRisks, priorityRisks, canEdit }: { allRisks: Ri
     );
 }
 
-function HeatmapTab({ processedData, heatMapView, setHeatMapView, priorityRisks, config, onEditRisk, canEdit }: { processedData: ProcessedRisk[]; heatMapView: { inherent: boolean, residual: boolean }; setHeatMapView: React.Dispatch<React.SetStateAction<{ inherent: boolean; residual: boolean; }>>; priorityRisks: Set<string>; config: AppConfig; onEditRisk: (risk: ProcessedRisk) => void; canEdit: boolean }) {
-    
+function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHeatMapView, priorityRisks, config, onEditRisk, canEdit }: { processedData: ProcessedRisk[]; allRows: RiskRow[]; uniquePeriods: string[]; heatMapView: { inherent: boolean, residual: boolean }; setHeatMapView: React.Dispatch<React.SetStateAction<{ inherent: boolean; residual: boolean; }>>; priorityRisks: Set<string>; config: AppConfig; onEditRisk: (risk: ProcessedRisk) => void; canEdit: boolean }) {
+    const [selectedPeriods, setSelectedPeriods] = useState<string[]>([]);
+
+    // Filter processedData by selected periods
+    const periodFilteredData = useMemo(() => {
+        if (selectedPeriods.length === 0) return processedData;
+        return processedData.filter(r => r.relevant_period && selectedPeriods.includes(r.relevant_period));
+    }, [processedData, selectedPeriods]);
+
     const heatmapData = useMemo(() => {
         const grid: { inherent: ProcessedRisk[], residual: ProcessedRisk[] }[][] = Array(config.matrixSize).fill(0).map(() => Array(config.matrixSize).fill(0).map(() => ({ inherent: [], residual: [] })));
-        const priorityData = processedData.filter(r => isPriorityRisk(priorityRisks, r.user_id, r.risk_code));
+        const priorityData = periodFilteredData.filter(r => isPriorityRisk(priorityRisks, r.user_id, r.risk_code));
 
         priorityData.forEach(risk => {
             if (heatMapView.inherent) {
@@ -958,17 +992,33 @@ function HeatmapTab({ processedData, heatMapView, setHeatMapView, priorityRisks,
             }
         });
         return grid;
-    }, [processedData, priorityRisks, heatMapView, config.matrixSize]);
+    }, [periodFilteredData, priorityRisks, heatMapView, config.matrixSize]);
     
     return (
         <Card className="rounded-2xl shadow-sm">
             <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                    <div className="text-sm text-gray-500">Displaying {priorityRisks.size} priority risk(s)</div>
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2"><Checkbox id="showInherent" checked={heatMapView.inherent} onCheckedChange={c => setHeatMapView(v => ({ ...v, inherent: !!c }))} /><label htmlFor="showInherent" className="text-sm">Show Inherent</label></div>
-                        <div className="flex items-center gap-2"><Checkbox id="showResidual" checked={heatMapView.residual} onCheckedChange={c => setHeatMapView(v => ({ ...v, residual: !!c }))} /><label htmlFor="showResidual" className="text-sm">Show Residual</label></div>
+                <div className="mb-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <div className="text-sm text-gray-500">
+                            Displaying {priorityRisks.size} priority risk(s)
+                            {selectedPeriods.length > 0 && <span className="ml-2 text-blue-600 font-medium">({selectedPeriods.join(', ')})</span>}
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2"><Checkbox id="showInherent" checked={heatMapView.inherent} onCheckedChange={c => setHeatMapView(v => ({ ...v, inherent: !!c }))} /><label htmlFor="showInherent" className="text-sm">Show Inherent</label></div>
+                            <div className="flex items-center gap-2"><Checkbox id="showResidual" checked={heatMapView.residual} onCheckedChange={c => setHeatMapView(v => ({ ...v, residual: !!c }))} /><label htmlFor="showResidual" className="text-sm">Show Residual</label></div>
+                        </div>
                     </div>
+                    {uniquePeriods.length > 0 && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">Filter by Period:</span>
+                            <MultiSelectPopover
+                                title="Periods"
+                                options={uniquePeriods}
+                                selected={selectedPeriods}
+                                setSelected={setSelectedPeriods}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex">
@@ -1143,7 +1193,7 @@ function processParsedControlsData(rawData: any[], allRisks: RiskRow[]): ParsedC
 
 
 function MultiSelectPopover({ title, options, selected, setSelected }: { title: string; options: readonly string[]; selected: string[]; setSelected: (selected: string[]) => void; }) { const handleSelect = (value: string) => { const newSelected = selected.includes(value) ? selected.filter(item => item !== value) : [...selected, value]; setSelected(newSelected); }; return (<Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-between">{selected.length > 0 ? `${title} (${selected.length})` : `All ${title}`}<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" /></Button></PopoverTrigger><PopoverContent className="w-[200px] p-0"><div className="p-2 space-y-1">{options.map(option => (<div key={option} className="flex items-center gap-2 p-1 rounded hover:bg-gray-100"><Checkbox id={`ms-${title}-${option}`} checked={selected.includes(option)} onCheckedChange={() => handleSelect(option)} /><Label htmlFor={`ms-${title}-${option}`} className="w-full text-sm font-normal">{option}</Label></div>))}</div></PopoverContent></Popover>); }
-function AddRiskDialog({ onAdd, config, rows }: { onAdd: (r: Omit<RiskRow, 'risk_code'>) => void; config: AppConfig; rows: RiskRow[] }) { const [open, setOpen] = useState(false); const [form, setForm] = useState<Omit<RiskRow, 'risk_code'>>({ risk_title: "", risk_description: "", division: config.divisions[0] || "", department: config.departments[0] || "", category: config.categories[0] || "", owner: "", likelihood_inherent: 3, impact_inherent: 3, controls: [], status: "Open" }); const preview = useMemo(() => nextRiskCode(rows, form.division, form.category), [rows, form.division, form.category]); const handleSave = () => { onAdd(form); setOpen(false); setForm({ risk_title: "", risk_description: "", division: config.divisions[0] || "", department: config.departments[0] || "", category: config.categories[0] || "", owner: "", likelihood_inherent: 3, impact_inherent: 3, controls: [], status: "Open" });}; return (<Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Add Risk</Button></DialogTrigger><DialogContent className="max-w-3xl max-h-[90vh] flex flex-col"><DialogHeader><DialogTitle>Add a Risk</DialogTitle></DialogHeader><RiskFields form={form} setForm={setForm} config={config} codePreview={preview} codeLocked /><DialogFooter className="pt-4"><Button onClick={handleSave}>Save</Button></DialogFooter></DialogContent></Dialog>); }
+function AddRiskDialog({ onAdd, config, rows }: { onAdd: (r: Omit<RiskRow, 'risk_code'>) => void; config: AppConfig; rows: RiskRow[] }) { const [open, setOpen] = useState(false); const [form, setForm] = useState<Omit<RiskRow, 'risk_code'>>({ risk_title: "", risk_description: "", division: config.divisions[0] || "", department: config.departments[0] || "", category: config.categories[0] || "", owner: "", relevant_period: null, likelihood_inherent: 3, impact_inherent: 3, controls: [], status: "Open" }); const preview = useMemo(() => nextRiskCode(rows, form.division, form.category), [rows, form.division, form.category]); const handleSave = () => { onAdd(form); setOpen(false); setForm({ risk_title: "", risk_description: "", division: config.divisions[0] || "", department: config.departments[0] || "", category: config.categories[0] || "", owner: "", relevant_period: null, likelihood_inherent: 3, impact_inherent: 3, controls: [], status: "Open" });}; return (<Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Add Risk</Button></DialogTrigger><DialogContent className="max-w-3xl max-h-[90vh] flex flex-col"><DialogHeader><DialogTitle>Add a Risk</DialogTitle></DialogHeader><RiskFields form={form} setForm={setForm} config={config} codePreview={preview} codeLocked /><DialogFooter className="pt-4"><Button onClick={handleSave}>Save</Button></DialogFooter></DialogContent></Dialog>); }
 function EditRiskDialog({ initial, config, onSave, children, open, onOpenChange }: { initial: ProcessedRisk; config: AppConfig; onSave: (p: Omit<RiskRow, 'risk_code'>) => void; children?: React.ReactNode, open: boolean, onOpenChange: (open: boolean) => void }) { 
     const [form, setForm] = useState<Omit<RiskRow, 'risk_code'>>({ ...initial }); 
     useEffect(() => { setForm({ ...initial }) }, [initial]); 
@@ -1206,7 +1256,9 @@ function RiskFields({ form, setForm, config, codePreview, codeLocked }: { form: 
         }
     };
 
-    return (<div className="flex-grow overflow-y-auto -mr-4 pr-4 space-y-6"><div className="grid grid-cols-2 gap-4"><div><Label>Risk Code</Label><Input value={codePreview} readOnly={!!codeLocked} className={codeLocked ? "bg-gray-100" : ""} /></div><div><Label>Status</Label><Select value={form.status} onValueChange={v => setField('status', v as any)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["Open", "In Progress", "Closed"].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div className="col-span-2"><Label>Title</Label><Input value={form.risk_title} onChange={e => setField('risk_title', e.target.value)} /></div><div className="col-span-2"><Label>Description</Label><Textarea rows={3} value={form.risk_description} onChange={e => setField('risk_description', e.target.value)} /></div><div><Label>Division</Label><Select value={form.division} onValueChange={v => setField('division', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.divisions.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Department</Label><Select value={form.department} onValueChange={v => setField('department', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.departments.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Category</Label><Select value={form.category} onValueChange={v => setField('category', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.categories.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Owner</Label><Input value={form.owner} onChange={e => setField('owner', e.target.value)} /></div></div><div className="space-y-2"><h3 className="font-semibold text-gray-800">Inherent Risk</h3><div className="grid grid-cols-2 gap-4"><div><Label>Likelihood (Inherent)</Label><Select value={String(form.likelihood_inherent)} onValueChange={v => setField('likelihood_inherent', Number(v))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.likelihoodLabels.map((label, index) => <SelectItem key={index + 1} value={String(index + 1)}>{label}</SelectItem>)}</SelectContent></Select></div><div><Label>Impact (Inherent)</Label><Select value={String(form.impact_inherent)} onValueChange={v => setField('impact_inherent', Number(v))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.impactLabels.map((label, index) => <SelectItem key={index + 1} value={String(index + 1)}>{label}</SelectItem>)}</SelectContent></Select></div></div></div><div className="space-y-3"><div className="flex justify-between items-center"><h3 className="font-semibold text-gray-800">Controls</h3><div className="flex gap-2">{/* <Button onClick={handleSuggestControls} size="sm" variant="outline" disabled={isSuggesting}><Sparkles className="mr-2 h-4 w-4"/>{isSuggesting ? 'Thinking...' : 'Suggest Controls'}</Button> */}<Button onClick={addControl} size="sm" variant="outline"><Plus className="mr-2 h-4 w-4" />Add Control</Button></div></div>{form.controls.map((control, index) => (<div key={control.id} className="border rounded-lg p-4 space-y-4 bg-gray-50"><div className="flex justify-between items-start"><div className="flex-grow space-y-2"><Label>Control #{index + 1} Description</Label><Textarea placeholder="e.g., Daily reconciliation process" value={control.description} onChange={e => updateControl(control.id, { description: e.target.value })} /></div><Button variant="ghost" size="sm" className="ml-4" onClick={() => removeControl(control.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button></div><div><Label>Target</Label><Select value={control.target} onValueChange={(v: "Likelihood" | "Impact") => updateControl(control.id, { target: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Likelihood">Likelihood</SelectItem><SelectItem value="Impact">Impact</SelectItem></SelectContent></Select></div><div className="grid grid-cols-2 gap-4"><div><Label>D (Design)</Label><Select value={String(control.design)} onValueChange={v => updateControl(control.id, { design: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_DESIGN_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>I (Implementation)</Label><Select value={String(control.implementation)} onValueChange={v => updateControl(control.id, { implementation: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_IMPLEMENTATION_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>M (Monitoring)</Label><Select value={String(control.monitoring)} onValueChange={v => updateControl(control.id, { monitoring: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_MONITORING_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>E (Evaluation)</Label><Select value={String(control.effectiveness_evaluation)} onValueChange={v => updateControl(control.id, { effectiveness_evaluation: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_EFFECTIVENESS_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div></div></div>))}{form.controls.length === 0 && <p className="text-sm text-center text-gray-500 py-4">No controls added. Residual risk will equal inherent risk.</p>}</div><div className="space-y-2"><h3 className="font-semibold text-gray-800">Residual Risk (Calculated)</h3><div className="grid grid-cols-2 gap-4 p-4 border rounded-lg bg-blue-50"><div><Label>Likelihood (Residual)</Label><Input readOnly value={`${residualRisk.likelihood.toFixed(2)} (${config.likelihoodLabels[Math.round(residualRisk.likelihood)-1] || 'N/A'})`} className="bg-white font-mono" /></div><div><Label>Impact (Residual)</Label><Input readOnly value={`${residualRisk.impact.toFixed(2)} (${config.impactLabels[Math.round(residualRisk.impact)-1] || 'N/A'})`} className="bg-white font-mono" /></div></div></div></div>); 
+    const periodOptions = ["Q1 2025", "Q2 2025", "Q3 2025", "Q4 2025", "Q1 2026", "Q2 2026", "Q3 2026", "Q4 2026", "FY2025", "FY2026"];
+
+    return (<div className="flex-grow overflow-y-auto -mr-4 pr-4 space-y-6"><div className="grid grid-cols-2 gap-4"><div><Label>Risk Code</Label><Input value={codePreview} readOnly={!!codeLocked} className={codeLocked ? "bg-gray-100" : ""} /></div><div><Label>Status</Label><Select value={form.status} onValueChange={v => setField('status', v as any)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["Open", "In Progress", "Closed"].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div className="col-span-2"><Label>Title</Label><Input value={form.risk_title} onChange={e => setField('risk_title', e.target.value)} /></div><div className="col-span-2"><Label>Description</Label><Textarea rows={3} value={form.risk_description} onChange={e => setField('risk_description', e.target.value)} /></div><div><Label>Division</Label><Select value={form.division} onValueChange={v => setField('division', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.divisions.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Department</Label><Select value={form.department} onValueChange={v => setField('department', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.departments.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Category</Label><Select value={form.category} onValueChange={v => setField('category', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.categories.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Owner</Label><Input value={form.owner} onChange={e => setField('owner', e.target.value)} /></div><div className="col-span-2"><Label>Relevant Period</Label><Select value={form.relevant_period || undefined} onValueChange={v => setField('relevant_period', v)}><SelectTrigger><SelectValue placeholder="Select period..." /></SelectTrigger><SelectContent>{periodOptions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}<SelectItem value="custom">Custom...</SelectItem></SelectContent></Select>{form.relevant_period === "custom" && <Input placeholder="Enter custom period (e.g., H1 2025)" value="" onChange={e => setField('relevant_period', e.target.value)} className="mt-2" />}</div></div><div className="space-y-2"><h3 className="font-semibold text-gray-800">Inherent Risk</h3><div className="grid grid-cols-2 gap-4"><div><Label>Likelihood (Inherent)</Label><Select value={String(form.likelihood_inherent)} onValueChange={v => setField('likelihood_inherent', Number(v))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.likelihoodLabels.map((label, index) => <SelectItem key={index + 1} value={String(index + 1)}>{label}</SelectItem>)}</SelectContent></Select></div><div><Label>Impact (Inherent)</Label><Select value={String(form.impact_inherent)} onValueChange={v => setField('impact_inherent', Number(v))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.impactLabels.map((label, index) => <SelectItem key={index + 1} value={String(index + 1)}>{label}</SelectItem>)}</SelectContent></Select></div></div></div><div className="space-y-3"><div className="flex justify-between items-center"><h3 className="font-semibold text-gray-800">Controls</h3><div className="flex gap-2">{/* <Button onClick={handleSuggestControls} size="sm" variant="outline" disabled={isSuggesting}><Sparkles className="mr-2 h-4 w-4"/>{isSuggesting ? 'Thinking...' : 'Suggest Controls'}</Button> */}<Button onClick={addControl} size="sm" variant="outline"><Plus className="mr-2 h-4 w-4" />Add Control</Button></div></div>{form.controls.map((control, index) => (<div key={control.id} className="border rounded-lg p-4 space-y-4 bg-gray-50"><div className="flex justify-between items-start"><div className="flex-grow space-y-2"><Label>Control #{index + 1} Description</Label><Textarea placeholder="e.g., Daily reconciliation process" value={control.description} onChange={e => updateControl(control.id, { description: e.target.value })} /></div><Button variant="ghost" size="sm" className="ml-4" onClick={() => removeControl(control.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button></div><div><Label>Target</Label><Select value={control.target} onValueChange={(v: "Likelihood" | "Impact") => updateControl(control.id, { target: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Likelihood">Likelihood</SelectItem><SelectItem value="Impact">Impact</SelectItem></SelectContent></Select></div><div className="grid grid-cols-2 gap-4"><div><Label>D (Design)</Label><Select value={String(control.design)} onValueChange={v => updateControl(control.id, { design: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_DESIGN_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>I (Implementation)</Label><Select value={String(control.implementation)} onValueChange={v => updateControl(control.id, { implementation: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_IMPLEMENTATION_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>M (Monitoring)</Label><Select value={String(control.monitoring)} onValueChange={v => updateControl(control.id, { monitoring: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_MONITORING_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>E (Evaluation)</Label><Select value={String(control.effectiveness_evaluation)} onValueChange={v => updateControl(control.id, { effectiveness_evaluation: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_EFFECTIVENESS_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div></div></div>))}{form.controls.length === 0 && <p className="text-sm text-center text-gray-500 py-4">No controls added. Residual risk will equal inherent risk.</p>}</div><div className="space-y-2"><h3 className="font-semibold text-gray-800">Residual Risk (Calculated)</h3><div className="grid grid-cols-2 gap-4 p-4 border rounded-lg bg-blue-50"><div><Label>Likelihood (Residual)</Label><Input readOnly value={`${residualRisk.likelihood.toFixed(2)} (${config.likelihoodLabels[Math.round(residualRisk.likelihood)-1] || 'N/A'})`} className="bg-white font-mono" /></div><div><Label>Impact (Residual)</Label><Input readOnly value={`${residualRisk.impact.toFixed(2)} (${config.impactLabels[Math.round(residualRisk.impact)-1] || 'N/A'})`} className="bg-white font-mono" /></div></div></div></div>); 
 }
 
 function ConfigDialog({ config, onSave }: { config: AppConfig; onSave: (c: AppConfig) => void }) {

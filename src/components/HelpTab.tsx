@@ -123,7 +123,7 @@ export default function HelpTab() {
       <Card>
         <CardContent className="pt-6 text-center text-sm text-gray-500">
           <p>MinRisk User Manual - Version 1.0</p>
-          <p>Last Updated: June 2025</p>
+          <p>Last Updated: January 2025</p>
         </CardContent>
       </Card>
     </div>
@@ -166,6 +166,7 @@ const sections = [
             <li><strong>Risk Code</strong> - Unique identifier (e.g., "R001")</li>
             <li><strong>Risk Title</strong> - Short description (max 120 chars)</li>
             <li><strong>Division, Department, Category</strong> - Select from dropdowns</li>
+            <li><strong>Relevant Period</strong> - Time period for this risk (e.g., "Q1 2025", "FY2025")</li>
             <li><strong>Likelihood & Impact</strong> - Rate 1-5 or 1-6</li>
           </ul>
         </li>
@@ -175,6 +176,14 @@ const sections = [
 
       <h3>Editing Risks</h3>
       <p>Click the pencil icon in the Actions column, modify fields, and save.</p>
+
+      <h3>Save Confirmation</h3>
+      <p>When you create or update a risk, you'll see a green confirmation message in the bottom-right corner:</p>
+      <ul>
+        <li><strong>✓ Risk [code] created successfully!</strong> - Appears when new risk is added</li>
+        <li><strong>✓ Risk [code] updated successfully!</strong> - Appears when risk is edited</li>
+      </ul>
+      <p>The notification automatically disappears after 3 seconds. All changes are also logged in the Audit Trail.</p>
 
       <h3>Deleting Risks</h3>
       <ul>
@@ -188,6 +197,7 @@ const sections = [
         <li>Search text (searches all fields)</li>
         <li>Division (multi-select)</li>
         <li>Department (multi-select)</li>
+        <li>Period (multi-select) - Filter by time period (e.g., Q1 2025, FY2025)</li>
         <li>Category</li>
         <li>Status</li>
         <li>User (admin only, multi-select)</li>
@@ -222,6 +232,14 @@ const sections = [
       <ul>
         <li><strong>Inherent Risk:</strong> Before controls are applied</li>
         <li><strong>Residual Risk:</strong> After controls are applied</li>
+      </ul>
+
+      <h4>Period Filtering:</h4>
+      <p>Use the "Filter by Period" dropdown to view risks for specific time periods:</p>
+      <ul>
+        <li>Select one or multiple periods (e.g., Q1 2025, Q2 2025, FY2025)</li>
+        <li>Leave empty to show all periods</li>
+        <li>Selected periods are displayed in the header</li>
       </ul>
 
       <p>Hover over circles to see risk details. Click to navigate to that risk.</p>
@@ -458,16 +476,30 @@ const sections = [
       <h3>Viewing Audit Trail</h3>
       <ol>
         <li>Go to <strong>Admin</strong> → <strong>Audit Trail</strong></li>
-        <li>Use filters:
+        <li>Use filters (8 total filters in 2 rows):
           <ul>
-            <li><strong>Search:</strong> User email, risk code, action</li>
-            <li><strong>Action Type:</strong> create, update, delete, etc.</li>
+            <li><strong>Search:</strong> Search by user email, risk code, or action</li>
+            <li><strong>Risk Code:</strong> Filter by specific risk code</li>
+            <li><strong>User:</strong> Filter by specific user email</li>
+            <li><strong>Action Type:</strong> create, update, delete, archive, etc.</li>
             <li><strong>Entity Type:</strong> risk, control, user</li>
+            <li><strong>Start Date:</strong> Show entries from this date onwards</li>
+            <li><strong>End Date:</strong> Show entries up to this date</li>
             <li><strong>Load Limit:</strong> 50, 100, 200, or 500 entries</li>
           </ul>
         </li>
         <li>Click <strong>eye icon</strong> to view entry details</li>
+        <li>Click <strong>"Export CSV"</strong> button to download filtered results</li>
       </ol>
+
+      <h3>Exporting Audit Trail</h3>
+      <p>Export your filtered audit trail data to CSV for reporting:</p>
+      <ul>
+        <li>Apply filters to narrow down the data you want</li>
+        <li>Click <strong>"Export CSV"</strong> button in the header</li>
+        <li>File downloads with name format: <code>audit-trail-YYYY-MM-DD.csv</code></li>
+        <li>CSV includes: Timestamp, Action, Entity Type, Entity Code, User Email, Details</li>
+      </ul>
 
       <h3>Entry Details</h3>
       <p>Details are shown in formatted cards for easy reading:</p>
