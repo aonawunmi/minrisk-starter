@@ -236,7 +236,7 @@ export default function MinRiskLatest() {
     const [loading, setLoading] = useState(true);
     const [query, setQuery] = useState("");
     const [config, setConfig] = useState<AppConfig>(DEFAULT_APP_CONFIG);
-    const [filters, setFilters] = useState({ divisions: [] as string[], departments: [] as string[], category: "All", status: "All", users: [] as string[], periods: [] as string[] });
+    const [filters, setFilters] = useState({ divisions: [] as string[], departments: [] as string[], categories: [] as string[], statuses: [] as string[], users: [] as string[], periods: [] as string[] });
     const [heatMapView, setHeatMapView] = useState({ inherent: true, residual: true });
     const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
     const [priorityRisks, setPriorityRisks] = useState(new Set<string>());
@@ -315,7 +315,7 @@ export default function MinRiskLatest() {
         fetchData();
     }, []);
 
-    const filtered = useMemo(() => { const q = query.trim().toLowerCase(); return rows.filter(r => { const m = !q || [r.risk_code, r.risk_title, r.risk_description, r.owner, r.category, r.division, r.department].join(" ").toLowerCase().includes(q); const d = filters.divisions.length === 0 || filters.divisions.includes(r.division); const de = filters.departments.length === 0 || filters.departments.includes(r.department); const c = filters.category === "All" || r.category === filters.category; const s = filters.status === "All" || r.status === filters.status; const u = filters.users.length === 0 || (r.user_email && filters.users.includes(r.user_email)); const p = filters.periods.length === 0 || (r.relevant_period && filters.periods.includes(r.relevant_period)); return m && d && de && c && s && u && p; }); }, [rows, query, filters]);
+    const filtered = useMemo(() => { const q = query.trim().toLowerCase(); return rows.filter(r => { const m = !q || [r.risk_code, r.risk_title, r.risk_description, r.owner, r.category, r.division, r.department].join(" ").toLowerCase().includes(q); const d = filters.divisions.length === 0 || filters.divisions.includes(r.division); const de = filters.departments.length === 0 || filters.departments.includes(r.department); const c = filters.categories.length === 0 || filters.categories.includes(r.category); const s = filters.statuses.length === 0 || filters.statuses.includes(r.status); const u = filters.users.length === 0 || (r.user_email && filters.users.includes(r.user_email)); const p = filters.periods.length === 0 || (r.relevant_period && filters.periods.includes(r.relevant_period)); return m && d && de && c && s && u && p; }); }, [rows, query, filters]);
 
     const uniquePeriods = useMemo(() => {
         const periods = rows.map(r => r.relevant_period).filter((p): p is string => Boolean(p));
@@ -638,8 +638,8 @@ export default function MinRiskLatest() {
             <MultiSelectPopover title="Divisions" options={config.divisions} selected={filters.divisions} setSelected={v => setFilters(f => ({ ...f, divisions: v }))} />
             <MultiSelectPopover title="Departments" options={config.departments} selected={filters.departments} setSelected={v => setFilters(f => ({ ...f, departments: v }))} />
             <MultiSelectPopover title="Periods" options={uniquePeriods} selected={filters.periods} setSelected={v => setFilters(f => ({ ...f, periods: v }))} />
-            <Select value={filters.category} onValueChange={v => setFilters({ ...filters, category: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["All", ...config.categories].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
-            <Select value={filters.status} onValueChange={v => setFilters({ ...filters, status: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["All", "Open", "In Progress", "Closed"].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
+            <MultiSelectPopover title="Categories" options={config.categories} selected={filters.categories} setSelected={v => setFilters(f => ({ ...f, categories: v }))} />
+            <MultiSelectPopover title="Status" options={["Open", "In Progress", "Closed"]} selected={filters.statuses} setSelected={v => setFilters(f => ({ ...f, statuses: v }))} />
         </div>
 
         {import.meta.env.DEV && (
@@ -686,7 +686,7 @@ export default function MinRiskLatest() {
 
 // ===== CHILD COMPONENTS =====
 
-function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onRemove, config, rows, allRows, priorityRisks, setPriorityRisks, canEdit, filters, setFilters, isAdmin }: { sortedData: ProcessedRisk[]; rowCount: number; requestSort: (key: keyof ProcessedRisk) => void; onAdd: (r: Omit<RiskRow, 'risk_code'>) => void; onEdit: (risk: ProcessedRisk) => void; onRemove: (code: string) => void; config: AppConfig; rows: RiskRow[]; allRows: RiskRow[]; priorityRisks: Set<string>; setPriorityRisks: React.Dispatch<React.SetStateAction<Set<string>>>; canEdit: boolean; filters: { divisions: string[]; departments: string[]; category: string; status: string; users: string[]; periods: string[] }; setFilters: React.Dispatch<React.SetStateAction<{ divisions: string[]; departments: string[]; category: string; status: string; users: string[]; periods: string[] }>>; isAdmin: boolean }) {
+function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onRemove, config, rows, allRows, priorityRisks, setPriorityRisks, canEdit, filters, setFilters, isAdmin }: { sortedData: ProcessedRisk[]; rowCount: number; requestSort: (key: keyof ProcessedRisk) => void; onAdd: (r: Omit<RiskRow, 'risk_code'>) => void; onEdit: (risk: ProcessedRisk) => void; onRemove: (code: string) => void; config: AppConfig; rows: RiskRow[]; allRows: RiskRow[]; priorityRisks: Set<string>; setPriorityRisks: React.Dispatch<React.SetStateAction<Set<string>>>; canEdit: boolean; filters: { divisions: string[]; departments: string[]; categories: string[]; statuses: string[]; users: string[]; periods: string[] }; setFilters: React.Dispatch<React.SetStateAction<{ divisions: string[]; departments: string[]; categories: string[]; statuses: string[]; users: string[]; periods: string[] }>>; isAdmin: boolean }) {
     const [showBulkDelete, setShowBulkDelete] = useState(false);
 
     // Always show all sorted data - priority checkboxes are just for marking/selection
