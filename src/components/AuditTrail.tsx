@@ -216,13 +216,13 @@ export default function AuditTrail() {
     // Date range filter
     if (startDate) {
       const start = new Date(startDate);
-      filtered = filtered.filter(e => new Date(e.created_at) >= start);
+      filtered = filtered.filter(e => new Date(e.performed_at) >= start);
     }
 
     if (endDate) {
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999); // Include the entire end date
-      filtered = filtered.filter(e => new Date(e.created_at) <= end);
+      filtered = filtered.filter(e => new Date(e.performed_at) <= end);
     }
 
     setFilteredEntries(filtered);
@@ -241,12 +241,12 @@ export default function AuditTrail() {
 
     filteredEntries.forEach(entry => {
       const row = [
-        new Date(entry.created_at).toLocaleString(),
+        new Date(entry.performed_at).toLocaleString(),
         entry.action_type,
         entry.entity_type,
         entry.entity_code || '',
         entry.user_email || '',
-        JSON.stringify(entry.details || {}).replace(/"/g, '""') // Escape quotes
+        JSON.stringify(entry.new_values || entry.old_values || {}).replace(/"/g, '""') // Escape quotes
       ];
       csvRows.push(row.map(cell => `"${cell}"`).join(','));
     });
@@ -266,7 +266,7 @@ export default function AuditTrail() {
   // Get unique action types, entity types, and users
   const actionTypes = ['all', ...Array.from(new Set(entries.map(e => e.action_type)))];
   const entityTypes = ['all', ...Array.from(new Set(entries.map(e => e.entity_type)))];
-  const uniqueUsers = ['all', ...Array.from(new Set(entries.map(e => e.user_email).filter(Boolean)))];
+  const uniqueUsers = ['all', ...Array.from(new Set(entries.map(e => e.user_email).filter((email): email is string => Boolean(email))))];
 
   // Get action color
   const getActionColor = (actionType: string) => {

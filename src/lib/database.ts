@@ -68,6 +68,7 @@ function dbToAppRisk(dbRisk: DbRisk, controls: DbControl[], userEmail?: string):
     department: dbRisk.department,
     category: dbRisk.category,
     owner: dbRisk.owner,
+    relevant_period: dbRisk.relevant_period || null,
     likelihood_inherent: dbRisk.likelihood_inherent,
     impact_inherent: dbRisk.impact_inherent,
     status: dbRisk.status,

@@ -330,7 +330,7 @@ export default function MinRiskLatest() {
             sortableItems.sort((a, b) => {
                 const aVal = a[sortConfig.key];
                 const bVal = b[sortConfig.key];
-                if (aVal === undefined || bVal === undefined) return 0;
+                if (aVal === undefined || bVal === undefined || aVal === null || bVal === null) return 0;
                 if (aVal < bVal) { return sortConfig.direction === 'asc' ? -1 : 1; }
                 if (aVal > bVal) { return sortConfig.direction === 'asc' ? 1 : -1; }
                 return 0;
@@ -1152,7 +1152,7 @@ function DeleteConfirmationDialog({ onConfirm, riskCode }: { onConfirm: () => vo
 function processParsedRiskData(rawData: any[], matrixSize: 5 | 6) {
     const discoveredDivisions = new Set<string>(); const discoveredDepartments = new Set<string>(); const discoveredCategories = new Set<string>();
     const data = rawData.map((rowData: any) => {
-        const risk: ParsedRisk = { risk_title: rowData.risk_title?.trim() || '', risk_description: rowData.risk_description?.trim() || '', division: rowData.division?.trim() || '', department: rowData.department?.trim() || '', category: rowData.category?.trim() || '', owner: rowData.owner?.trim() || '', likelihood_inherent: parseInt(rowData.likelihood_inherent, 10), impact_inherent: parseInt(rowData.impact_inherent, 10), status: rowData.status?.trim() as any, controls: [], errors: [] };
+        const risk: ParsedRisk = { risk_title: rowData.risk_title?.trim() || '', risk_description: rowData.risk_description?.trim() || '', division: rowData.division?.trim() || '', department: rowData.department?.trim() || '', category: rowData.category?.trim() || '', owner: rowData.owner?.trim() || '', relevant_period: rowData.relevant_period?.trim() || null, likelihood_inherent: parseInt(rowData.likelihood_inherent, 10), impact_inherent: parseInt(rowData.impact_inherent, 10), status: rowData.status?.trim() as any, controls: [], errors: [] };
         if (!risk.risk_title) risk.errors?.push('Missing title');
         if (isNaN(risk.likelihood_inherent) || risk.likelihood_inherent < 1 || risk.likelihood_inherent > matrixSize) risk.errors?.push(`Invalid L-Inherent (1-${matrixSize})`);
         if (isNaN(risk.impact_inherent) || risk.impact_inherent < 1 || risk.impact_inherent > matrixSize) risk.errors?.push(`Invalid I-Inherent (1-${matrixSize})`);
@@ -1446,6 +1446,7 @@ function AIAssistantTab({ onAddMultipleRisks, config, onSwitchTab }: { onAddMult
                 division: data.division,
                 department: config.departments[0] || "",
                 owner: "Unassigned",
+                relevant_period: null,
                 likelihood_inherent: 3,
                 impact_inherent: 3,
                 controls: [],
