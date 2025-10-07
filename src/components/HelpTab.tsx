@@ -358,6 +358,16 @@ const sections = [
         <li><strong>Admin:</strong> Full access including config and user management</li>
       </ul>
 
+      <h3>Changing User Roles</h3>
+      <p>For approved users, you can change their role without deleting them:</p>
+      <ol>
+        <li>Find the approved user in the Users table</li>
+        <li>Click the <strong>role dropdown</strong> in the Actions column</li>
+        <li>Select the new role (View Only, Edit, or Admin)</li>
+        <li>Role change is instant and logged to audit trail</li>
+      </ol>
+      <p><strong>Audit Trail:</strong> All role changes are logged with old role and new role for compliance.</p>
+
       <h3>Deleting Users</h3>
       <p>Click the X button next to approved/rejected users.</p>
       <p><strong>⚠️ Warning:</strong> This deletes the user and ALL their risks and controls.</p>
