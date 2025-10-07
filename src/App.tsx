@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Upload, Plus, Search, RefreshCw, Settings, Table, Pencil, Trash2, ChevronsUpDown, FileUp, AlertTriangle, ArrowUpDown, Sparkles } from "lucide-react";
+import { Upload, Plus, Search, RefreshCw, Settings, Table, Pencil, Trash2, ChevronsUpDown, FileUp, AlertTriangle, ArrowUpDown, Sparkles, Calendar, Archive } from "lucide-react";
 import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
 import { askGemini, ChatMsg } from '@/lib/ai';
@@ -244,12 +244,64 @@ export default function MinRiskLatest() {
     const [editingRisk, setEditingRisk] = useState<ProcessedRisk | null>(null);
     const [userRole, setUserRole] = useState<'admin' | 'edit' | 'view_only' | null>(null);
     const [userStatus, setUserStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null);
+    const [activePeriod, setActivePeriod] = useState<string | null>(null);
     const [toast, setToast] = useState<{message: string; type: 'success' | 'error'} | null>(null);
+    const [showChangePeriodDialog, setShowChangePeriodDialog] = useState(false);
+    const [newPeriod, setNewPeriod] = useState<string>("");
+    const [showCommitDialog, setShowCommitDialog] = useState(false);
 
     // Toast notification function
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 3000);
+    };
+
+    // Change active period handler
+    const handleChangePeriod = async () => {
+        if (!newPeriod) return;
+        try {
+            const { supabase } = await import('@/lib/supabase');
+            const { data, error } = await supabase.rpc('change_active_period', { new_period: newPeriod });
+
+            if (error) throw error;
+            if (data?.success) {
+                setActivePeriod(newPeriod);
+                showToast(`Active period changed to ${newPeriod}. ${data.updated_count} risk(s) updated.`);
+                setShowChangePeriodDialog(false);
+                setNewPeriod("");
+                // Reload risks to reflect the change
+                const risks = await loadRisks();
+                setRows(risks);
+            } else {
+                showToast(data?.error || 'Failed to change period', 'error');
+            }
+        } catch (error: any) {
+            console.error('Error changing period:', error);
+            showToast(error.message || 'Failed to change period', 'error');
+        }
+    };
+
+    // Commit period handler
+    const handleCommitPeriod = async () => {
+        if (!activePeriod) return;
+        try {
+            const { supabase } = await import('@/lib/supabase');
+            const { data, error } = await supabase.rpc('commit_user_period', { target_period: activePeriod });
+
+            if (error) throw error;
+            if (data?.success) {
+                showToast(`Period ${activePeriod} committed. ${data.risk_count} risk(s) moved to history.`);
+                setShowCommitDialog(false);
+                // Reload risks to reflect the change
+                const risks = await loadRisks();
+                setRows(risks);
+            } else {
+                showToast(data?.error || 'Failed to commit period', 'error');
+            }
+        } catch (error: any) {
+            console.error('Error committing period:', error);
+            showToast(error.message || 'Failed to commit period', 'error');
+        }
     };
 
     // Load data from database on mount
@@ -273,17 +325,18 @@ export default function MinRiskLatest() {
                     const profileResult = await getOrCreateUserProfile(user.id);
                     console.log('📝 Profile result:', profileResult);
 
-                    // Load user role and status
+                    // Load user role, status, and active period
                     const { data: profile } = await supabase
                         .from('user_profiles')
-                        .select('role, status')
+                        .select('role, status, active_period')
                         .eq('id', user.id)
                         .single();
 
                     if (profile) {
                         setUserRole(profile.role);
                         setUserStatus(profile.status);
-                        console.log('👤 User role:', profile.role, 'Status:', profile.status);
+                        setActivePeriod(profile.active_period || null);
+                        console.log('👤 User role:', profile.role, 'Status:', profile.status, 'Active Period:', profile.active_period);
                     }
                 }
 
@@ -633,11 +686,30 @@ export default function MinRiskLatest() {
             </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mb-6">
+        {/* Active Period Management */}
+        {userStatus === 'approved' && (
+            <div className="mb-4 p-4 rounded-xl border bg-white">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div>
+                            <label className="text-sm font-semibold text-gray-700 block mb-1">Active Period</label>
+                            <div className="text-lg font-bold text-blue-600">
+                                {activePeriod || 'No period set'}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {canEdit && <Button variant="outline" size="sm" onClick={() => setShowChangePeriodDialog(true)}><Calendar className="mr-2 h-4 w-4" />Change Period</Button>}
+                        {canEdit && activePeriod && <Button variant="default" size="sm" onClick={() => setShowCommitDialog(true)}><Archive className="mr-2 h-4 w-4" />Commit Period</Button>}
+                    </div>
+                </div>
+            </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6">
             <div className="col-span-1"><Input placeholder="Search risks..." value={query} onChange={e => setQuery(e.target.value)} /></div>
             <MultiSelectPopover title="Divisions" options={config.divisions} selected={filters.divisions} setSelected={v => setFilters(f => ({ ...f, divisions: v }))} />
             <MultiSelectPopover title="Departments" options={config.departments} selected={filters.departments} setSelected={v => setFilters(f => ({ ...f, departments: v }))} />
-            <MultiSelectPopover title="Periods" options={uniquePeriods} selected={filters.periods} setSelected={v => setFilters(f => ({ ...f, periods: v }))} />
             <MultiSelectPopover title="Categories" options={config.categories} selected={filters.categories} setSelected={v => setFilters(f => ({ ...f, categories: v }))} />
             <MultiSelectPopover title="Status" options={["Open", "In Progress", "Closed"]} selected={filters.statuses} setSelected={v => setFilters(f => ({ ...f, statuses: v }))} />
         </div>
@@ -651,11 +723,12 @@ export default function MinRiskLatest() {
 
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="mb-4"><TabsTrigger value="register">Risk Register</TabsTrigger><TabsTrigger value="control_register">Control Register</TabsTrigger><TabsTrigger value="heatmap">Heat Map</TabsTrigger>{/* <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger> */}{canEdit && <TabsTrigger value="import_risks">Risk Import</TabsTrigger>}{canEdit && <TabsTrigger value="import_controls">Control Import</TabsTrigger>}{isAdmin && <TabsTrigger value="admin">👥 Admin</TabsTrigger>}</TabsList>
+            <TabsList className="mb-4"><TabsTrigger value="register">Risk Register</TabsTrigger><TabsTrigger value="control_register">Control Register</TabsTrigger><TabsTrigger value="heatmap">Heat Map</TabsTrigger><TabsTrigger value="history">📜 History</TabsTrigger>{/* <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger> */}{canEdit && <TabsTrigger value="import_risks">Risk Import</TabsTrigger>}{canEdit && <TabsTrigger value="import_controls">Control Import</TabsTrigger>}{isAdmin && <TabsTrigger value="admin">👥 Admin</TabsTrigger>}</TabsList>
 
             <TabsContent value="register"><RiskRegisterTab sortedData={sortedData} rowCount={filtered.length} requestSort={requestSort} onAdd={add} onEdit={setEditingRisk} onRemove={remove} config={config} rows={filtered} allRows={rows} priorityRisks={priorityRisks} setPriorityRisks={setPriorityRisks} canEdit={canEdit} filters={filters} setFilters={setFilters} isAdmin={isAdmin} /></TabsContent>
             <TabsContent value="control_register"><ControlRegisterTab allRisks={filtered} priorityRisks={priorityRisks} canEdit={canEdit} /></TabsContent>
             <TabsContent value="heatmap"><HeatmapTab processedData={processedData} allRows={rows} uniquePeriods={uniquePeriods} heatMapView={heatMapView} setHeatMapView={setHeatMapView} priorityRisks={priorityRisks} config={config} onEditRisk={setEditingRisk} canEdit={canEdit} /></TabsContent>
+            <TabsContent value="history"><RiskHistoryTab config={config} /></TabsContent>
             {/* <TabsContent value="ai_assistant"><AIAssistantTab onAddMultipleRisks={addMultipleRisks} config={config} onSwitchTab={setActiveTab}/></TabsContent> */}
             <TabsContent value="import_risks"><RiskImportTab onImport={handleRiskBulkImport} currentConfig={config} canEdit={canEdit} /></TabsContent>
             <TabsContent value="import_controls"><ControlImportTab onImport={handleControlBulkImport} allRisks={rows} canEdit={canEdit} /></TabsContent>
@@ -663,15 +736,69 @@ export default function MinRiskLatest() {
         </Tabs>
         
         {editingRisk && (
-            <EditRiskDialog 
-                key={editingRisk.risk_code} 
-                initial={editingRisk} 
-                config={config} 
-                onSave={handleSaveRisk} 
-                open={!!editingRisk} 
+            <EditRiskDialog
+                key={editingRisk.risk_code}
+                initial={editingRisk}
+                config={config}
+                onSave={handleSaveRisk}
+                open={!!editingRisk}
                 onOpenChange={(isOpen) => !isOpen && setEditingRisk(null)}
             />
         )}
+
+        {/* Change Period Dialog */}
+        <Dialog open={showChangePeriodDialog} onOpenChange={setShowChangePeriodDialog}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Change Active Period</DialogTitle>
+                    <DialogDescription>
+                        Select a new period. All your active risks will be updated to this period.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Label>Select Period</Label>
+                        <Select value={newPeriod} onValueChange={setNewPeriod}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Choose a period..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Q1 2025">Q1 2025</SelectItem>
+                                <SelectItem value="Q2 2025">Q2 2025</SelectItem>
+                                <SelectItem value="Q3 2025">Q3 2025</SelectItem>
+                                <SelectItem value="Q4 2025">Q4 2025</SelectItem>
+                                <SelectItem value="Q1 2026">Q1 2026</SelectItem>
+                                <SelectItem value="Q2 2026">Q2 2026</SelectItem>
+                                <SelectItem value="Q3 2026">Q3 2026</SelectItem>
+                                <SelectItem value="Q4 2026">Q4 2026</SelectItem>
+                                <SelectItem value="FY2025">FY2025</SelectItem>
+                                <SelectItem value="FY2026">FY2026</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setShowChangePeriodDialog(false)}>Cancel</Button>
+                    <Button onClick={handleChangePeriod} disabled={!newPeriod}>Change Period</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        {/* Commit Period Dialog */}
+        <Dialog open={showCommitDialog} onOpenChange={setShowCommitDialog}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Commit Period</DialogTitle>
+                    <DialogDescription>
+                        Are you sure you want to commit {activePeriod}? All your risks for this period will be moved to history and the register will be cleared.
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setShowCommitDialog(false)}>Cancel</Button>
+                    <Button onClick={handleCommitPeriod} variant="default">Commit</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
 
         {/* Toast Notification */}
         {toast && (
@@ -1089,6 +1216,120 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
                            ))}
                         </div>
                     </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function RiskHistoryTab({ config }: { config: AppConfig }) {
+    const [historyData, setHistoryData] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [selectedPeriod, setSelectedPeriod] = useState<string | null>(null);
+
+    useEffect(() => {
+        loadHistory();
+    }, []);
+
+    const loadHistory = async () => {
+        try {
+            const { supabase } = await import('@/lib/supabase');
+            const { data, error } = await supabase
+                .from('risk_history')
+                .select('*')
+                .order('committed_date', { ascending: false });
+
+            if (error) throw error;
+            setHistoryData(data || []);
+        } catch (error: any) {
+            console.error('Error loading history:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Get unique periods from history
+    const uniquePeriods = useMemo(() => {
+        const periods = new Set(historyData.map(r => r.period));
+        return Array.from(periods);
+    }, [historyData]);
+
+    // Filter by selected period
+    const filteredHistory = useMemo(() => {
+        if (!selectedPeriod) return historyData;
+        return historyData.filter(r => r.period === selectedPeriod);
+    }, [historyData, selectedPeriod]);
+
+    if (loading) {
+        return <div className="p-8 text-center">Loading history...</div>;
+    }
+
+    if (historyData.length === 0) {
+        return (
+            <Card className="rounded-2xl shadow-sm">
+                <CardContent className="p-8 text-center">
+                    <p className="text-gray-500">No committed periods yet. Use the "Commit Period" button to save your risks to history.</p>
+                </CardContent>
+            </Card>
+        );
+    }
+
+    return (
+        <Card className="rounded-2xl shadow-sm">
+            <CardHeader>
+                <CardTitle>My Risk History</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="flex items-center gap-4">
+                    <Label>Filter by Period:</Label>
+                    <Select value={selectedPeriod || "all"} onValueChange={(v) => setSelectedPeriod(v === "all" ? null : v)}>
+                        <SelectTrigger className="w-48">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Periods</SelectItem>
+                            {uniquePeriods.map(p => (
+                                <SelectItem key={p} value={p}>{p}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                <div className="overflow-auto rounded-xl border bg-white">
+                    <table className="w-full text-sm">
+                        <thead className="bg-gray-100 sticky top-0">
+                            <tr>
+                                <th className="px-3 py-2 text-left font-semibold">Period</th>
+                                <th className="px-3 py-2 text-left font-semibold">Risk Code</th>
+                                <th className="px-3 py-2 text-left font-semibold">Title</th>
+                                <th className="px-3 py-2 text-left font-semibold">Division</th>
+                                <th className="px-3 py-2 text-left font-semibold">Category</th>
+                                <th className="px-3 py-2 text-left font-semibold">L (Inh)</th>
+                                <th className="px-3 py-2 text-left font-semibold">I (Inh)</th>
+                                <th className="px-3 py-2 text-left font-semibold">Status</th>
+                                <th className="px-3 py-2 text-left font-semibold">Committed Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredHistory.map((risk, index) => (
+                                <tr key={risk.id} className={`border-t ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                                    <td className="px-3 py-2 font-medium">{risk.period}</td>
+                                    <td className="px-3 py-2">{risk.risk_code}</td>
+                                    <td className="px-3 py-2">{risk.risk_title}</td>
+                                    <td className="px-3 py-2">{risk.division}</td>
+                                    <td className="px-3 py-2">{risk.category}</td>
+                                    <td className="px-3 py-2">{risk.likelihood_inherent}</td>
+                                    <td className="px-3 py-2">{risk.impact_inherent}</td>
+                                    <td className="px-3 py-2">{risk.status}</td>
+                                    <td className="px-3 py-2">{new Date(risk.committed_date).toLocaleDateString()}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div className="text-sm text-gray-600">
+                    Showing {filteredHistory.length} committed risk(s) {selectedPeriod ? `for ${selectedPeriod}` : 'across all periods'}
                 </div>
             </CardContent>
         </Card>
