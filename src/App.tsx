@@ -277,7 +277,8 @@ export default function MinRiskLatest() {
             }
         } catch (error: any) {
             console.error('Error changing period:', error);
-            showToast(error.message || 'Failed to change period', 'error');
+            console.error('Error details:', JSON.stringify(error, null, 2));
+            showToast(error.message || error.hint || 'Failed to change period', 'error');
         }
     };
 
@@ -300,7 +301,8 @@ export default function MinRiskLatest() {
             }
         } catch (error: any) {
             console.error('Error committing period:', error);
-            showToast(error.message || 'Failed to commit period', 'error');
+            console.error('Error details:', JSON.stringify(error, null, 2));
+            showToast(error.message || error.hint || error.details || 'Failed to commit period', 'error');
         }
     };
 
@@ -706,14 +708,6 @@ export default function MinRiskLatest() {
             </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6">
-            <div className="col-span-1"><Input placeholder="Search risks..." value={query} onChange={e => setQuery(e.target.value)} /></div>
-            <MultiSelectPopover title="Divisions" options={config.divisions} selected={filters.divisions} setSelected={v => setFilters(f => ({ ...f, divisions: v }))} />
-            <MultiSelectPopover title="Departments" options={config.departments} selected={filters.departments} setSelected={v => setFilters(f => ({ ...f, departments: v }))} />
-            <MultiSelectPopover title="Categories" options={config.categories} selected={filters.categories} setSelected={v => setFilters(f => ({ ...f, categories: v }))} />
-            <MultiSelectPopover title="Status" options={["Open", "In Progress", "Closed"]} selected={filters.statuses} setSelected={v => setFilters(f => ({ ...f, statuses: v }))} />
-        </div>
-
         {import.meta.env.DEV && (
   <div className="mb-4 p-3 rounded-xl border bg-white">
     <strong>Supabase check</strong>
@@ -728,7 +722,7 @@ export default function MinRiskLatest() {
             <TabsContent value="register"><RiskRegisterTab sortedData={sortedData} rowCount={filtered.length} requestSort={requestSort} onAdd={add} onEdit={setEditingRisk} onRemove={remove} config={config} rows={filtered} allRows={rows} priorityRisks={priorityRisks} setPriorityRisks={setPriorityRisks} canEdit={canEdit} filters={filters} setFilters={setFilters} isAdmin={isAdmin} /></TabsContent>
             <TabsContent value="control_register"><ControlRegisterTab allRisks={filtered} priorityRisks={priorityRisks} canEdit={canEdit} /></TabsContent>
             <TabsContent value="heatmap"><HeatmapTab processedData={processedData} allRows={rows} uniquePeriods={uniquePeriods} heatMapView={heatMapView} setHeatMapView={setHeatMapView} priorityRisks={priorityRisks} config={config} onEditRisk={setEditingRisk} canEdit={canEdit} /></TabsContent>
-            <TabsContent value="history"><RiskHistoryTab config={config} /></TabsContent>
+            <TabsContent value="history"><RiskHistoryTab config={config} showToast={showToast} /></TabsContent>
             {/* <TabsContent value="ai_assistant"><AIAssistantTab onAddMultipleRisks={addMultipleRisks} config={config} onSwitchTab={setActiveTab}/></TabsContent> */}
             <TabsContent value="import_risks"><RiskImportTab onImport={handleRiskBulkImport} currentConfig={config} canEdit={canEdit} /></TabsContent>
             <TabsContent value="import_controls"><ControlImportTab onImport={handleControlBulkImport} allRisks={rows} canEdit={canEdit} /></TabsContent>
@@ -815,9 +809,23 @@ export default function MinRiskLatest() {
 
 function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onRemove, config, rows, allRows, priorityRisks, setPriorityRisks, canEdit, filters, setFilters, isAdmin }: { sortedData: ProcessedRisk[]; rowCount: number; requestSort: (key: keyof ProcessedRisk) => void; onAdd: (r: Omit<RiskRow, 'risk_code'>) => void; onEdit: (risk: ProcessedRisk) => void; onRemove: (code: string) => void; config: AppConfig; rows: RiskRow[]; allRows: RiskRow[]; priorityRisks: Set<string>; setPriorityRisks: React.Dispatch<React.SetStateAction<Set<string>>>; canEdit: boolean; filters: { divisions: string[]; departments: string[]; categories: string[]; statuses: string[]; users: string[]; periods: string[] }; setFilters: React.Dispatch<React.SetStateAction<{ divisions: string[]; departments: string[]; categories: string[]; statuses: string[]; users: string[]; periods: string[] }>>; isAdmin: boolean }) {
     const [showBulkDelete, setShowBulkDelete] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
 
     // Always show all sorted data - priority checkboxes are just for marking/selection
-    const displayedData = sortedData;
+    // Apply search filter
+    const searchFilteredData = useMemo(() => {
+        if (!searchQuery) return sortedData;
+        const query = searchQuery.toLowerCase();
+        return sortedData.filter(r =>
+            r.risk_code.toLowerCase().includes(query) ||
+            r.risk_title.toLowerCase().includes(query) ||
+            r.risk_description?.toLowerCase().includes(query) ||
+            r.category?.toLowerCase().includes(query) ||
+            r.owner?.toLowerCase().includes(query)
+        );
+    }, [sortedData, searchQuery]);
+
+    const displayedData = searchFilteredData;
 
     // Get unique user emails for filter from ALL rows (not filtered)
     const userEmails = useMemo(() =>
@@ -903,6 +911,13 @@ function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onR
 
 return (
   <>
+    <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
+      <div className="col-span-1"><Input placeholder="Search risks..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>
+      <MultiSelectPopover title="Divisions" options={config.divisions} selected={filters.divisions} setSelected={v => setFilters(f => ({ ...f, divisions: v }))} />
+      <MultiSelectPopover title="Departments" options={config.departments} selected={filters.departments} setSelected={v => setFilters(f => ({ ...f, departments: v }))} />
+      <MultiSelectPopover title="Categories" options={config.categories} selected={filters.categories} setSelected={v => setFilters(f => ({ ...f, categories: v }))} />
+      <MultiSelectPopover title="Status" options={["Open", "In Progress", "Closed"]} selected={filters.statuses} setSelected={v => setFilters(f => ({ ...f, statuses: v }))} />
+    </div>
     <Card className="rounded-2xl shadow-sm">
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-3">
@@ -1091,18 +1106,100 @@ function ControlRegisterTab({ allRisks, priorityRisks, canEdit }: { allRisks: Ri
 
 function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHeatMapView, priorityRisks, config, onEditRisk, canEdit }: { processedData: ProcessedRisk[]; allRows: RiskRow[]; uniquePeriods: string[]; heatMapView: { inherent: boolean, residual: boolean }; setHeatMapView: React.Dispatch<React.SetStateAction<{ inherent: boolean; residual: boolean; }>>; priorityRisks: Set<string>; config: AppConfig; onEditRisk: (risk: ProcessedRisk) => void; canEdit: boolean }) {
     const [selectedPeriods, setSelectedPeriods] = useState<string[]>([]);
+    const [dataSource, setDataSource] = useState<'active' | 'history'>('active');
+    const [historyData, setHistoryData] = useState<any[]>([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
 
-    // Filter processedData by selected periods
+    // Filter states
+    const [filterDivision, setFilterDivision] = useState<string>('all');
+    const [filterDepartment, setFilterDepartment] = useState<string>('all');
+    const [filterCategory, setFilterCategory] = useState<string>('all');
+    const [filterOwner, setFilterOwner] = useState<string>('all');
+    const [filterStatus, setFilterStatus] = useState<string>('all');
+
+    // Load history data when switching to history view
+    useEffect(() => {
+        if (dataSource === 'history') {
+            loadHistoryData();
+        }
+    }, [dataSource]);
+
+    const loadHistoryData = async () => {
+        setLoadingHistory(true);
+        try {
+            const { supabase } = await import('@/lib/supabase');
+            const { data, error } = await supabase
+                .from('risk_history')
+                .select('*')
+                .order('committed_date', { ascending: false });
+
+            if (error) throw error;
+            setHistoryData(data || []);
+        } catch (error: any) {
+            console.error('Error loading history:', error);
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
+
+    // Get unique historical periods
+    const historicalPeriods = useMemo(() => {
+        const periods = new Set(historyData.map(r => r.period));
+        return Array.from(periods);
+    }, [historyData]);
+
+    // Convert history data to ProcessedRisk format
+    const processedHistoryData: ProcessedRisk[] = useMemo(() => {
+        return historyData.map(h => ({
+            ...h,
+            // Use stored residual values (fallback to inherent if not set for old data)
+            likelihood_residual: h.likelihood_residual ?? h.likelihood_inherent,
+            impact_residual: h.impact_residual ?? h.impact_inherent,
+            controls: h.controls || []
+        }));
+    }, [historyData]);
+
+    // Select data source and filter by selected periods
     const periodFilteredData = useMemo(() => {
-        if (selectedPeriods.length === 0) return processedData;
-        return processedData.filter(r => r.relevant_period && selectedPeriods.includes(r.relevant_period));
-    }, [processedData, selectedPeriods]);
+        const sourceData = dataSource === 'active' ? processedData : processedHistoryData;
+        if (selectedPeriods.length === 0) return sourceData;
+        return sourceData.filter(r => {
+            const period = dataSource === 'active' ? r.relevant_period : r.period;
+            return period && selectedPeriods.includes(period);
+        });
+    }, [processedData, processedHistoryData, selectedPeriods, dataSource]);
+
+    // Apply additional filters (Division, Department, Category, Owner, Status) and Search
+    const filteredData = useMemo(() => {
+        const query = searchQuery.toLowerCase();
+        return periodFilteredData.filter(r => {
+            // Search filter
+            if (searchQuery && !(
+                r.risk_code?.toLowerCase().includes(query) ||
+                r.risk_title?.toLowerCase().includes(query) ||
+                r.risk_description?.toLowerCase().includes(query) ||
+                r.category?.toLowerCase().includes(query) ||
+                r.owner?.toLowerCase().includes(query)
+            )) return false;
+            // Other filters
+            if (filterDivision !== 'all' && r.division !== filterDivision) return false;
+            if (filterDepartment !== 'all' && r.department !== filterDepartment) return false;
+            if (filterCategory !== 'all' && r.category !== filterCategory) return false;
+            if (filterOwner !== 'all' && r.owner !== filterOwner) return false;
+            if (filterStatus !== 'all' && r.status !== filterStatus) return false;
+            return true;
+        });
+    }, [periodFilteredData, searchQuery, filterDivision, filterDepartment, filterCategory, filterOwner, filterStatus]);
 
     const heatmapData = useMemo(() => {
         const grid: { inherent: ProcessedRisk[], residual: ProcessedRisk[] }[][] = Array(config.matrixSize).fill(0).map(() => Array(config.matrixSize).fill(0).map(() => ({ inherent: [], residual: [] })));
-        const priorityData = periodFilteredData.filter(r => isPriorityRisk(priorityRisks, r.user_id, r.risk_code));
+        // For history view, show all risks. For active view, filter by priority
+        const dataToPlot = dataSource === 'history'
+            ? filteredData
+            : filteredData.filter(r => isPriorityRisk(priorityRisks, r.user_id, r.risk_code));
 
-        priorityData.forEach(risk => {
+        dataToPlot.forEach(risk => {
             if (heatMapView.inherent) {
                 const i = risk.impact_inherent - 1;
                 const l = risk.likelihood_inherent - 1;
@@ -1119,7 +1216,19 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
             }
         });
         return grid;
-    }, [periodFilteredData, priorityRisks, heatMapView, config.matrixSize]);
+    }, [filteredData, priorityRisks, heatMapView, config.matrixSize, dataSource]);
+
+    // Get unique values for filters from the current data source
+    const uniqueValues = useMemo(() => {
+        const sourceData = dataSource === 'active' ? processedData : processedHistoryData;
+        return {
+            divisions: Array.from(new Set(sourceData.map(r => r.division))).filter(Boolean).sort(),
+            departments: Array.from(new Set(sourceData.map(r => r.department))).filter(Boolean).sort(),
+            categories: Array.from(new Set(sourceData.map(r => r.category))).filter(Boolean).sort(),
+            owners: Array.from(new Set(sourceData.map(r => r.owner))).filter(Boolean).sort(),
+            statuses: Array.from(new Set(sourceData.map(r => r.status))).filter(Boolean).sort()
+        };
+    }, [processedData, processedHistoryData, dataSource]);
     
     return (
         <Card className="rounded-2xl shadow-sm">
@@ -1127,25 +1236,80 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
                 <div className="mb-3 space-y-3">
                     <div className="flex items-center justify-between">
                         <div className="text-sm text-gray-500">
-                            Displaying {priorityRisks.size} priority risk(s)
+                            {dataSource === 'active'
+                                ? `Displaying ${filteredData.filter(r => isPriorityRisk(priorityRisks, r.user_id, r.risk_code)).length} priority risk(s)`
+                                : `Displaying ${filteredData.length} historical risk(s)`}
                             {selectedPeriods.length > 0 && <span className="ml-2 text-blue-600 font-medium">({selectedPeriods.join(', ')})</span>}
+                            {loadingHistory && <span className="ml-2 text-gray-400">(Loading history...)</span>}
                         </div>
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-2"><Checkbox id="showInherent" checked={heatMapView.inherent} onCheckedChange={c => setHeatMapView(v => ({ ...v, inherent: !!c }))} /><label htmlFor="showInherent" className="text-sm">Show Inherent</label></div>
                             <div className="flex items-center gap-2"><Checkbox id="showResidual" checked={heatMapView.residual} onCheckedChange={c => setHeatMapView(v => ({ ...v, residual: !!c }))} /><label htmlFor="showResidual" className="text-sm">Show Residual</label></div>
                         </div>
                     </div>
-                    {uniquePeriods.length > 0 && (
+                    <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">Filter by Period:</span>
-                            <MultiSelectPopover
-                                title="Periods"
-                                options={uniquePeriods}
-                                selected={selectedPeriods}
-                                setSelected={setSelectedPeriods}
-                            />
+                            <span className="text-sm font-medium">Data Source:</span>
+                            <Select value={dataSource} onValueChange={(v: 'active' | 'history') => { setDataSource(v); setSelectedPeriods([]); }}>
+                                <SelectTrigger className="w-36">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="active">Active Risks</SelectItem>
+                                    <SelectItem value="history">Risk History</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
-                    )}
+                        {(dataSource === 'active' ? uniquePeriods.length > 0 : historicalPeriods.length > 0) && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">Filter by Period:</span>
+                                <MultiSelectPopover
+                                    title="Periods"
+                                    options={dataSource === 'active' ? uniquePeriods : historicalPeriods}
+                                    selected={selectedPeriods}
+                                    setSelected={setSelectedPeriods}
+                                />
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 text-sm">
+                        <Input placeholder="Search risks..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-64" />
+                        <Select value={filterDivision} onValueChange={setFilterDivision}>
+                            <SelectTrigger className="w-36"><SelectValue placeholder="Division" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Divisions</SelectItem>
+                                {uniqueValues.divisions.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <Select value={filterDepartment} onValueChange={setFilterDepartment}>
+                            <SelectTrigger className="w-36"><SelectValue placeholder="Department" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Departments</SelectItem>
+                                {uniqueValues.departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <Select value={filterCategory} onValueChange={setFilterCategory}>
+                            <SelectTrigger className="w-36"><SelectValue placeholder="Category" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Categories</SelectItem>
+                                {uniqueValues.categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <Select value={filterOwner} onValueChange={setFilterOwner}>
+                            <SelectTrigger className="w-36"><SelectValue placeholder="Owner" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Owners</SelectItem>
+                                {uniqueValues.owners.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <Select value={filterStatus} onValueChange={setFilterStatus}>
+                            <SelectTrigger className="w-32"><SelectValue placeholder="Status" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Statuses</SelectItem>
+                                {uniqueValues.statuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
 
                 <div className="flex">
@@ -1222,7 +1386,7 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
     );
 }
 
-function RiskHistoryTab({ config }: { config: AppConfig }) {
+function RiskHistoryTab({ config, showToast }: { config: AppConfig; showToast: (msg: string, type?: 'success' | 'error') => void }) {
     const [historyData, setHistoryData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedPeriod, setSelectedPeriod] = useState<string | null>(null);
@@ -1245,6 +1409,50 @@ function RiskHistoryTab({ config }: { config: AppConfig }) {
             console.error('Error loading history:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleRestore = async (period: string) => {
+        if (!confirm(`Restore ${period}? This will move all risks back to the active register for editing.`)) {
+            return;
+        }
+
+        try {
+            const { supabase } = await import('@/lib/supabase');
+            const { data, error } = await supabase.rpc('restore_user_period', { target_period: period });
+
+            if (error) throw error;
+            if (data?.success) {
+                showToast(`Period ${period} restored. ${data.restored_count} risk(s) moved back to active register.`);
+                await loadHistory();
+            } else {
+                showToast(data?.error || 'Failed to restore period', 'error');
+            }
+        } catch (error: any) {
+            console.error('Error restoring period:', error);
+            showToast(error.message || 'Failed to restore period', 'error');
+        }
+    };
+
+    const handleDelete = async (period: string) => {
+        if (!confirm(`⚠️ PERMANENTLY DELETE ${period}? This cannot be undone! All committed risks for this period will be lost.`)) {
+            return;
+        }
+
+        try {
+            const { supabase } = await import('@/lib/supabase');
+            const { data, error } = await supabase.rpc('delete_user_period', { target_period: period });
+
+            if (error) throw error;
+            if (data?.success) {
+                showToast(`Period ${period} permanently deleted. ${data.deleted_count} risk(s) removed from history.`);
+                await loadHistory();
+            } else {
+                showToast(data?.error || 'Failed to delete period', 'error');
+            }
+        } catch (error: any) {
+            console.error('Error deleting period:', error);
+            showToast(error.message || 'Failed to delete period', 'error');
         }
     };
 
@@ -1280,19 +1488,39 @@ function RiskHistoryTab({ config }: { config: AppConfig }) {
                 <CardTitle>My Risk History</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div className="flex items-center gap-4">
-                    <Label>Filter by Period:</Label>
-                    <Select value={selectedPeriod || "all"} onValueChange={(v) => setSelectedPeriod(v === "all" ? null : v)}>
-                        <SelectTrigger className="w-48">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Periods</SelectItem>
-                            {uniquePeriods.map(p => (
-                                <SelectItem key={p} value={p}>{p}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <Label>Filter by Period:</Label>
+                        <Select value={selectedPeriod || "all"} onValueChange={(v) => setSelectedPeriod(v === "all" ? null : v)}>
+                            <SelectTrigger className="w-48">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Periods</SelectItem>
+                                {uniquePeriods.map(p => (
+                                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    {selectedPeriod && (
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRestore(selectedPeriod)}
+                            >
+                                Restore {selectedPeriod}
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleDelete(selectedPeriod)}
+                            >
+                                Delete {selectedPeriod}
+                            </Button>
+                        </div>
+                    )}
                 </div>
 
                 <div className="overflow-auto rounded-xl border bg-white">
@@ -1303,27 +1531,64 @@ function RiskHistoryTab({ config }: { config: AppConfig }) {
                                 <th className="px-3 py-2 text-left font-semibold">Risk Code</th>
                                 <th className="px-3 py-2 text-left font-semibold">Title</th>
                                 <th className="px-3 py-2 text-left font-semibold">Division</th>
+                                <th className="px-3 py-2 text-left font-semibold">Department</th>
                                 <th className="px-3 py-2 text-left font-semibold">Category</th>
-                                <th className="px-3 py-2 text-left font-semibold">L (Inh)</th>
-                                <th className="px-3 py-2 text-left font-semibold">I (Inh)</th>
+                                <th className="px-3 py-2 text-left font-semibold">Owner</th>
+                                <th className="px-3 py-2 text-left font-semibold">LxI (Inh)</th>
+                                <th className="px-3 py-2 text-left font-semibold">Inherent Risk</th>
+                                <th className="px-3 py-2 text-left font-semibold">LxI (Res)</th>
+                                <th className="px-3 py-2 text-left font-semibold">Residual Risk</th>
                                 <th className="px-3 py-2 text-left font-semibold">Status</th>
                                 <th className="px-3 py-2 text-left font-semibold">Committed Date</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredHistory.map((risk, index) => (
-                                <tr key={risk.id} className={`border-t ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                                    <td className="px-3 py-2 font-medium">{risk.period}</td>
-                                    <td className="px-3 py-2">{risk.risk_code}</td>
-                                    <td className="px-3 py-2">{risk.risk_title}</td>
-                                    <td className="px-3 py-2">{risk.division}</td>
-                                    <td className="px-3 py-2">{risk.category}</td>
-                                    <td className="px-3 py-2">{risk.likelihood_inherent}</td>
-                                    <td className="px-3 py-2">{risk.impact_inherent}</td>
-                                    <td className="px-3 py-2">{risk.status}</td>
-                                    <td className="px-3 py-2">{new Date(risk.committed_date).toLocaleDateString()}</td>
-                                </tr>
-                            ))}
+                            {filteredHistory.map((risk, index) => {
+                                const inherentScore = risk.likelihood_inherent * risk.impact_inherent;
+                                const inherentLevel = bucket(risk.likelihood_inherent, risk.impact_inherent, config.matrixSize);
+                                // Use stored residual values from history (fallback to inherent if not set)
+                                const likelihoodRes = risk.likelihood_residual ?? risk.likelihood_inherent;
+                                const impactRes = risk.impact_residual ?? risk.impact_inherent;
+                                const residualScore = likelihoodRes * impactRes;
+                                const residualLevel = bucket(likelihoodRes, impactRes, config.matrixSize);
+                                return (
+                                    <tr key={risk.id} className={`border-t ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                                        <td className="px-3 py-2 font-medium">{risk.period}</td>
+                                        <td className="px-3 py-2 font-mono text-xs">{risk.risk_code}</td>
+                                        <td className="px-3 py-2">{risk.risk_title}</td>
+                                        <td className="px-3 py-2">{risk.division}</td>
+                                        <td className="px-3 py-2">{risk.department}</td>
+                                        <td className="px-3 py-2">{risk.category}</td>
+                                        <td className="px-3 py-2">{risk.owner}</td>
+                                        <td className="px-3 py-2 text-center font-medium">{inherentScore.toFixed(1)}</td>
+                                        <td className="px-3 py-2">
+                                            <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                                inherentLevel === 'Minimal' ? 'bg-green-100 text-green-800' :
+                                                inherentLevel === 'Low' ? 'bg-green-200 text-green-900' :
+                                                inherentLevel === 'Moderate' ? 'bg-yellow-100 text-yellow-800' :
+                                                inherentLevel === 'High' ? 'bg-orange-100 text-orange-800' :
+                                                'bg-red-100 text-red-800'
+                                            }`}>
+                                                {inherentLevel}
+                                            </span>
+                                        </td>
+                                        <td className="px-3 py-2 text-center font-medium">{residualScore.toFixed(1)}</td>
+                                        <td className="px-3 py-2">
+                                            <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                                residualLevel === 'Minimal' ? 'bg-green-100 text-green-800' :
+                                                residualLevel === 'Low' ? 'bg-green-200 text-green-900' :
+                                                residualLevel === 'Moderate' ? 'bg-yellow-100 text-yellow-800' :
+                                                residualLevel === 'High' ? 'bg-orange-100 text-orange-800' :
+                                                'bg-red-100 text-red-800'
+                                            }`}>
+                                                {residualLevel}
+                                            </span>
+                                        </td>
+                                        <td className="px-3 py-2">{risk.status}</td>
+                                        <td className="px-3 py-2 text-xs">{new Date(risk.committed_date).toLocaleDateString()}</td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
@@ -1439,7 +1704,8 @@ function EditRiskDialog({ initial, config, onSave, children, open, onOpenChange 
     const [form, setForm] = useState<Omit<RiskRow, 'risk_code'>>({ ...initial }); 
     useEffect(() => { setForm({ ...initial }) }, [initial]); 
     const handleSave = () => { onSave(form); onOpenChange(false); }; 
-    return (<Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-3xl max-h-[90vh] flex flex-col"><DialogHeader><DialogTitle>Edit {initial.risk_code}</DialogTitle></DialogHeader><RiskFields form={form} setForm={setForm} config={config} codePreview={initial.risk_code} codeLocked /><DialogFooter className="pt-4"><Button onClick={handleSave}>Save</Button></DialogFooter></DialogContent></Dialog>); 
+    const period = (initial as any).period || initial.relevant_period;
+    return (<Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-3xl max-h-[90vh] flex flex-col"><DialogHeader><DialogTitle>Edit {initial.risk_code} {period && <span className="text-sm font-normal text-gray-500">({period})</span>}</DialogTitle></DialogHeader><RiskFields form={form} setForm={setForm} config={config} codePreview={initial.risk_code} codeLocked /><DialogFooter className="pt-4"><Button onClick={handleSave}>Save</Button></DialogFooter></DialogContent></Dialog>); 
 }
 function RiskFields({ form, setForm, config, codePreview, codeLocked }: { form: Omit<RiskRow, 'risk_code'>; setForm: React.Dispatch<React.SetStateAction<Omit<RiskRow, "risk_code">>>; config: AppConfig; codePreview: string; codeLocked?: boolean }) { 
     const [isSuggesting, setIsSuggesting] = useState(false);
