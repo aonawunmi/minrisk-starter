@@ -1200,7 +1200,7 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
         const sourceData = dataSource === 'active' ? processedData : processedHistoryData;
         if (selectedPeriods.length === 0) return sourceData;
         return sourceData.filter(r => {
-            const period = dataSource === 'active' ? r.relevant_period : r.period;
+            const period = r.relevant_period; // Both active and history data use relevant_period
             return period && selectedPeriods.includes(period);
         });
     }, [processedData, processedHistoryData, selectedPeriods, dataSource]);
@@ -1542,13 +1542,8 @@ function RiskHistoryTab({ config, showToast, isAdmin }: { config: AppConfig; sho
                 showToast(`Successfully copied ${result.count} risk(s) with controls from ${copySourcePeriod} to ${copyTargetPeriod.trim()}`);
                 setShowCopyDialog(false);
                 setCopyTargetPeriod('');
-                // Reload data to show the new risks
-                const fetchData = async () => {
-                    const { loadRisks: loadRisksFromDb } = await import('@/lib/database');
-                    const dbRisks = await loadRisksFromDb();
-                    setRows(dbRisks);
-                };
-                await fetchData();
+                // Reload history data to refresh the view
+                await loadHistory();
             } else {
                 showToast(result.error || 'Failed to copy risks', 'error');
             }
