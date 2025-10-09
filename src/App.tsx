@@ -40,6 +40,7 @@ export type AppConfig = {
     divisions: string[];
     departments: string[];
     categories: string[];
+    owners: string[];
 };
 type ProcessedRisk = RiskRow & { likelihood_residual: number, impact_residual: number, inherent_score: number, residual_score: number };
 type ParsedRisk = Omit<RiskRow, 'risk_code' | 'controls'> & { controls: []; errors?: string[] };
@@ -56,6 +57,7 @@ const DEFAULT_APP_CONFIG: AppConfig = {
     divisions: ["Clearing", "Operations", "Finance"],
     departments: ["Risk Management", "IT Ops", "Quant/Risk", "Treasury", "Trading"],
     categories: ["Strategic", "Credit", "Market", "Liquidity", "Operational", "Legal/Compliance", "Technology", "ESG", "Reputational"],
+    owners: ["John Doe", "Jane Smith", "Mike Johnson", "Sarah Williams", "David Brown"],
 };
 const CONTROL_DESIGN_OPTIONS = [{ value: 3, label: "Reduces risks entirely" }, { value: 2, label: "Reduces most aspects of risk" }, { value: 1, label: "Reduces some areas of risk" }, { value: 0, label: "Badly designed or no protection" }];
 const CONTROL_IMPLEMENTATION_OPTIONS = [{ value: 3, label: "Always applied as intended" }, { value: 2, label: "Generally operational" }, { value: 1, label: "Sometimes applied correctly" }, { value: 0, "label": "Not applied or applied incorrectly" }];
@@ -112,13 +114,44 @@ const isPriorityRisk = (priorityRisks: Set<string>, userId: string | undefined, 
 // ===== CSV PARSING LOGIC =====
 const parseCsvToJson = (csvText: string): any[] => {
     const lines = csvText.trim().split('\n');
-    const headers = lines[0].split(',').map(h => h.trim());
+
+    // Function to split CSV line while respecting quotes
+    const splitCsvLine = (line: string): string[] => {
+        const result: string[] = [];
+        let current = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            const nextChar = line[i + 1];
+
+            if (char === '"' && inQuotes && nextChar === '"') {
+                // Escaped quote - add one quote and skip next
+                current += '"';
+                i++;
+            } else if (char === '"') {
+                // Toggle quote mode
+                inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+                // Comma outside quotes - field separator
+                result.push(current.trim());
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        result.push(current.trim());
+        return result;
+    };
+
+    const headers = splitCsvLine(lines[0]).map(h => h.trim());
     const data = [];
+
     for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',');
+        const values = splitCsvLine(lines[i]);
         const obj: { [key: string]: string } = {};
         for (let j = 0; j < headers.length; j++) {
-            obj[headers[j]] = values[j]?.trim();
+            obj[headers[j]] = values[j]?.trim() || '';
         }
         data.push(obj);
     }
@@ -358,6 +391,7 @@ export default function MinRiskLatest() {
                         divisions: dbConfig.divisions,
                         departments: dbConfig.departments,
                         categories: dbConfig.categories,
+                        owners: dbConfig.owners || DEFAULT_APP_CONFIG.owners,
                     });
                 }
                 console.log('✅ Data load complete!');
@@ -628,6 +662,7 @@ export default function MinRiskLatest() {
             divisions: newConfig.divisions,
             departments: newConfig.departments,
             categories: newConfig.categories,
+            owners: newConfig.owners,
         });
         if (result.success) {
             setConfig(newConfig);
@@ -722,7 +757,7 @@ export default function MinRiskLatest() {
             <TabsContent value="register"><RiskRegisterTab sortedData={sortedData} rowCount={filtered.length} requestSort={requestSort} onAdd={add} onEdit={setEditingRisk} onRemove={remove} config={config} rows={filtered} allRows={rows} priorityRisks={priorityRisks} setPriorityRisks={setPriorityRisks} canEdit={canEdit} filters={filters} setFilters={setFilters} isAdmin={isAdmin} /></TabsContent>
             <TabsContent value="control_register"><ControlRegisterTab allRisks={filtered} priorityRisks={priorityRisks} canEdit={canEdit} /></TabsContent>
             <TabsContent value="heatmap"><HeatmapTab processedData={processedData} allRows={rows} uniquePeriods={uniquePeriods} heatMapView={heatMapView} setHeatMapView={setHeatMapView} priorityRisks={priorityRisks} config={config} onEditRisk={setEditingRisk} canEdit={canEdit} /></TabsContent>
-            <TabsContent value="history"><RiskHistoryTab config={config} showToast={showToast} /></TabsContent>
+            <TabsContent value="history"><RiskHistoryTab config={config} showToast={showToast} isAdmin={isAdmin} /></TabsContent>
             {/* <TabsContent value="ai_assistant"><AIAssistantTab onAddMultipleRisks={addMultipleRisks} config={config} onSwitchTab={setActiveTab}/></TabsContent> */}
             <TabsContent value="import_risks"><RiskImportTab onImport={handleRiskBulkImport} currentConfig={config} canEdit={canEdit} /></TabsContent>
             <TabsContent value="import_controls"><ControlImportTab onImport={handleControlBulkImport} allRisks={rows} canEdit={canEdit} /></TabsContent>
@@ -1386,7 +1421,7 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
     );
 }
 
-function RiskHistoryTab({ config, showToast }: { config: AppConfig; showToast: (msg: string, type?: 'success' | 'error') => void }) {
+function RiskHistoryTab({ config, showToast, isAdmin }: { config: AppConfig; showToast: (msg: string, type?: 'success' | 'error') => void; isAdmin: boolean }) {
     const [historyData, setHistoryData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedPeriod, setSelectedPeriod] = useState<string | null>(null);
@@ -1434,6 +1469,95 @@ function RiskHistoryTab({ config, showToast }: { config: AppConfig; showToast: (
         }
     };
 
+    const [showCopyDialog, setShowCopyDialog] = useState(false);
+    const [copySourcePeriod, setCopySourcePeriod] = useState<string>('');
+    const [copyTargetPeriod, setCopyTargetPeriod] = useState<string>('');
+
+    const handleCopyToNewPeriod = async (sourcePeriod: string, historyData: any[]) => {
+        setCopySourcePeriod(sourcePeriod);
+        setShowCopyDialog(true);
+    };
+
+    const executeCopy = async () => {
+        if (!copyTargetPeriod || copyTargetPeriod.trim() === '') {
+            showToast('Please select a target period', 'error');
+            return;
+        }
+
+        try {
+            // Fetch historical risks from the source period
+            const { supabase } = await import('@/lib/supabase');
+            const { data: historicalRisks, error: historyError } = await supabase
+                .from('risk_history')
+                .select('*')
+                .eq('period', copySourcePeriod);
+
+            if (historyError) throw historyError;
+
+            if (!historicalRisks || historicalRisks.length === 0) {
+                showToast('No risks found in the selected period', 'error');
+                return;
+            }
+
+            // Get existing risk codes to avoid duplicates
+            const { data: existingRisks } = await supabase
+                .from('risks')
+                .select('risk_code');
+
+            const existingCodes = new Set((existingRisks || []).map(r => r.risk_code));
+
+            // Generate unique risk codes for duplicates
+            const generateUniqueCode = (baseCode: string): string => {
+                let newCode = baseCode;
+                let counter = 1;
+                while (existingCodes.has(newCode)) {
+                    newCode = `${baseCode}-${counter}`;
+                    counter++;
+                }
+                existingCodes.add(newCode);
+                return newCode;
+            };
+
+            // Create new risks with the new period and controls
+            // Controls are stored as JSON in risk_history
+            const { bulkImportRisks } = await import('@/lib/database');
+            const newRisks = historicalRisks.map(risk => ({
+                risk_code: generateUniqueCode(risk.risk_code),
+                risk_title: risk.risk_title,
+                risk_description: risk.risk_description,
+                division: risk.division,
+                department: risk.department,
+                category: risk.category,
+                owner: risk.owner,
+                relevant_period: copyTargetPeriod.trim(),
+                likelihood_inherent: risk.likelihood_inherent,
+                impact_inherent: risk.impact_inherent,
+                status: risk.status,
+                controls: risk.controls || [] // Controls are stored as JSON in risk_history
+            }));
+
+            const result = await bulkImportRisks(newRisks);
+
+            if (result.success) {
+                showToast(`Successfully copied ${result.count} risk(s) with controls from ${copySourcePeriod} to ${copyTargetPeriod.trim()}`);
+                setShowCopyDialog(false);
+                setCopyTargetPeriod('');
+                // Reload data to show the new risks
+                const fetchData = async () => {
+                    const { loadRisks: loadRisksFromDb } = await import('@/lib/database');
+                    const dbRisks = await loadRisksFromDb();
+                    setRows(dbRisks);
+                };
+                await fetchData();
+            } else {
+                showToast(result.error || 'Failed to copy risks', 'error');
+            }
+        } catch (error: any) {
+            console.error('Error copying risks:', error);
+            showToast(error.message || 'Failed to copy risks to new period', 'error');
+        }
+    };
+
     const handleDelete = async (period: string) => {
         if (!confirm(`⚠️ PERMANENTLY DELETE ${period}? This cannot be undone! All committed risks for this period will be lost.`)) {
             return;
@@ -1453,6 +1577,31 @@ function RiskHistoryTab({ config, showToast }: { config: AppConfig; showToast: (
         } catch (error: any) {
             console.error('Error deleting period:', error);
             showToast(error.message || 'Failed to delete period', 'error');
+        }
+    };
+
+    const handleBulkDeleteAll = async () => {
+        if (!confirm(`⚠️ ADMIN BULK DELETE - DELETE ALL HISTORY?\n\nThis will PERMANENTLY DELETE ALL committed periods from ALL users in the system. This action CANNOT be undone!\n\nAre you absolutely sure you want to proceed?`)) {
+            return;
+        }
+
+        if (!confirm(`FINAL CONFIRMATION: Type DELETE in your mind and click OK to proceed with deleting ALL history data.`)) {
+            return;
+        }
+
+        try {
+            const { supabase } = await import('@/lib/supabase');
+            const { error } = await supabase
+                .from('risk_history')
+                .delete()
+                .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
+
+            if (error) throw error;
+            showToast(`All history deleted successfully.`);
+            await loadHistory();
+        } catch (error: any) {
+            console.error('Error bulk deleting history:', error);
+            showToast(error.message || 'Failed to delete all history', 'error');
         }
     };
 
@@ -1483,121 +1632,171 @@ function RiskHistoryTab({ config, showToast }: { config: AppConfig; showToast: (
     }
 
     return (
-        <Card className="rounded-2xl shadow-sm">
-            <CardHeader>
-                <CardTitle>My Risk History</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                        <Label>Filter by Period:</Label>
-                        <Select value={selectedPeriod || "all"} onValueChange={(v) => setSelectedPeriod(v === "all" ? null : v)}>
-                            <SelectTrigger className="w-48">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Periods</SelectItem>
-                                {uniquePeriods.map(p => (
-                                    <SelectItem key={p} value={p}>{p}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    {selectedPeriod && (
-                        <div className="flex items-center gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleRestore(selectedPeriod)}
-                            >
-                                Restore {selectedPeriod}
-                            </Button>
-                            <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => handleDelete(selectedPeriod)}
-                            >
-                                Delete {selectedPeriod}
-                            </Button>
+        <>
+            <Card className="rounded-2xl shadow-sm">
+                <CardHeader>
+                    <CardTitle>My Risk History</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                            <Label>Filter by Period:</Label>
+                            <Select value={selectedPeriod || "all"} onValueChange={(v) => setSelectedPeriod(v === "all" ? null : v)}>
+                                <SelectTrigger className="w-48">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Periods</SelectItem>
+                                    {uniquePeriods.map(p => (
+                                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
-                    )}
-                </div>
+                        {selectedPeriod && (
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleCopyToNewPeriod(selectedPeriod, historyData)}
+                                >
+                                    Copy to New Period
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleRestore(selectedPeriod)}
+                                >
+                                    Restore {selectedPeriod}
+                                </Button>
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => handleDelete(selectedPeriod)}
+                                >
+                                    Delete {selectedPeriod}
+                                </Button>
+                            </div>
+                        )}
+                    </div>
 
-                <div className="overflow-auto rounded-xl border bg-white">
-                    <table className="w-full text-sm">
-                        <thead className="bg-gray-100 sticky top-0">
-                            <tr>
-                                <th className="px-3 py-2 text-left font-semibold">Period</th>
-                                <th className="px-3 py-2 text-left font-semibold">Risk Code</th>
-                                <th className="px-3 py-2 text-left font-semibold">Title</th>
-                                <th className="px-3 py-2 text-left font-semibold">Division</th>
-                                <th className="px-3 py-2 text-left font-semibold">Department</th>
-                                <th className="px-3 py-2 text-left font-semibold">Category</th>
-                                <th className="px-3 py-2 text-left font-semibold">Owner</th>
-                                <th className="px-3 py-2 text-left font-semibold">LxI (Inh)</th>
-                                <th className="px-3 py-2 text-left font-semibold">Inherent Risk</th>
-                                <th className="px-3 py-2 text-left font-semibold">LxI (Res)</th>
-                                <th className="px-3 py-2 text-left font-semibold">Residual Risk</th>
-                                <th className="px-3 py-2 text-left font-semibold">Status</th>
-                                <th className="px-3 py-2 text-left font-semibold">Committed Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredHistory.map((risk, index) => {
-                                const inherentScore = risk.likelihood_inherent * risk.impact_inherent;
-                                const inherentLevel = bucket(risk.likelihood_inherent, risk.impact_inherent, config.matrixSize);
-                                // Use stored residual values from history (fallback to inherent if not set)
-                                const likelihoodRes = risk.likelihood_residual ?? risk.likelihood_inherent;
-                                const impactRes = risk.impact_residual ?? risk.impact_inherent;
-                                const residualScore = likelihoodRes * impactRes;
-                                const residualLevel = bucket(likelihoodRes, impactRes, config.matrixSize);
-                                return (
-                                    <tr key={risk.id} className={`border-t ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                                        <td className="px-3 py-2 font-medium">{risk.period}</td>
-                                        <td className="px-3 py-2 font-mono text-xs">{risk.risk_code}</td>
-                                        <td className="px-3 py-2">{risk.risk_title}</td>
-                                        <td className="px-3 py-2">{risk.division}</td>
-                                        <td className="px-3 py-2">{risk.department}</td>
-                                        <td className="px-3 py-2">{risk.category}</td>
-                                        <td className="px-3 py-2">{risk.owner}</td>
-                                        <td className="px-3 py-2 text-center font-medium">{inherentScore.toFixed(1)}</td>
-                                        <td className="px-3 py-2">
-                                            <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                                inherentLevel === 'Minimal' ? 'bg-green-100 text-green-800' :
-                                                inherentLevel === 'Low' ? 'bg-green-200 text-green-900' :
-                                                inherentLevel === 'Moderate' ? 'bg-yellow-100 text-yellow-800' :
-                                                inherentLevel === 'High' ? 'bg-orange-100 text-orange-800' :
-                                                'bg-red-100 text-red-800'
-                                            }`}>
-                                                {inherentLevel}
-                                            </span>
-                                        </td>
-                                        <td className="px-3 py-2 text-center font-medium">{residualScore.toFixed(1)}</td>
-                                        <td className="px-3 py-2">
-                                            <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                                residualLevel === 'Minimal' ? 'bg-green-100 text-green-800' :
-                                                residualLevel === 'Low' ? 'bg-green-200 text-green-900' :
-                                                residualLevel === 'Moderate' ? 'bg-yellow-100 text-yellow-800' :
-                                                residualLevel === 'High' ? 'bg-orange-100 text-orange-800' :
-                                                'bg-red-100 text-red-800'
-                                            }`}>
-                                                {residualLevel}
-                                            </span>
-                                        </td>
-                                        <td className="px-3 py-2">{risk.status}</td>
-                                        <td className="px-3 py-2 text-xs">{new Date(risk.committed_date).toLocaleDateString()}</td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
+                    <div className="overflow-auto rounded-xl border bg-white">
+                        <table className="w-full text-sm">
+                            <thead className="bg-gray-100 sticky top-0">
+                                <tr>
+                                    <th className="px-3 py-2 text-left font-semibold">Period</th>
+                                    <th className="px-3 py-2 text-left font-semibold">Risk Code</th>
+                                    <th className="px-3 py-2 text-left font-semibold">Title</th>
+                                    <th className="px-3 py-2 text-left font-semibold">Division</th>
+                                    <th className="px-3 py-2 text-left font-semibold">Department</th>
+                                    <th className="px-3 py-2 text-left font-semibold">Category</th>
+                                    <th className="px-3 py-2 text-left font-semibold">Owner</th>
+                                    <th className="px-3 py-2 text-left font-semibold">LxI (Inh)</th>
+                                    <th className="px-3 py-2 text-left font-semibold">Inherent Risk</th>
+                                    <th className="px-3 py-2 text-left font-semibold">LxI (Res)</th>
+                                    <th className="px-3 py-2 text-left font-semibold">Residual Risk</th>
+                                    <th className="px-3 py-2 text-left font-semibold">Status</th>
+                                    <th className="px-3 py-2 text-left font-semibold">Committed Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredHistory.map((risk, index) => {
+                                    const inherentScore = risk.likelihood_inherent * risk.impact_inherent;
+                                    const inherentLevel = bucket(risk.likelihood_inherent, risk.impact_inherent, config.matrixSize);
+                                    // Use stored residual values from history (fallback to inherent if not set)
+                                    const likelihoodRes = risk.likelihood_residual ?? risk.likelihood_inherent;
+                                    const impactRes = risk.impact_residual ?? risk.impact_inherent;
+                                    const residualScore = likelihoodRes * impactRes;
+                                    const residualLevel = bucket(likelihoodRes, impactRes, config.matrixSize);
+                                    return (
+                                        <tr key={risk.id} className={`border-t ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                                            <td className="px-3 py-2 font-medium">{risk.period}</td>
+                                            <td className="px-3 py-2 font-mono text-xs">{risk.risk_code}</td>
+                                            <td className="px-3 py-2">{risk.risk_title}</td>
+                                            <td className="px-3 py-2">{risk.division}</td>
+                                            <td className="px-3 py-2">{risk.department}</td>
+                                            <td className="px-3 py-2">{risk.category}</td>
+                                            <td className="px-3 py-2">{risk.owner}</td>
+                                            <td className="px-3 py-2 text-center font-medium">{inherentScore.toFixed(1)}</td>
+                                            <td className="px-3 py-2">
+                                                <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                                    inherentLevel === 'Minimal' ? 'bg-green-100 text-green-800' :
+                                                    inherentLevel === 'Low' ? 'bg-green-200 text-green-900' :
+                                                    inherentLevel === 'Moderate' ? 'bg-yellow-100 text-yellow-800' :
+                                                    inherentLevel === 'High' ? 'bg-orange-100 text-orange-800' :
+                                                    'bg-red-100 text-red-800'
+                                                }`}>
+                                                    {inherentLevel}
+                                                </span>
+                                            </td>
+                                            <td className="px-3 py-2 text-center font-medium">{residualScore.toFixed(1)}</td>
+                                            <td className="px-3 py-2">
+                                                <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                                    residualLevel === 'Minimal' ? 'bg-green-100 text-green-800' :
+                                                    residualLevel === 'Low' ? 'bg-green-200 text-green-900' :
+                                                    residualLevel === 'Moderate' ? 'bg-yellow-100 text-yellow-800' :
+                                                    residualLevel === 'High' ? 'bg-orange-100 text-orange-800' :
+                                                    'bg-red-100 text-red-800'
+                                                }`}>
+                                                    {residualLevel}
+                                                </span>
+                                            </td>
+                                            <td className="px-3 py-2">{risk.status}</td>
+                                            <td className="px-3 py-2 text-xs">{new Date(risk.committed_date).toLocaleDateString()}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
 
-                <div className="text-sm text-gray-600">
-                    Showing {filteredHistory.length} committed risk(s) {selectedPeriod ? `for ${selectedPeriod}` : 'across all periods'}
-                </div>
-            </CardContent>
-        </Card>
+                    <div className="text-sm text-gray-600">
+                        Showing {filteredHistory.length} committed risk(s) {selectedPeriod ? `for ${selectedPeriod}` : 'across all periods'}
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Dialog open={showCopyDialog} onOpenChange={setShowCopyDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Copy Risks to New Period</DialogTitle>
+                        <DialogDescription>
+                            Select a target period to copy all risks and controls from {copySourcePeriod} to the active risk register.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div>
+                            <Label className="text-sm font-medium">Source Period</Label>
+                            <Input value={copySourcePeriod} readOnly className="bg-gray-100" />
+                        </div>
+                        <div>
+                            <Label className="text-sm font-medium">Target Period</Label>
+                            <Select value={copyTargetPeriod} onValueChange={setCopyTargetPeriod}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select target period..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Q1 2025">Q1 2025</SelectItem>
+                                    <SelectItem value="Q2 2025">Q2 2025</SelectItem>
+                                    <SelectItem value="Q3 2025">Q3 2025</SelectItem>
+                                    <SelectItem value="Q4 2025">Q4 2025</SelectItem>
+                                    <SelectItem value="Q1 2026">Q1 2026</SelectItem>
+                                    <SelectItem value="Q2 2026">Q2 2026</SelectItem>
+                                    <SelectItem value="Q3 2026">Q3 2026</SelectItem>
+                                    <SelectItem value="Q4 2026">Q4 2026</SelectItem>
+                                    <SelectItem value="FY2025">FY2025</SelectItem>
+                                    <SelectItem value="FY2026">FY2026</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowCopyDialog(false)}>Cancel</Button>
+                        <Button onClick={executeCopy}>Copy Risks</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }
 
@@ -1606,6 +1805,7 @@ function RiskImportTab({ onImport, currentConfig, canEdit }: { onImport: (risks:
     const [parsedData, setParsedData] = useState<ParsedRisk[]>([]);
     const [fileName, setFileName] = useState<string | null>(null);
     const [discoveredConfig, setDiscoveredConfig] = useState<DiscoveredConfig | null>(null);
+    const [pastedData, setPastedData] = useState('');
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         const file = acceptedFiles[0];
@@ -1619,18 +1819,48 @@ function RiskImportTab({ onImport, currentConfig, canEdit }: { onImport: (risks:
         });
     }, [currentConfig.matrixSize]);
 
+    const handlePaste = () => {
+        if (!pastedData.trim()) return;
+        setFileName('Pasted from Excel');
+
+        const lines = pastedData.trim().split('\n');
+        const headerLine = lines[0];
+        const tabCount = (headerLine.match(/\t/g) || []).length;
+
+        // Check if we have the expected number of columns (8 tabs = 9 columns)
+        if (tabCount < 8) {
+            alert(`⚠️ Column mismatch detected!\n\nExpected 9 columns (8 tabs between them), but found ${tabCount + 1} columns.\n\nPlease ensure:\n1. All columns in Excel are wide enough to show full content\n2. You're selecting ALL columns including the last one (status)\n3. Try widening your Excel columns before copying\n\nClick "Show Example" to see the correct format.`);
+            return;
+        }
+
+        // Convert tab-separated paste data to CSV
+        const csvText = lines.map(line => {
+            if (line.includes('\t')) {
+                return line.split('\t').map(cell => `"${cell.replace(/"/g, '""')}"`).join(',');
+            }
+            return line;
+        }).join('\n');
+
+        const result = parseCsvToJson(csvText);
+        const { data, discovered } = processParsedRiskData(result, currentConfig.matrixSize);
+        setParsedData(data);
+        setDiscoveredConfig(discovered);
+        setPastedData('');
+    };
+
     const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: { 'text/csv': ['.csv'] }, multiple: false });
     const handleImport = () => { if (!discoveredConfig) return; const validRisks = parsedData.filter(r => !r.errors || r.errors.length === 0); onImport(validRisks, discoveredConfig); setParsedData([]); setFileName(null); setDiscoveredConfig(null); };
     const validRows = useMemo(() => parsedData.filter(r => !r.errors || r.errors.length === 0), [parsedData]);
     const invalidRowsCount = useMemo(() => parsedData.length - validRows.length, [parsedData, validRows]);
     const newDiscoveries = useMemo(() => { if (!discoveredConfig) return null; const newDivisions = discoveredConfig.divisions.filter(d => !currentConfig.divisions.includes(d)); const newDepartments = discoveredConfig.departments.filter(d => !currentConfig.departments.includes(d)); const newCategories = discoveredConfig.categories.filter(c => !currentConfig.categories.includes(c)); const counts = [newDivisions.length > 0 ? `${newDivisions.length} new division(s)` : '', newDepartments.length > 0 ? `${newDepartments.length} new department(s)` : '', newCategories.length > 0 ? `${newCategories.length} new category(s)` : ''].filter(Boolean); return { counts, total: newDivisions.length + newDepartments.length + newCategories.length }; }, [discoveredConfig, currentConfig]);
 
-    return (<Card className="rounded-2xl shadow-sm"><CardHeader><CardTitle>Import Risks from CSV</CardTitle></CardHeader><CardContent className="space-y-4"><div {...getRootProps()} className={`p-8 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}`}><input {...getInputProps()} /><FileUp className="mx-auto h-12 w-12 text-gray-400" /><p className="mt-2 text-sm text-gray-600">{isDragActive ? "Drop the file here ..." : "Drag 'n' drop a CSV file here, or click to select file"}</p><p className="text-xs text-gray-500">Required columns: risk_title, risk_description, division, department, category, owner, likelihood_inherent, impact_inherent, status</p></div>{fileName && <p className="text-sm font-medium">Previewing file: <span className="font-normal text-gray-700">{fileName}</span></p>}{parsedData.length > 0 && (<div className="space-y-4"><div className="overflow-auto rounded-xl border bg-white max-h-96"><table className="w-full text-sm"><thead className="bg-gray-100 sticky top-0"><tr>{["Title", "Category", "Owner", "L (Inh)", "I (Inh)", "Status", "Errors"].map(h => <th key={h} className="px-3 py-2 text-left font-semibold text-gray-700">{h}</th>)}</tr></thead><tbody>{parsedData.map((row, index) => (<tr key={index} className={`border-t ${row.errors && row.errors.length > 0 ? 'bg-red-50' : ''}`}><td className="px-3 py-2">{row.risk_title}</td><td className="px-3 py-2">{row.category}</td><td className="px-3 py-2">{row.owner}</td><td className="px-3 py-2">{isNaN(row.likelihood_inherent) ? '' : row.likelihood_inherent}</td><td className="px-3 py-2">{isNaN(row.impact_inherent) ? '' : row.impact_inherent}</td><td className="px-3 py-2">{row.status}</td><td className="px-3 py-2 text-red-600 text-xs">{row.errors?.join(', ')}</td></tr>))}</tbody></table></div><div className="flex justify-between items-center"><div className="text-sm text-gray-600 space-y-1">{invalidRowsCount > 0 ? <span className="text-red-600 font-semibold flex items-center"><AlertTriangle className="h-4 w-4 mr-2"/>{invalidRowsCount} row(s) have errors and will be skipped.</span> : <span className="text-green-600 font-semibold">All {parsedData.length} rows look good!</span>}{newDiscoveries && newDiscoveries.total > 0 && <span className="text-blue-600 font-semibold">Found {newDiscoveries.counts.join(', ')}. These will be added to your configuration.</span>}</div><Button onClick={handleImport} disabled={validRows.length === 0}>Import {validRows.length > 0 ? validRows.length : ''} Valid Risks</Button></div></div>)}</CardContent></Card>);
+    return (<Card className="rounded-2xl shadow-sm"><CardHeader><CardTitle>Import Risks from CSV or Excel</CardTitle></CardHeader><CardContent className="space-y-4"><div {...getRootProps()} className={`p-8 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}`}><input {...getInputProps()} /><FileUp className="mx-auto h-12 w-12 text-gray-400" /><p className="mt-2 text-sm text-gray-600">{isDragActive ? "Drop the file here ..." : "Drag 'n' drop a CSV file here, or click to select file"}</p><p className="text-xs text-gray-500">Required columns: risk_title, risk_description, division, department, category, owner, likelihood_inherent, impact_inherent, status</p></div><div className="relative"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300"></div></div><div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">OR</span></div></div><div className="space-y-2"><Label>Paste from Excel</Label><p className="text-xs text-gray-600">Select and copy cells from Excel (including headers). Make sure all columns are fully visible and not truncated before copying.</p><Textarea placeholder="Copy cells from Excel and paste here (with headers)..." value={pastedData} onChange={e => setPastedData(e.target.value)} rows={6} className="font-mono text-xs" /><div className="flex gap-2"><Button onClick={handlePaste} disabled={!pastedData.trim()} size="sm">Process Pasted Data</Button><Button onClick={() => setPastedData('risk_title\trisk_description\tdivision\tdepartment\tcategory\towner\tlikelihood_inherent\timpact_inherent\tstatus\nOperational Risk\tErroneous fee amounts computed/collected as a result of manual computation process on Ms. Excel\tOperations\tCOG\tFinancial\tOPD\t2\t4\tOpen')} variant="outline" size="sm">Show Example</Button></div></div>{fileName && <p className="text-sm font-medium">Previewing: <span className="font-normal text-gray-700">{fileName}</span></p>}{parsedData.length > 0 && (<div className="space-y-4"><div className="overflow-auto rounded-xl border bg-white max-h-96"><table className="w-full text-sm"><thead className="bg-gray-100 sticky top-0"><tr>{["Title", "Category", "Owner", "L (Inh)", "I (Inh)", "Status", "Errors"].map(h => <th key={h} className="px-3 py-2 text-left font-semibold text-gray-700">{h}</th>)}</tr></thead><tbody>{parsedData.map((row, index) => (<tr key={index} className={`border-t ${row.errors && row.errors.length > 0 ? 'bg-red-50' : ''}`}><td className="px-3 py-2">{row.risk_title}</td><td className="px-3 py-2">{row.category}</td><td className="px-3 py-2">{row.owner}</td><td className="px-3 py-2">{isNaN(row.likelihood_inherent) ? '' : row.likelihood_inherent}</td><td className="px-3 py-2">{isNaN(row.impact_inherent) ? '' : row.impact_inherent}</td><td className="px-3 py-2">{row.status}</td><td className="px-3 py-2 text-red-600 text-xs">{row.errors?.join(', ')}</td></tr>))}</tbody></table></div><div className="flex justify-between items-center"><div className="text-sm text-gray-600 space-y-1">{invalidRowsCount > 0 ? <span className="text-red-600 font-semibold flex items-center"><AlertTriangle className="h-4 w-4 mr-2"/>{invalidRowsCount} row(s) have errors and will be skipped.</span> : <span className="text-green-600 font-semibold">All {parsedData.length} rows look good!</span>}{newDiscoveries && newDiscoveries.total > 0 && <span className="text-blue-600 font-semibold">Found {newDiscoveries.counts.join(', ')}. These will be added to your configuration.</span>}</div><Button onClick={handleImport} disabled={validRows.length === 0}>Import {validRows.length > 0 ? validRows.length : ''} Valid Risks</Button></div></div>)}</CardContent></Card>);
 }
 
 function ControlImportTab({ onImport, allRisks, canEdit }: { onImport: (controls: ParsedControl[]) => void; allRisks: RiskRow[]; canEdit: boolean }) {
     const [parsedData, setParsedData] = useState<ParsedControl[]>([]);
     const [fileName, setFileName] = useState<string | null>(null);
+    const [pastedData, setPastedData] = useState('');
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         const file = acceptedFiles[0];
@@ -1642,12 +1872,39 @@ function ControlImportTab({ onImport, allRisks, canEdit }: { onImport: (controls
         });
     }, [allRisks]);
 
+    const handlePaste = () => {
+        if (!pastedData.trim()) return;
+        setFileName('Pasted from Excel');
+
+        const lines = pastedData.trim().split('\n');
+        const headerLine = lines[0];
+        const tabCount = (headerLine.match(/\t/g) || []).length;
+
+        // Check if we have the expected number of columns (6 tabs = 7 columns)
+        if (tabCount < 6) {
+            alert(`⚠️ Column mismatch detected!\n\nExpected 7 columns (6 tabs between them), but found ${tabCount + 1} columns.\n\nPlease ensure:\n1. All columns in Excel are wide enough to show full content\n2. You're selecting ALL columns including the last one (effectiveness_evaluation)\n3. Try widening your Excel columns before copying\n\nClick "Show Example" to see the correct format.`);
+            return;
+        }
+
+        // Convert tab-separated paste data to CSV
+        const csvText = lines.map(line => {
+            if (line.includes('\t')) {
+                return line.split('\t').map(cell => `"${cell.replace(/"/g, '""')}"`).join(',');
+            }
+            return line;
+        }).join('\n');
+
+        const result = parseCsvToJson(csvText);
+        setParsedData(processParsedControlsData(result, allRisks));
+        setPastedData('');
+    };
+
     const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: { 'text/csv': ['.csv'] }, multiple: false });
     const handleImport = () => { const validControls = parsedData.filter(c => !c.errors || c.errors.length === 0); onImport(validControls); setParsedData([]); setFileName(null); };
     const validRows = useMemo(() => parsedData.filter(c => !c.errors || c.errors.length === 0), [parsedData]);
     const invalidRowsCount = useMemo(() => parsedData.length - validRows.length, [parsedData, validRows]);
 
-    return (<Card className="rounded-2xl shadow-sm"><CardHeader><CardTitle>Import Controls from CSV</CardTitle></CardHeader><CardContent className="space-y-4"><div {...getRootProps()} className={`p-8 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}`}><input {...getInputProps()} /><FileUp className="mx-auto h-12 w-12 text-gray-400" /><p className="mt-2 text-sm text-gray-600">{isDragActive ? "Drop the file here ..." : "Drag 'n' drop a CSV file here, or click to select file"}</p><p className="text-xs text-gray-500">Required columns: risk_code, control_description, target, design, implementation, monitoring, effectiveness_evaluation</p></div>{fileName && <p className="text-sm font-medium">Previewing file: <span className="font-normal text-gray-700">{fileName}</span></p>}{parsedData.length > 0 && (<div className="space-y-4"><div className="overflow-auto rounded-xl border bg-white max-h-96"><table className="w-full text-sm"><thead className="bg-gray-100 sticky top-0"><tr>{["Risk Code", "Risk Title", "Control Description", "Target", "D", "I", "M", "E", "Errors"].map(h => <th key={h} className="px-3 py-2 text-left font-semibold text-gray-700">{h}</th>)}</tr></thead><tbody>{parsedData.map((row, index) => (<tr key={index} className={`border-t ${row.errors && row.errors.length > 0 ? 'bg-red-50' : ''}`}><td className="px-3 py-2">{row.risk_code}</td><td className="px-3 py-2">{row.risk_title}</td><td className="px-3 py-2">{row.description}</td><td className="px-3 py-2">{row.target}</td><td className="px-3 py-2">{row.design}</td><td className="px-3 py-2">{row.implementation}</td><td className="px-3 py-2">{row.monitoring}</td><td className="px-3 py-2">{row.effectiveness_evaluation}</td><td className="px-3 py-2 text-red-600 text-xs">{row.errors?.join(', ')}</td></tr>))}</tbody></table></div><div className="flex justify-between items-center"><div className="text-sm text-gray-600 space-y-1">{invalidRowsCount > 0 ? <span className="text-red-600 font-semibold flex items-center"><AlertTriangle className="h-4 w-4 mr-2"/>{invalidRowsCount} row(s) have errors and will be skipped.</span> : <span className="text-green-600 font-semibold">All {parsedData.length} rows look good!</span>}</div><Button onClick={handleImport} disabled={validRows.length === 0}>Import {validRows.length > 0 ? validRows.length : ''} Valid Controls</Button></div></div>)}</CardContent></Card>);
+    return (<Card className="rounded-2xl shadow-sm"><CardHeader><CardTitle>Import Controls from CSV or Excel</CardTitle></CardHeader><CardContent className="space-y-4"><div {...getRootProps()} className={`p-8 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}`}><input {...getInputProps()} /><FileUp className="mx-auto h-12 w-12 text-gray-400" /><p className="mt-2 text-sm text-gray-600">{isDragActive ? "Drop the file here ..." : "Drag 'n' drop a CSV file here, or click to select file"}</p><p className="text-xs text-gray-500">Required columns: risk_code, control_description, target, design, implementation, monitoring, effectiveness_evaluation</p></div><div className="relative"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300"></div></div><div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">OR</span></div></div><div className="space-y-2"><Label>Paste from Excel</Label><p className="text-xs text-gray-600">Select and copy cells from Excel (including headers). Make sure all columns are fully visible and not truncated before copying.</p><Textarea placeholder="Copy cells from Excel and paste here (with headers)..." value={pastedData} onChange={e => setPastedData(e.target.value)} rows={6} className="font-mono text-xs" /><div className="flex gap-2"><Button onClick={handlePaste} disabled={!pastedData.trim()} size="sm">Process Pasted Data</Button><Button onClick={() => setPastedData('risk_code\tcontrol_description\ttarget\tdesign\timplementation\tmonitoring\teffectiveness_evaluation\nRISK-001\tImplement MFA and access controls\tLikelihood\t3\t2\t2\t3')} variant="outline" size="sm">Show Example</Button></div></div>{fileName && <p className="text-sm font-medium">Previewing: <span className="font-normal text-gray-700">{fileName}</span></p>}{parsedData.length > 0 && (<div className="space-y-4"><div className="overflow-auto rounded-xl border bg-white max-h-96"><table className="w-full text-sm"><thead className="bg-gray-100 sticky top-0"><tr>{["Risk Code", "Risk Title", "Control Description", "Target", "D", "I", "M", "E", "Errors"].map(h => <th key={h} className="px-3 py-2 text-left font-semibold text-gray-700">{h}</th>)}</tr></thead><tbody>{parsedData.map((row, index) => (<tr key={index} className={`border-t ${row.errors && row.errors.length > 0 ? 'bg-red-50' : ''}`}><td className="px-3 py-2">{row.risk_code}</td><td className="px-3 py-2">{row.risk_title}</td><td className="px-3 py-2">{row.description}</td><td className="px-3 py-2">{row.target}</td><td className="px-3 py-2">{row.design}</td><td className="px-3 py-2">{row.implementation}</td><td className="px-3 py-2">{row.monitoring}</td><td className="px-3 py-2">{row.effectiveness_evaluation}</td><td className="px-3 py-2 text-red-600 text-xs">{row.errors?.join(', ')}</td></tr>))}</tbody></table></div><div className="flex justify-between items-center"><div className="text-sm text-gray-600 space-y-1">{invalidRowsCount > 0 ? <span className="text-red-600 font-semibold flex items-center"><AlertTriangle className="h-4 w-4 mr-2"/>{invalidRowsCount} row(s) have errors and will be skipped.</span> : <span className="text-green-600 font-semibold">All {parsedData.length} rows look good!</span>}</div><Button onClick={handleImport} disabled={validRows.length === 0}>Import {validRows.length > 0 ? validRows.length : ''} Valid Controls</Button></div></div>)}</CardContent></Card>);
 }
 
 function DeleteConfirmationDialog({ onConfirm, riskCode }: { onConfirm: () => void; riskCode: string; }) {
@@ -1699,7 +1956,7 @@ function processParsedControlsData(rawData: any[], allRisks: RiskRow[]): ParsedC
 
 
 function MultiSelectPopover({ title, options, selected, setSelected }: { title: string; options: readonly string[]; selected: string[]; setSelected: (selected: string[]) => void; }) { const handleSelect = (value: string) => { const newSelected = selected.includes(value) ? selected.filter(item => item !== value) : [...selected, value]; setSelected(newSelected); }; return (<Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-between">{selected.length > 0 ? `${title} (${selected.length})` : `All ${title}`}<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" /></Button></PopoverTrigger><PopoverContent className="w-[200px] p-0"><div className="p-2 space-y-1">{options.map(option => (<div key={option} className="flex items-center gap-2 p-1 rounded hover:bg-gray-100"><Checkbox id={`ms-${title}-${option}`} checked={selected.includes(option)} onCheckedChange={() => handleSelect(option)} /><Label htmlFor={`ms-${title}-${option}`} className="w-full text-sm font-normal">{option}</Label></div>))}</div></PopoverContent></Popover>); }
-function AddRiskDialog({ onAdd, config, rows }: { onAdd: (r: Omit<RiskRow, 'risk_code'>) => void; config: AppConfig; rows: RiskRow[] }) { const [open, setOpen] = useState(false); const [form, setForm] = useState<Omit<RiskRow, 'risk_code'>>({ risk_title: "", risk_description: "", division: config.divisions[0] || "", department: config.departments[0] || "", category: config.categories[0] || "", owner: "", relevant_period: null, likelihood_inherent: 3, impact_inherent: 3, controls: [], status: "Open" }); const preview = useMemo(() => nextRiskCode(rows, form.division, form.category), [rows, form.division, form.category]); const handleSave = () => { onAdd(form); setOpen(false); setForm({ risk_title: "", risk_description: "", division: config.divisions[0] || "", department: config.departments[0] || "", category: config.categories[0] || "", owner: "", relevant_period: null, likelihood_inherent: 3, impact_inherent: 3, controls: [], status: "Open" });}; return (<Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Add Risk</Button></DialogTrigger><DialogContent className="max-w-3xl max-h-[90vh] flex flex-col"><DialogHeader><DialogTitle>Add a Risk</DialogTitle></DialogHeader><RiskFields form={form} setForm={setForm} config={config} codePreview={preview} codeLocked /><DialogFooter className="pt-4"><Button onClick={handleSave}>Save</Button></DialogFooter></DialogContent></Dialog>); }
+function AddRiskDialog({ onAdd, config, rows }: { onAdd: (r: Omit<RiskRow, 'risk_code'>) => void; config: AppConfig; rows: RiskRow[] }) { const [open, setOpen] = useState(false); const [form, setForm] = useState<Omit<RiskRow, 'risk_code'>>({ risk_title: "", risk_description: "", division: config.divisions[0] || "", department: config.departments[0] || "", category: config.categories[0] || "", owner: config.owners[0] || "", relevant_period: null, likelihood_inherent: 3, impact_inherent: 3, controls: [], status: "Open" }); const preview = useMemo(() => nextRiskCode(rows, form.division, form.category), [rows, form.division, form.category]); const handleSave = () => { onAdd(form); setOpen(false); setForm({ risk_title: "", risk_description: "", division: config.divisions[0] || "", department: config.departments[0] || "", category: config.categories[0] || "", owner: config.owners[0] || "", relevant_period: null, likelihood_inherent: 3, impact_inherent: 3, controls: [], status: "Open" });}; return (<Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Add Risk</Button></DialogTrigger><DialogContent className="max-w-3xl max-h-[90vh] flex flex-col"><DialogHeader><DialogTitle>Add a Risk</DialogTitle></DialogHeader><RiskFields form={form} setForm={setForm} config={config} codePreview={preview} codeLocked /><DialogFooter className="pt-4"><Button onClick={handleSave}>Save</Button></DialogFooter></DialogContent></Dialog>); }
 function EditRiskDialog({ initial, config, onSave, children, open, onOpenChange }: { initial: ProcessedRisk; config: AppConfig; onSave: (p: Omit<RiskRow, 'risk_code'>) => void; children?: React.ReactNode, open: boolean, onOpenChange: (open: boolean) => void }) { 
     const [form, setForm] = useState<Omit<RiskRow, 'risk_code'>>({ ...initial }); 
     useEffect(() => { setForm({ ...initial }) }, [initial]); 
@@ -1765,7 +2022,7 @@ function RiskFields({ form, setForm, config, codePreview, codeLocked }: { form: 
 
     const periodOptions = ["Q1 2025", "Q2 2025", "Q3 2025", "Q4 2025", "Q1 2026", "Q2 2026", "Q3 2026", "Q4 2026", "FY2025", "FY2026"];
 
-    return (<div className="flex-grow overflow-y-auto -mr-4 pr-4 space-y-6"><div className="grid grid-cols-2 gap-4"><div><Label>Risk Code</Label><Input value={codePreview} readOnly={!!codeLocked} className={codeLocked ? "bg-gray-100" : ""} /></div><div><Label>Status</Label><Select value={form.status} onValueChange={v => setField('status', v as any)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["Open", "In Progress", "Closed"].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div className="col-span-2"><Label>Title</Label><Input value={form.risk_title} onChange={e => setField('risk_title', e.target.value)} /></div><div className="col-span-2"><Label>Description</Label><Textarea rows={3} value={form.risk_description} onChange={e => setField('risk_description', e.target.value)} /></div><div><Label>Division</Label><Select value={form.division} onValueChange={v => setField('division', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.divisions.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Department</Label><Select value={form.department} onValueChange={v => setField('department', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.departments.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Category</Label><Select value={form.category} onValueChange={v => setField('category', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.categories.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Owner</Label><Input value={form.owner} onChange={e => setField('owner', e.target.value)} /></div><div className="col-span-2"><Label>Relevant Period</Label><Select value={form.relevant_period || undefined} onValueChange={v => setField('relevant_period', v)}><SelectTrigger><SelectValue placeholder="Select period..." /></SelectTrigger><SelectContent>{periodOptions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}<SelectItem value="custom">Custom...</SelectItem></SelectContent></Select>{form.relevant_period === "custom" && <Input placeholder="Enter custom period (e.g., H1 2025)" value="" onChange={e => setField('relevant_period', e.target.value)} className="mt-2" />}</div></div><div className="space-y-2"><h3 className="font-semibold text-gray-800">Inherent Risk</h3><div className="grid grid-cols-2 gap-4"><div><Label>Likelihood (Inherent)</Label><Select value={String(form.likelihood_inherent)} onValueChange={v => setField('likelihood_inherent', Number(v))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.likelihoodLabels.map((label, index) => <SelectItem key={index + 1} value={String(index + 1)}>{label}</SelectItem>)}</SelectContent></Select></div><div><Label>Impact (Inherent)</Label><Select value={String(form.impact_inherent)} onValueChange={v => setField('impact_inherent', Number(v))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.impactLabels.map((label, index) => <SelectItem key={index + 1} value={String(index + 1)}>{label}</SelectItem>)}</SelectContent></Select></div></div></div><div className="space-y-3"><div className="flex justify-between items-center"><h3 className="font-semibold text-gray-800">Controls</h3><div className="flex gap-2">{/* <Button onClick={handleSuggestControls} size="sm" variant="outline" disabled={isSuggesting}><Sparkles className="mr-2 h-4 w-4"/>{isSuggesting ? 'Thinking...' : 'Suggest Controls'}</Button> */}<Button onClick={addControl} size="sm" variant="outline"><Plus className="mr-2 h-4 w-4" />Add Control</Button></div></div>{form.controls.map((control, index) => (<div key={control.id} className="border rounded-lg p-4 space-y-4 bg-gray-50"><div className="flex justify-between items-start"><div className="flex-grow space-y-2"><Label>Control #{index + 1} Description</Label><Textarea placeholder="e.g., Daily reconciliation process" value={control.description} onChange={e => updateControl(control.id, { description: e.target.value })} /></div><Button variant="ghost" size="sm" className="ml-4" onClick={() => removeControl(control.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button></div><div><Label>Target</Label><Select value={control.target} onValueChange={(v: "Likelihood" | "Impact") => updateControl(control.id, { target: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Likelihood">Likelihood</SelectItem><SelectItem value="Impact">Impact</SelectItem></SelectContent></Select></div><div className="grid grid-cols-2 gap-4"><div><Label>D (Design)</Label><Select value={String(control.design)} onValueChange={v => updateControl(control.id, { design: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_DESIGN_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>I (Implementation)</Label><Select value={String(control.implementation)} onValueChange={v => updateControl(control.id, { implementation: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_IMPLEMENTATION_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>M (Monitoring)</Label><Select value={String(control.monitoring)} onValueChange={v => updateControl(control.id, { monitoring: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_MONITORING_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>E (Evaluation)</Label><Select value={String(control.effectiveness_evaluation)} onValueChange={v => updateControl(control.id, { effectiveness_evaluation: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_EFFECTIVENESS_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div></div></div>))}{form.controls.length === 0 && <p className="text-sm text-center text-gray-500 py-4">No controls added. Residual risk will equal inherent risk.</p>}</div><div className="space-y-2"><h3 className="font-semibold text-gray-800">Residual Risk (Calculated)</h3><div className="grid grid-cols-2 gap-4 p-4 border rounded-lg bg-blue-50"><div><Label>Likelihood (Residual)</Label><Input readOnly value={`${residualRisk.likelihood.toFixed(2)} (${config.likelihoodLabels[Math.round(residualRisk.likelihood)-1] || 'N/A'})`} className="bg-white font-mono" /></div><div><Label>Impact (Residual)</Label><Input readOnly value={`${residualRisk.impact.toFixed(2)} (${config.impactLabels[Math.round(residualRisk.impact)-1] || 'N/A'})`} className="bg-white font-mono" /></div></div></div></div>); 
+    return (<div className="flex-grow overflow-y-auto -mr-4 pr-4 space-y-6"><div className="grid grid-cols-2 gap-4"><div><Label>Risk Code</Label><Input value={codePreview} readOnly={!!codeLocked} className={codeLocked ? "bg-gray-100" : ""} /></div><div><Label>Status</Label><Select value={form.status} onValueChange={v => setField('status', v as any)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["Open", "In Progress", "Closed"].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div className="col-span-2"><Label>Title</Label><Input value={form.risk_title} onChange={e => setField('risk_title', e.target.value)} /></div><div className="col-span-2"><Label>Description</Label><Textarea rows={3} value={form.risk_description} onChange={e => setField('risk_description', e.target.value)} /></div><div><Label>Division</Label><Select value={form.division} onValueChange={v => setField('division', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.divisions.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Department</Label><Select value={form.department} onValueChange={v => setField('department', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.departments.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Category</Label><Select value={form.category} onValueChange={v => setField('category', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.categories.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Owner</Label><Select value={form.owner} onValueChange={v => setField('owner', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.owners.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div className="col-span-2"><Label>Relevant Period</Label><Select value={form.relevant_period || undefined} onValueChange={v => setField('relevant_period', v)}><SelectTrigger><SelectValue placeholder="Select period..." /></SelectTrigger><SelectContent>{periodOptions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}<SelectItem value="custom">Custom...</SelectItem></SelectContent></Select>{form.relevant_period === "custom" && <Input placeholder="Enter custom period (e.g., H1 2025)" value="" onChange={e => setField('relevant_period', e.target.value)} className="mt-2" />}</div></div><div className="space-y-2"><h3 className="font-semibold text-gray-800">Inherent Risk</h3><div className="grid grid-cols-2 gap-4"><div><Label>Likelihood (Inherent)</Label><Select value={String(form.likelihood_inherent)} onValueChange={v => setField('likelihood_inherent', Number(v))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.likelihoodLabels.map((label, index) => <SelectItem key={index + 1} value={String(index + 1)}>{label}</SelectItem>)}</SelectContent></Select></div><div><Label>Impact (Inherent)</Label><Select value={String(form.impact_inherent)} onValueChange={v => setField('impact_inherent', Number(v))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.impactLabels.map((label, index) => <SelectItem key={index + 1} value={String(index + 1)}>{label}</SelectItem>)}</SelectContent></Select></div></div></div><div className="space-y-3"><div className="flex justify-between items-center"><h3 className="font-semibold text-gray-800">Controls</h3><div className="flex gap-2">{/* <Button onClick={handleSuggestControls} size="sm" variant="outline" disabled={isSuggesting}><Sparkles className="mr-2 h-4 w-4"/>{isSuggesting ? 'Thinking...' : 'Suggest Controls'}</Button> */}<Button onClick={addControl} size="sm" variant="outline"><Plus className="mr-2 h-4 w-4" />Add Control</Button></div></div>{form.controls.map((control, index) => (<div key={control.id} className="border rounded-lg p-4 space-y-4 bg-gray-50"><div className="flex justify-between items-start"><div className="flex-grow space-y-2"><Label>Control #{index + 1} Description</Label><Textarea placeholder="e.g., Daily reconciliation process" value={control.description} onChange={e => updateControl(control.id, { description: e.target.value })} /></div><Button variant="ghost" size="sm" className="ml-4" onClick={() => removeControl(control.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button></div><div><Label>Target</Label><Select value={control.target} onValueChange={(v: "Likelihood" | "Impact") => updateControl(control.id, { target: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Likelihood">Likelihood</SelectItem><SelectItem value="Impact">Impact</SelectItem></SelectContent></Select></div><div className="grid grid-cols-2 gap-4"><div><Label>D (Design)</Label><Select value={String(control.design)} onValueChange={v => updateControl(control.id, { design: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_DESIGN_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>I (Implementation)</Label><Select value={String(control.implementation)} onValueChange={v => updateControl(control.id, { implementation: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_IMPLEMENTATION_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>M (Monitoring)</Label><Select value={String(control.monitoring)} onValueChange={v => updateControl(control.id, { monitoring: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_MONITORING_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>E (Evaluation)</Label><Select value={String(control.effectiveness_evaluation)} onValueChange={v => updateControl(control.id, { effectiveness_evaluation: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_EFFECTIVENESS_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div></div></div>))}{form.controls.length === 0 && <p className="text-sm text-center text-gray-500 py-4">No controls added. Residual risk will equal inherent risk.</p>}</div><div className="space-y-2"><h3 className="font-semibold text-gray-800">Residual Risk (Calculated)</h3><div className="grid grid-cols-2 gap-4 p-4 border rounded-lg bg-blue-50"><div><Label>Likelihood (Residual)</Label><Input readOnly value={`${residualRisk.likelihood.toFixed(2)} (${config.likelihoodLabels[Math.round(residualRisk.likelihood)-1] || 'N/A'})`} className="bg-white font-mono" /></div><div><Label>Impact (Residual)</Label><Input readOnly value={`${residualRisk.impact.toFixed(2)} (${config.impactLabels[Math.round(residualRisk.impact)-1] || 'N/A'})`} className="bg-white font-mono" /></div></div></div></div>); 
 }
 
 function ConfigDialog({ config, onSave }: { config: AppConfig; onSave: (c: AppConfig) => void }) {
@@ -1789,7 +2046,7 @@ function ConfigDialog({ config, onSave }: { config: AppConfig; onSave: (c: AppCo
         });
     };
 
-    const handleListChange = (type: 'divisions' | 'departments' | 'categories', value: string) => {
+    const handleListChange = (type: 'divisions' | 'departments' | 'categories' | 'owners', value: string) => {
         setDraft(p => ({ ...p, [type]: value.split(',').map(s => s.trim()) }));
     };
     
@@ -1799,6 +2056,7 @@ function ConfigDialog({ config, onSave }: { config: AppConfig; onSave: (c: AppCo
             divisions: draft.divisions.filter(Boolean),
             departments: draft.departments.filter(Boolean),
             categories: draft.categories.filter(Boolean),
+            owners: draft.owners.filter(Boolean),
         });
     };
 
@@ -1827,6 +2085,7 @@ function ConfigDialog({ config, onSave }: { config: AppConfig; onSave: (c: AppCo
                     <div><Label>Divisions (comma-separated)</Label><Textarea rows={4} value={draft.divisions.join(', ')} onChange={e => handleListChange('divisions', e.target.value)} /></div>
                     <div><Label>Departments (comma-separated)</Label><Textarea rows={4} value={draft.departments.join(', ')} onChange={e => handleListChange('departments', e.target.value)} /></div>
                     <div className="col-span-2"><Label>Categories (comma-separated)</Label><Textarea rows={3} value={draft.categories.join(', ')} onChange={e => handleListChange('categories', e.target.value)} /></div>
+                    <div className="col-span-2"><Label>Owners (comma-separated)</Label><Textarea rows={3} value={draft.owners.join(', ')} onChange={e => handleListChange('owners', e.target.value)} /></div>
                 </div>
             </div>
         </div>

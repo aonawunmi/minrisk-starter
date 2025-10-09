@@ -51,6 +51,7 @@ export type AppConfig = {
   divisions: string[];
   departments: string[];
   categories: string[];
+  owners: string[];
 };
 
 // =====================================================
@@ -169,15 +170,31 @@ export async function getOrCreateUserProfile(userId: string) {
  */
 export async function getUserOrganizationId(): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) {
+    console.log('❌ getUserOrganizationId: No user authenticated');
+    return null;
+  }
 
-  const { data: profile } = await supabase
+  console.log('🔍 getUserOrganizationId: Fetching profile for user:', user.id);
+
+  const { data: profile, error } = await supabase
     .from('user_profiles')
     .select('organization_id')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
-  return profile?.organization_id || null;
+  if (error) {
+    console.error('❌ getUserOrganizationId: Error fetching profile:', error);
+    return null;
+  }
+
+  if (!profile) {
+    console.log('❌ getUserOrganizationId: No profile found for user:', user.id);
+    return null;
+  }
+
+  console.log('✅ getUserOrganizationId: Found org:', profile.organization_id);
+  return profile.organization_id;
 }
 
 // =====================================================
@@ -189,23 +206,44 @@ export async function getUserOrganizationId(): Promise<string | null> {
  */
 export async function loadConfig(): Promise<AppConfig | null> {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) {
+    console.log('❌ loadConfig: No user authenticated');
+    return null;
+  }
 
+  console.log('🔍 loadConfig: Starting for user:', user.id);
+
+  // Get user's organization ID first
+  const orgId = await getUserOrganizationId();
+  if (!orgId) {
+    console.log('❌ loadConfig: No organization found for user');
+    return null;
+  }
+
+  console.log('🔍 loadConfig: Querying config for org:', orgId);
+
+  // Load config by organization_id so all users in the org share the same config
   const { data, error } = await supabase
     .from('app_configs')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('organization_id', orgId)
     .maybeSingle();
 
   if (error) {
-    console.error('Error loading config:', error);
+    console.error('❌ loadConfig: Error loading config:', error);
     return null;
   }
 
   if (!data) {
-    console.log('No config found for user');
+    console.log('❌ loadConfig: No config found for organization:', orgId);
     return null;
   }
+
+  console.log('✅ loadConfig: Config loaded successfully:', {
+    org: data.organization_id,
+    divisions: data.divisions,
+    departments: data.departments,
+  });
 
   return {
     id: data.id,
@@ -217,6 +255,7 @@ export async function loadConfig(): Promise<AppConfig | null> {
     divisions: data.divisions,
     departments: data.departments,
     categories: data.categories,
+    owners: data.owners,
   };
 }
 
@@ -231,19 +270,20 @@ export async function saveConfig(config: AppConfig): Promise<{ success: boolean;
   if (!orgId) return { success: false, error: 'No organization found' };
 
   const configData = {
-    user_id: user.id,
     organization_id: orgId,
+    user_id: user.id, // Track who last updated it
     matrix_size: config.matrix_size,
     likelihood_labels: config.likelihood_labels,
     impact_labels: config.impact_labels,
     divisions: config.divisions,
     departments: config.departments,
     categories: config.categories,
+    owners: config.owners,
   };
 
   const { error } = await supabase
     .from('app_configs')
-    .upsert(configData, { onConflict: 'organization_id,user_id' });
+    .upsert(configData, { onConflict: 'organization_id' });
 
   return { success: !error, error: error?.message };
 }

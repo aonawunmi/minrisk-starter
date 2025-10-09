@@ -6,12 +6,13 @@
 3. [Risk Register](#risk-register)
 4. [Heatmap](#heatmap)
 5. [Control Register](#control-register)
-6. [AI Assistant](#ai-assistant)
-7. [Configuration](#configuration)
-8. [Admin Dashboard](#admin-dashboard)
-9. [Archive Management](#archive-management)
-10. [Audit Trail](#audit-trail)
-11. [Best Practices](#best-practices)
+6. [Historical Risk Management](#historical-risk-management) ✨ NEW
+7. [AI Assistant](#ai-assistant)
+8. [Configuration](#configuration)
+9. [Admin Dashboard](#admin-dashboard)
+10. [Archive Management](#archive-management)
+11. [Audit Trail](#audit-trail)
+12. [Best Practices](#best-practices)
 
 ---
 
@@ -110,6 +111,7 @@ The Risk Register is your main workspace for managing risks. It displays all ris
 | **Department** | Specific department |
 | **Category** | Risk category (Operational, Financial, etc.) |
 | **Owner** | Person responsible for the risk |
+| **Period** | Time period for the risk (Q1 2025, FY2025, etc.) ✨ NEW |
 | **LxI(Inh)** | Likelihood × Impact (Inherent) - score before controls |
 | **LxI(Res)** | Likelihood × Impact (Residual) - score after controls |
 | **Status** | Open, In Progress, or Closed |
@@ -162,16 +164,20 @@ The Risk Register is your main workspace for managing risks. It displays all ris
 - The risk will be archived automatically
 - You can permanently delete from Archive Management later
 
-### Filtering Risks
+### Filtering Risks ✨ IMPROVED
 
-Use the filter bar at the top:
+**Tab-Based Filtering**: Each tab now has its own filter section for better organization.
 
-1. **Search Bar**: Type to search across all fields
+In the Risk Register tab:
+
+1. **Search Bar**: Type to search across all fields ✨ NEW
 2. **Division Filter**: Multi-select divisions
 3. **Department Filter**: Multi-select departments
 4. **Category**: Select single category or "All"
-5. **Status**: Select single status or "All"
-6. **User Filter** (Admin only): Multi-select users
+5. **Period Filter**: Multi-select time periods (Q1 2025, FY2025, etc.) ✨ NEW
+6. **Status**: Select single status or "All"
+7. **Priority Toggle**: Show only priority-marked risks
+8. **User Filter** (Admin only): Multi-select users
 
 ### Priority Selection
 
@@ -230,6 +236,17 @@ Visual representation of risks plotted by Likelihood vs Impact.
 - By default shows ALL risks
 - If you've selected priority risks, only those appear
 
+### Heatmap Filtering ✨ IMPROVED
+
+**Tab-Based Filters**: Heatmap now has its own filter section
+
+1. **Search Bar**: Search for specific risks ✨ NEW
+2. **Period Filter**: Multi-select time periods to view historical heatmaps ✨ NEW
+3. **Status Filter**: Filter by Open, In Progress, or Closed
+4. **Priority Toggle**: Show only priority-marked risks
+
+**Note**: Period filtering in heatmap works independently from Risk Register filters.
+
 ---
 
 ## Control Register
@@ -255,6 +272,102 @@ Lists all controls across risks with their effectiveness ratings.
 2. **Export** control data for reporting
 3. **Identify gaps**: Look for low-scoring controls
 4. **Track improvements**: Monitor control effectiveness over time
+
+---
+
+## Historical Risk Management
+
+✨ **NEW in Version 3.0**
+
+### Overview
+Track and analyze how your risk landscape changes over time. View historical snapshots of risks by period and copy past risks to new periods.
+
+### History Tab
+
+Navigate to the **History** tab to access historical risk data.
+
+#### Viewing Historical Risks
+
+1. **Select a Period** from the dropdown:
+   - Q1 2025, Q2 2025, Q3 2025, Q4 2025
+   - FY2025, FY2026
+   - Or any custom period you've used
+
+2. **View Period Statistics**:
+   - Total risks in that period
+   - Risk distribution (Open/In Progress/Closed)
+   - Average inherent risk score
+   - Average residual risk score
+
+3. **Browse Historical Risks**:
+   - See complete risk details from that period
+   - View associated controls
+   - Compare risk scores over time
+
+#### Viewing Risk Details
+
+1. Click the **eye icon** next to any historical risk
+2. A modal opens showing:
+   - Complete risk information
+   - **Period indicator** showing which quarter/year ✨ NEW
+   - All controls with their effectiveness ratings
+   - Inherent and residual scores
+3. **Read-only view**: Historical risks cannot be edited directly
+
+#### Copy to New Period ✨ NEW
+
+**Purpose**: Quickly bring forward risks from a previous period to your current active register.
+
+**How it works**:
+
+1. **Select source period** with historical risks
+2. Click **"Copy to New Period"** button
+3. **Select target period** from dropdown
+4. **Review and confirm**
+5. System automatically:
+   - Copies all risks from selected period
+   - Includes all controls
+   - **Generates unique risk codes** if duplicates exist
+   - Adds risks to your active Risk Register
+
+**Example Use Cases**:
+- **Quarterly rollover**: Copy Q1 risks to Q2 for ongoing tracking
+- **Annual planning**: Copy FY2025 risks to FY2026 as baseline
+- **Risk templates**: Use past periods as templates for new projects
+
+**Smart Duplicate Handling**:
+- If a risk code already exists (e.g., "OPS-001")
+- System automatically appends number (e.g., "OPS-001-1", "OPS-001-2")
+- No manual intervention needed
+
+**Best Practices**:
+1. Review copied risks and update as needed
+2. Adjust likelihood/impact for current period
+3. Update control effectiveness ratings
+4. Close risks that are no longer relevant
+
+### Period-Based Heatmap Analysis
+
+View how your risk heatmap looked in previous periods:
+
+1. Navigate to **Heatmap** tab
+2. Use **Period Filter** to select historical periods
+3. **Multi-select** to compare multiple periods
+4. Toggle between Inherent/Residual views
+5. See risk distribution as it was in that period
+
+**Use Cases**:
+- Track risk reduction over time
+- Compare quarterly risk landscapes
+- Report on year-over-year improvements
+- Demonstrate control effectiveness
+
+### Period Display in Risk Editing ✨ NEW
+
+When editing a risk from the Risk Register:
+- Modal now shows **Period** field prominently
+- Helps you understand which quarter/year you're viewing
+- Especially useful when viewing historical heatmaps
 
 ---
 
@@ -768,10 +881,30 @@ When exporting data (future feature):
 
 ---
 
-**Version**: 1.0
-**Last Updated**: June 2025
+**Version**: 3.0
+**Last Updated**: October 2025
 **For**: MinRisk Application
 
 ---
 
-*This manual covers the current implementation. Features marked "(Coming Soon)" are planned enhancements.*
+## What's New in Version 3.0
+
+### Phase 3B - Period Management (October 2025)
+- ✨ **Historical Risk Management**: New History tab for viewing past risk snapshots
+- ✨ **Copy to New Period**: Quickly copy risks from previous periods
+- ✨ **Smart Duplicate Handling**: Auto-generates unique codes when copying
+- ✨ **Tab-Based Filtering**: Cleaner UX with filters in each tab
+- ✨ **Heatmap Search**: Search risks directly in heatmap view
+- ✨ **Period Display**: See period when editing risks
+- ✨ **Organization Config**: Fixed RLS so all users see same dropdowns
+
+### Previous Updates
+- **Phase 2D**: Admin role management improvements
+- **Phase 2C**: Toast notification system
+- **Phase 2B**: Enhanced audit trail with CSV export
+- **Phase 2A**: Time period tracking and filtering
+- **Phase 1**: Core risk management system
+
+---
+
+*This manual covers the current implementation.*

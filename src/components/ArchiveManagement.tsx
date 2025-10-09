@@ -27,12 +27,17 @@ export default function ArchiveManagement() {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [historyCount, setHistoryCount] = useState(0);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const risks = await loadArchivedRisks();
       setArchivedRisks(risks);
+
+      // Load risk_history count
+      const { data: history } = await supabase.from('risk_history').select('id');
+      setHistoryCount(history?.length || 0);
     } catch (error) {
       console.error('Error loading archived risks:', error);
     } finally {
@@ -108,6 +113,57 @@ export default function ArchiveManagement() {
     }
   };
 
+  const handleBulkDeleteAllHistory = async () => {
+    if (!confirm(`⚠️ ADMIN BULK DELETE - DELETE ALL COMMITTED PERIOD HISTORY?\n\nThis will PERMANENTLY DELETE ALL committed periods from ALL users in risk_history. This action CANNOT be undone!\n\nAre you absolutely sure?`)) {
+      return;
+    }
+
+    if (!confirm(`FINAL CONFIRMATION: This will delete ${historyCount} history records. Click OK to proceed.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('risk_history')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+
+      if (error) throw error;
+
+      alert(`✅ Successfully deleted all ${historyCount} history records.`);
+      await loadData();
+    } catch (error: any) {
+      console.error('Error bulk deleting history:', error);
+      alert('Failed to delete history: ' + error.message);
+    }
+  };
+
+  const handleBulkDeleteAllArchived = async () => {
+    if (!confirm(`⚠️ ADMIN BULK DELETE - DELETE ALL ARCHIVED RISKS?\n\nThis will PERMANENTLY DELETE ALL ${archivedRisks.length} archived risks and their controls. This action CANNOT be undone!\n\nAre you absolutely sure?`)) {
+      return;
+    }
+
+    if (!confirm(`FINAL CONFIRMATION: This will delete ${archivedRisks.length} archived risks. Click OK to proceed.`)) {
+      return;
+    }
+
+    try {
+      // Delete all archived risks (controls will cascade)
+      const { error } = await supabase
+        .from('archived_risks')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+
+      if (error) throw error;
+
+      alert(`✅ Successfully deleted all ${archivedRisks.length} archived risks.`);
+      await loadData();
+    } catch (error: any) {
+      console.error('Error bulk deleting archived risks:', error);
+      alert('Failed to delete archived risks: ' + error.message);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -140,7 +196,7 @@ export default function ArchiveManagement() {
       </Card>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">{archivedRisks.length}</div>
@@ -163,15 +219,44 @@ export default function ArchiveManagement() {
             <p className="text-xs text-gray-500">From Config Changes</p>
           </CardContent>
         </Card>
+        <Card className="border-red-200">
+          <CardContent className="pt-6 space-y-2">
+            <div className="text-2xl font-bold text-red-600">{historyCount}</div>
+            <p className="text-xs text-gray-500">Committed Period History</p>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="w-full"
+              onClick={handleBulkDeleteAllHistory}
+              disabled={historyCount === 0}
+            >
+              <Trash2 className="h-3 w-3 mr-2" />
+              Delete All History
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Archived Risks Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Archived Risks</CardTitle>
-          <CardDescription>
-            All archived risks are preserved here. Use caution when permanently deleting.
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Archived Risks</CardTitle>
+              <CardDescription>
+                All archived risks are preserved here. Use caution when permanently deleting.
+              </CardDescription>
+            </div>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleBulkDeleteAllArchived}
+              disabled={archivedRisks.length === 0}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete All Archived
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">

@@ -1,7 +1,7 @@
 # MinRisk System Capabilities
 
-**Last Updated:** October 7, 2025
-**Version:** 2.4 (Phase 2D Complete)
+**Last Updated:** October 8, 2025
+**Version:** 3.0 (Phase 3B Complete - Period Management)
 **Production URL:** https://minrisk-starter.vercel.app
 
 ---
@@ -64,6 +64,8 @@
 - Auto-generated risk codes (format: DIV-CAT-XXX)
 - **Toast notifications on create/update** ✨ NEW (Phase 2C)
 - Auto-dismiss success messages after 3 seconds
+- **Period display in risk edit modal** ✨ NEW (Phase 3B)
+- View which period a risk belongs to when editing
 
 ### Controls Management
 - Add multiple controls per risk
@@ -91,6 +93,12 @@
 
 ## 🔍 Filtering & Search
 
+### Tab-Based Filtering ✨ NEW (Phase 3B)
+- **Filters moved to individual tabs** for better UX
+- Each tab (Risk Register, Heatmap, Archive, Audit Trail, History) has its own filter section
+- Search bar included in each tab
+- Cleaner interface with context-aware filtering
+
 ### Risk Register Filters
 - Filter by Division
 - Filter by Department
@@ -100,9 +108,11 @@
 - **Filter by Time Period (multi-select)** ✨ NEW (Phase 2A)
 - Filter by Priority risks only
 - Combine multiple filters simultaneously
+- **Search across all risk fields** ✨ NEW (Phase 3B)
 
 ### Heatmap Filters
 - **Independent period filtering (multi-select)** ✨ NEW (Phase 2A)
+- **Search functionality** ✨ NEW (Phase 3B)
 - Filter by status
 - Toggle Inherent vs Residual view
 - Period filtering works independently from Risk Register
@@ -117,6 +127,9 @@
 - Control effectiveness visualization
 - Risk distribution across matrix zones
 - Risk comparison by time period
+- **Historical risk snapshots** ✨ NEW (Phase 3B)
+- **Copy risks to new periods** ✨ NEW (Phase 3B)
+- View historical heatmaps by period
 
 ---
 
@@ -163,6 +176,8 @@
 - Define Risk Categories (e.g., Strategic, Operational, Financial)
 - **Protected: Cannot delete config values currently in use**
 - System warns admin before removing values
+- **Organization-wide config sharing** ✨ NEW (Phase 3B)
+- All users in same organization see same dropdown values
 
 ---
 
@@ -256,14 +271,16 @@
 
 ## 📊 Summary Statistics
 
-- **21 major features** deployed to production
+- **25+ major features** deployed to production
 - **3 user roles** with granular permissions
 - **5×5 or 6×6** configurable risk matrix
 - **8 filter options** in audit trail
-- **4 main views:** Risk Register, Heatmap, Archive, Audit Trail
+- **5 main views:** Risk Register, Heatmap, Archive, Audit Trail, History
 - **Complete audit logging** of all operations
 - **Multi-select filtering** on periods and categories
 - **Soft delete** with archive functionality
+- **Historical risk snapshots** with period-based analysis
+- **Copy to New Period** with automatic duplicate handling
 
 ---
 
@@ -296,15 +313,25 @@
 - Auto-dismiss notifications
 - Green success indicators
 
-### Phase 2D (Complete) ✨ LATEST
+### Phase 2D (Complete)
 - Admin can change user roles
 - Role dropdown for approved users
 - Role change audit logging
 - No need to delete users to change roles
 
+### Phase 3B (Complete) ✨ LATEST
+- **Period display in risk edit modal** - See which period a risk belongs to when editing
+- **Tab-based filtering** - Filters moved to individual tabs for cleaner UX
+- **Search functionality in heatmap** - Search risks directly from heatmap view
+- **Copy to New Period** - Copy historical risks to new periods with one click
+- **Automatic duplicate handling** - System auto-generates unique codes when copying
+- **Organization-wide config sharing** - Fixed RLS policies so all users see same dropdowns
+- **Historical risk snapshots** - View and analyze risks by time period
+- **Improved UX** - Context-aware filters in each tab with search bars
+
 ---
 
-## 🔮 Planned Features (Phase 3)
+## 🔮 Planned Features (Phase 4)
 
 ### Optional Enhancements
 1. **Transfer Risks to Another User**
@@ -321,9 +348,9 @@
 
 ## 📝 Version Notes
 
-**Current Version:** 2.4
-**Last Major Update:** October 7, 2025
-**Status:** All Phase 2 features complete and in production
+**Current Version:** 3.0
+**Last Major Update:** October 8, 2025
+**Status:** Phase 3B complete - Period Management features ready for testing
 **Known Issues:** None
 
 **Maintenance:**
