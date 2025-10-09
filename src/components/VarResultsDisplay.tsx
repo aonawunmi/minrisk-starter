@@ -153,11 +153,11 @@ export function VarResultsDisplay({ results, matrixSize }: VarResultsDisplayProp
             <div className="space-y-1">
               <p className="text-sm">
                 <span className="font-medium">Likelihood Score:</span>{' '}
-                <span className="text-lg font-bold">{results.likelihood_score}</span>
+                <span className="text-lg font-bold text-blue-600">{results.likelihood_score}</span>
               </p>
               <p className="text-sm">
                 <span className="font-medium">Impact Score:</span>{' '}
-                <span className="text-lg font-bold">{results.impact_score}</span>
+                <span className="text-lg font-bold text-red-600">{results.impact_score}</span>
               </p>
             </div>
           </div>
