@@ -1,5 +1,6 @@
 // src/components/HelpTab.tsx
 // Help and User Manual tab for Admin Dashboard
+// Updated with VaR Analysis section
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
