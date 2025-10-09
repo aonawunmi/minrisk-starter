@@ -1,7 +1,7 @@
 # MinRisk System Capabilities
 
-**Last Updated:** October 8, 2025
-**Version:** 3.0 (Phase 3B Complete - Period Management)
+**Last Updated:** October 9, 2025
+**Version:** 4.0 (Phase 3 Complete - VaR Analysis Module)
 **Production URL:** https://minrisk-starter.vercel.app
 
 ---
@@ -245,6 +245,91 @@
 
 ---
 
+## 📊 VaR Analysis Module ✨ NEW (Phase 3)
+
+### VaR Configuration (Admin Only)
+- **Volatility Thresholds**: Configure 5 or 6 levels (in %)
+  - Default thresholds: 5%, 10%, 15%, 20%, 25% (for 6×6)
+  - Maps portfolio volatility to likelihood scores (1-5 or 1-6)
+- **Portfolio Value Thresholds**: Configure 5 or 6 levels (in millions NGN)
+  - Default thresholds: ₦10M, ₦50M, ₦100M, ₦500M, ₦1B (for 6×6)
+  - Maps portfolio value to impact scores (1-5 or 1-6)
+- Database-backed configuration per organization
+- Automatic matrix size adaptation (5×5 or 6×6)
+
+### VaR Sandbox
+- **Excel Template Download**: Pre-formatted template with 3 sheets
+  - Portfolio_Holdings: Asset positions (name, type, quantity, price)
+  - Price_History: Historical price data (minimum 252 days for daily data)
+  - Configuration: VaR parameters (confidence level, time horizon, frequency)
+- **File Upload & Validation**:
+  - Supports .xlsx files
+  - Validates data completeness and format
+  - Checks minimum data points (252 for daily, 60 for monthly)
+  - Verifies asset name matching between holdings and price history
+
+### VaR Calculation Engine
+- **Variance-Covariance Method**: Industry-standard VaR calculation
+- **Returns Matrix**: Calculate period-over-period returns
+- **Covariance Matrix**: Asset covariances for portfolio variance
+- **Correlation Matrix**: Asset correlations (-1 to +1)
+- **Portfolio Variance**: Weighted variance calculation
+- **Annualization**: Proper time-scaling based on data frequency (daily/weekly/monthly)
+- **Z-Score Support**: 90%, 95%, 99%, 99.9% confidence levels
+- **Time Horizon Scaling**: 1 day, 10 days, 21 days
+
+### Advanced VaR Features
+- **Standalone VaR**: Risk if each asset held in isolation
+  - Capped at market value (cannot lose more than 100%)
+  - Time horizon scaling applied
+- **Diversification Benefit**:
+  - Calculated as: Standalone VaR - VaR Contribution
+  - Shows risk reduction from portfolio effect
+  - Displayed as percentage and absolute value
+- **Asset Contribution Analysis**:
+  - Marginal VaR contribution per asset
+  - Component VaR (weighted contribution)
+  - Percentage of total portfolio VaR
+  - Individual diversification benefits
+
+### VaR Results Display
+- **Summary Cards**:
+  - Portfolio VaR (in NGN)
+  - Portfolio Volatility (annualized %)
+  - Total Portfolio Value
+  - Data Points Count
+- **Diversification Benefit Highlight**:
+  - Prominent green card showing % reduction
+  - Side-by-side comparison: Sum of Standalone VaRs vs Portfolio VaR
+  - Amount saved from diversification
+- **Risk Score Mapping**:
+  - Likelihood Score: Based on portfolio volatility
+  - Impact Score: Based on portfolio value
+  - Visual progress bars showing score levels
+  - Overall Risk display with separate scores (colored: blue for Likelihood, red for Impact)
+- **Asset Contribution Table**:
+  - Market value and weight per asset
+  - Standalone VaR vs VaR Contribution
+  - Diversification benefit with color coding (green = benefit, red = concentration)
+  - Percentage of total VaR
+- **Correlation Matrix Visualization**:
+  - Color-coded correlations:
+    - 🔴 Red (> 0.7): Strong positive correlation
+    - 🟠 Orange (0.3 to 0.7): Weak positive
+    - ⚪ Gray (-0.3 to 0.3): Neutral
+    - 🔵 Blue (-0.7 to -0.3): Weak negative
+    - 🟢 Green (< -0.7): Strong negative correlation
+  - Asset name abbreviation for readability
+  - Legend for interpretation
+
+### VaR Integration
+- Integrated into Admin dashboard (VaR Config tab)
+- VaR Sandbox tab for calculations
+- Organization-level configuration sharing
+- Results can inform risk matrix likelihood/impact scores
+
+---
+
 ## 🔒 Security & Data Protection
 
 - Row-Level Security (RLS) in Supabase
@@ -271,16 +356,19 @@
 
 ## 📊 Summary Statistics
 
-- **25+ major features** deployed to production
+- **30+ major features** deployed to production
 - **3 user roles** with granular permissions
 - **5×5 or 6×6** configurable risk matrix
 - **8 filter options** in audit trail
-- **5 main views:** Risk Register, Heatmap, Archive, Audit Trail, History
+- **6 main views:** Risk Register, Heatmap, Archive, Audit Trail, History, VaR Sandbox
 - **Complete audit logging** of all operations
 - **Multi-select filtering** on periods and categories
 - **Soft delete** with archive functionality
 - **Historical risk snapshots** with period-based analysis
 - **Copy to New Period** with automatic duplicate handling
+- **VaR Analysis** with variance-covariance method
+- **Diversification benefit calculation** and visualization
+- **Asset contribution analysis** with standalone VaR
 
 ---
 
@@ -319,7 +407,7 @@
 - Role change audit logging
 - No need to delete users to change roles
 
-### Phase 3B (Complete) ✨ LATEST
+### Phase 3B (Complete)
 - **Period display in risk edit modal** - See which period a risk belongs to when editing
 - **Tab-based filtering** - Filters moved to individual tabs for cleaner UX
 - **Search functionality in heatmap** - Search risks directly from heatmap view
@@ -328,6 +416,18 @@
 - **Organization-wide config sharing** - Fixed RLS policies so all users see same dropdowns
 - **Historical risk snapshots** - View and analyze risks by time period
 - **Improved UX** - Context-aware filters in each tab with search bars
+
+### Phase 3 - VaR Analysis Module (Complete) ✨ LATEST
+- **VaR Configuration**: Volatility and portfolio value thresholds (5 or 6 levels)
+- **VaR Sandbox**: Excel template and file upload for portfolio analysis
+- **Variance-Covariance Engine**: Industry-standard VaR calculation
+- **Standalone VaR**: Risk per asset in isolation (capped at market value)
+- **Diversification Benefit**: Visual display of risk reduction from portfolio effect
+- **Asset Contribution Analysis**: Marginal and component VaR per asset
+- **Correlation Matrix**: Color-coded correlation visualization
+- **Risk Score Mapping**: Portfolio metrics mapped to likelihood/impact scores
+- **Results Display**: Comprehensive cards, tables, and visualizations
+- **Overall Risk Format**: Separate Likelihood and Impact score display (blue/red)
 
 ---
 
@@ -348,9 +448,9 @@
 
 ## 📝 Version Notes
 
-**Current Version:** 3.0
-**Last Major Update:** October 8, 2025
-**Status:** Phase 3B complete - Period Management features ready for testing
+**Current Version:** 4.0
+**Last Major Update:** October 9, 2025
+**Status:** Phase 3 complete - VaR Analysis Module deployed to production
 **Known Issues:** None
 
 **Maintenance:**
