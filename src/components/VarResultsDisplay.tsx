@@ -149,12 +149,17 @@ export function VarResultsDisplay({ results, matrixSize }: VarResultsDisplayProp
           </div>
 
           <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-            <p className="text-sm font-medium">
-              Overall Risk: {' '}
-              <span className="text-lg font-bold">
-                {results.likelihood_score} × {results.impact_score} = {results.likelihood_score * results.impact_score}
-              </span>
-            </p>
+            <p className="text-sm font-medium mb-2">Overall Risk</p>
+            <div className="space-y-1">
+              <p className="text-sm">
+                <span className="font-medium">Likelihood Score:</span>{' '}
+                <span className="text-lg font-bold">{results.likelihood_score}</span>
+              </p>
+              <p className="text-sm">
+                <span className="font-medium">Impact Score:</span>{' '}
+                <span className="text-lg font-bold">{results.impact_score}</span>
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
