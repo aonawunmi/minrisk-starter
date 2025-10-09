@@ -1,0 +1,5 @@
+Asset_Name,Asset_Type,Quantity,Current_Price,Notes
+NGN 10Y Bond,Bond,100000000,98.50,Face value in NGN; Price as % of par
+NGN 5Y T-Bill,Bond,50000000,99.20,Face value in NGN; Price as % of par
+Dangote Cement,Equity,10000,285.00,Number of shares; Price per share in NGN
+Access Bank,Equity,25000,12.50,Number of shares; Price per share in NGN

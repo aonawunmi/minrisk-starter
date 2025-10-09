@@ -521,3 +521,155 @@ export async function bulkImportRisks(risks: Array<Omit<RiskRow, 'risk_code'> & 
 
   return { success: true, count: insertedRisks.length };
 }
+
+// =====================================================
+// VAR SCALE CONFIGURATION
+// =====================================================
+
+export type DbVarScaleConfig = {
+  id: string;
+  organization_id: string;
+  volatility_threshold_1: number;
+  volatility_threshold_2: number;
+  volatility_threshold_3: number;
+  volatility_threshold_4: number;
+  value_threshold_1: number;
+  value_threshold_2: number;
+  value_threshold_3: number;
+  value_threshold_4: number;
+  created_at: string;
+  updated_at: string;
+  updated_by: string | null;
+};
+
+export type VarScaleConfigInput = {
+  volatility_thresholds: [number, number, number, number];
+  value_thresholds: [number, number, number, number];
+};
+
+export async function loadVarScaleConfig(): Promise<VarScaleConfigInput | null> {
+  try {
+    const orgId = await getUserOrganizationId();
+    if (!orgId) {
+      console.error('No organization ID found');
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('var_scale_config')
+      .select('*')
+      .eq('organization_id', orgId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No config found, return default config
+        const { data: defaultData } = await supabase
+          .from('var_scale_config')
+          .select('*')
+          .eq('organization_id', 'default')
+          .single();
+
+        if (defaultData) {
+          return {
+            volatility_thresholds: [
+              defaultData.volatility_threshold_1,
+              defaultData.volatility_threshold_2,
+              defaultData.volatility_threshold_3,
+              defaultData.volatility_threshold_4
+            ],
+            value_thresholds: [
+              defaultData.value_threshold_1,
+              defaultData.value_threshold_2,
+              defaultData.value_threshold_3,
+              defaultData.value_threshold_4
+            ]
+          };
+        }
+      }
+      console.error('Error loading VaR scale config:', error);
+      return null;
+    }
+
+    return {
+      volatility_thresholds: [
+        data.volatility_threshold_1,
+        data.volatility_threshold_2,
+        data.volatility_threshold_3,
+        data.volatility_threshold_4
+      ],
+      value_thresholds: [
+        data.value_threshold_1,
+        data.value_threshold_2,
+        data.value_threshold_3,
+        data.value_threshold_4
+      ]
+    };
+  } catch (error) {
+    console.error('Error in loadVarScaleConfig:', error);
+    return null;
+  }
+}
+
+export async function saveVarScaleConfig(config: VarScaleConfigInput): Promise<{ success: boolean; error?: string }> {
+  try {
+    const orgId = await getUserOrganizationId();
+    if (!orgId) {
+      return { success: false, error: 'No organization ID found' };
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    // Check if config exists
+    const { data: existing } = await supabase
+      .from('var_scale_config')
+      .select('id')
+      .eq('organization_id', orgId)
+      .single();
+
+    const configData = {
+      organization_id: orgId,
+      volatility_threshold_1: config.volatility_thresholds[0],
+      volatility_threshold_2: config.volatility_thresholds[1],
+      volatility_threshold_3: config.volatility_thresholds[2],
+      volatility_threshold_4: config.volatility_thresholds[3],
+      value_threshold_1: config.value_thresholds[0],
+      value_threshold_2: config.value_thresholds[1],
+      value_threshold_3: config.value_thresholds[2],
+      value_threshold_4: config.value_thresholds[3],
+      updated_at: new Date().toISOString(),
+      updated_by: user.email || null
+    };
+
+    if (existing) {
+      // Update existing
+      const { error } = await supabase
+        .from('var_scale_config')
+        .update(configData)
+        .eq('id', existing.id);
+
+      if (error) {
+        console.error('Error updating VaR scale config:', error);
+        return { success: false, error: error.message };
+      }
+    } else {
+      // Insert new
+      const { error } = await supabase
+        .from('var_scale_config')
+        .insert([configData]);
+
+      if (error) {
+        console.error('Error inserting VaR scale config:', error);
+        return { success: false, error: error.message };
+      }
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error in saveVarScaleConfig:', error);
+    return { success: false, error: error.message };
+  }
+}

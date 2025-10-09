@@ -1,0 +1,7 @@
+Parameter,Value,Description
+Data_Frequency,Daily,"Daily, Weekly, or Monthly"
+Confidence_Level,95%,"90%, 95%, 99%, or 99.9%"
+Time_Horizon_Days,1,Number of days for VaR calculation
+Currency,NGN,Base currency for all positions
+Min_Data_Points_Daily,252,Minimum historical observations for daily data (1 trading year)
+Min_Data_Points_Monthly,60,Minimum historical observations for monthly data (5 years)

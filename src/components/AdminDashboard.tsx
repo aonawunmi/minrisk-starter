@@ -5,10 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Table } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RefreshCw, Users, FileText, Shield, AlertTriangle, Check, X, UserCheck, UserX, Archive, BookOpen } from 'lucide-react';
+import { RefreshCw, Users, FileText, Shield, AlertTriangle, Check, X, UserCheck, UserX, Archive, BookOpen, TrendingUp } from 'lucide-react';
 import ArchiveManagement from './ArchiveManagement';
 import AuditTrail from './AuditTrail';
 import HelpTab from './HelpTab';
+import { VarScaleConfig } from './VarScaleConfig';
+import type { AppConfig } from '../App';
 
 type UserData = {
   id: string;
@@ -23,7 +25,12 @@ type UserData = {
   approved_at: string | null;
 };
 
-export default function AdminDashboard() {
+type AdminDashboardProps = {
+  config: AppConfig;
+  showToast: (message: string, type?: 'success' | 'error') => void;
+};
+
+export default function AdminDashboard({ config, showToast }: AdminDashboardProps) {
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -167,10 +174,14 @@ export default function AdminDashboard() {
 
   return (
     <Tabs defaultValue="users" className="space-y-6">
-      <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+      <TabsList className="grid w-full grid-cols-5 max-w-3xl">
         <TabsTrigger value="users">
           <Users className="h-4 w-4 mr-2" />
           Users
+        </TabsTrigger>
+        <TabsTrigger value="var_config">
+          <TrendingUp className="h-4 w-4 mr-2" />
+          VaR Config
         </TabsTrigger>
         <TabsTrigger value="archive">
           <Archive className="h-4 w-4 mr-2" />
@@ -404,6 +415,10 @@ export default function AdminDashboard() {
 
       <TabsContent value="audit">
         <AuditTrail />
+      </TabsContent>
+
+      <TabsContent value="var_config">
+        <VarScaleConfig showToast={showToast} matrixSize={config.matrixSize} />
       </TabsContent>
 
       <TabsContent value="help">
