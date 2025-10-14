@@ -1,5 +1,7 @@
 // src/components/VarResultsDisplay.tsx
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import type { VarResults } from '@/lib/varTypes';
 
 type VarResultsDisplayProps = {
@@ -7,7 +9,12 @@ type VarResultsDisplayProps = {
   matrixSize: 5 | 6;
 };
 
+type SortField = 'asset_name' | 'market_value' | 'weight' | 'standalone_var' | 'var_contribution' | 'diversification_benefit' | 'var_contribution_pct';
+type SortDirection = 'asc' | 'desc' | null;
+
 export function VarResultsDisplay({ results, matrixSize }: VarResultsDisplayProps) {
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-NG', {
       style: 'currency',
@@ -33,6 +40,84 @@ export function VarResultsDisplay({ results, matrixSize }: VarResultsDisplayProp
     if (corr > -0.7) return 'bg-blue-100 text-blue-800';
     return 'bg-green-100 text-green-800';
   };
+
+  // Sort handler
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      // Cycle through: asc -> desc -> null
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else if (sortDirection === 'desc') {
+        setSortDirection(null);
+        setSortField(null);
+      }
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Get sort icon
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="h-4 w-4 ml-1 inline opacity-40" />;
+    }
+    if (sortDirection === 'asc') {
+      return <ArrowUp className="h-4 w-4 ml-1 inline text-blue-600" />;
+    }
+    return <ArrowDown className="h-4 w-4 ml-1 inline text-blue-600" />;
+  };
+
+  // Sort the asset contributions
+  const sortedAssets = [...results.asset_contributions].sort((a, b) => {
+    if (!sortField || !sortDirection) return 0;
+
+    let aVal: string | number;
+    let bVal: string | number;
+
+    switch (sortField) {
+      case 'asset_name':
+        aVal = a.asset_name.toLowerCase();
+        bVal = b.asset_name.toLowerCase();
+        break;
+      case 'market_value':
+        aVal = a.market_value;
+        bVal = b.market_value;
+        break;
+      case 'weight':
+        aVal = a.weight;
+        bVal = b.weight;
+        break;
+      case 'standalone_var':
+        aVal = a.standalone_var;
+        bVal = b.standalone_var;
+        break;
+      case 'var_contribution':
+        aVal = a.var_contribution;
+        bVal = b.var_contribution;
+        break;
+      case 'diversification_benefit':
+        aVal = a.diversification_benefit;
+        bVal = b.diversification_benefit;
+        break;
+      case 'var_contribution_pct':
+        aVal = a.var_contribution_pct;
+        bVal = b.var_contribution_pct;
+        break;
+      default:
+        return 0;
+    }
+
+    if (typeof aVal === 'string' && typeof bVal === 'string') {
+      return sortDirection === 'asc'
+        ? aVal.localeCompare(bVal)
+        : bVal.localeCompare(aVal);
+    }
+
+    return sortDirection === 'asc'
+      ? (aVal as number) - (bVal as number)
+      : (bVal as number) - (aVal as number);
+  });
 
   // Calculate diversification metrics
   const sumStandaloneVaR = results.asset_contributions.reduce((sum, a) => sum + a.standalone_var, 0);
@@ -169,7 +254,7 @@ export function VarResultsDisplay({ results, matrixSize }: VarResultsDisplayProp
         <CardHeader>
           <CardTitle className="text-lg">📊 Asset Contribution to VaR</CardTitle>
           <p className="text-xs text-gray-600 mt-1">
-            Standalone VaR shows risk if asset held in isolation. Diversification benefit = Standalone VaR - VaR Contribution
+            Standalone VaR shows risk if asset held in isolation. Diversification benefit = Standalone VaR - VaR Contribution. Click column headers to sort.
           </p>
         </CardHeader>
         <CardContent>
@@ -177,17 +262,52 @@ export function VarResultsDisplay({ results, matrixSize }: VarResultsDisplayProp
             <table className="w-full text-sm">
               <thead className="bg-gray-100">
                 <tr>
-                  <th className="px-3 py-2 text-left font-semibold text-gray-700">Asset Name</th>
-                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Market Value</th>
-                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Weight</th>
-                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Standalone VaR</th>
-                  <th className="px-3 py-2 text-right font-semibold text-gray-700">VaR Contribution</th>
-                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Diversification Benefit</th>
-                  <th className="px-3 py-2 text-right font-semibold text-gray-700">% of Total VaR</th>
+                  <th
+                    className="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer hover:bg-gray-200 transition-colors"
+                    onClick={() => handleSort('asset_name')}
+                  >
+                    Asset Name{getSortIcon('asset_name')}
+                  </th>
+                  <th
+                    className="px-3 py-2 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-200 transition-colors"
+                    onClick={() => handleSort('market_value')}
+                  >
+                    Market Value{getSortIcon('market_value')}
+                  </th>
+                  <th
+                    className="px-3 py-2 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-200 transition-colors"
+                    onClick={() => handleSort('weight')}
+                  >
+                    Weight{getSortIcon('weight')}
+                  </th>
+                  <th
+                    className="px-3 py-2 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-200 transition-colors"
+                    onClick={() => handleSort('standalone_var')}
+                  >
+                    Standalone VaR{getSortIcon('standalone_var')}
+                  </th>
+                  <th
+                    className="px-3 py-2 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-200 transition-colors"
+                    onClick={() => handleSort('var_contribution')}
+                  >
+                    VaR Contribution{getSortIcon('var_contribution')}
+                  </th>
+                  <th
+                    className="px-3 py-2 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-200 transition-colors"
+                    onClick={() => handleSort('diversification_benefit')}
+                  >
+                    Diversification Benefit{getSortIcon('diversification_benefit')}
+                  </th>
+                  <th
+                    className="px-3 py-2 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-200 transition-colors"
+                    onClick={() => handleSort('var_contribution_pct')}
+                  >
+                    % of Total VaR{getSortIcon('var_contribution_pct')}
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {results.asset_contributions.map((asset, index) => (
+                {sortedAssets.map((asset, index) => (
                   <tr key={index} className="border-t">
                     <td className="px-3 py-2">{asset.asset_name}</td>
                     <td className="px-3 py-2 text-right">{formatCurrency(asset.market_value)}</td>
