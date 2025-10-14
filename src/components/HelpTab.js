@@ -1,6 +1,7 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 // src/components/HelpTab.tsx
 // Help and User Manual tab for Admin Dashboard
+// Updated with VaR Analysis section
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -432,6 +433,95 @@ const sections = [
         <li>Understanding change history</li>
         <li>Training and process improvement</li>
         <li>Tracking who deleted/archived risks</li>
+      </ul>
+    `,
+    },
+    {
+        id: 'var-analysis',
+        title: 'VaR Analysis (Admin Only)',
+        icon: '📊',
+        content: `
+      <h3>About VaR Analysis</h3>
+      <p>Value at Risk (VaR) analysis uses the variance-covariance method to calculate portfolio risk metrics. This feature is available in the Admin dashboard under the "VaR Config" tab.</p>
+
+      <h3>Setting Up VaR Scales</h3>
+      <ol>
+        <li>Go to <strong>Admin</strong> → <strong>VaR Config</strong></li>
+        <li>Configure volatility thresholds (in %):</li>
+        <ul>
+          <li>Level 1-2 boundary (default: 5%)</li>
+          <li>Level 2-3 boundary (default: 10%)</li>
+          <li>Level 3-4 boundary (default: 15%)</li>
+          <li>Level 4-5 boundary (default: 20%)</li>
+          <li>Level 5-6 boundary (6×6 only, default: 25%)</li>
+        </ul>
+        <li>Configure portfolio value thresholds (in millions NGN):</li>
+        <ul>
+          <li>Level 1-2 boundary (default: ₦10M)</li>
+          <li>Level 2-3 boundary (default: ₦50M)</li>
+          <li>Level 3-4 boundary (default: ₦100M)</li>
+          <li>Level 4-5 boundary (default: ₦500M)</li>
+          <li>Level 5-6 boundary (6×6 only, default: ₦1B)</li>
+        </ul>
+        <li>Click <strong>"Save Configuration"</strong></li>
+      </ol>
+
+      <h3>Using VaR Sandbox</h3>
+      <ol>
+        <li>Download the Excel template from the VaR Sandbox tab</li>
+        <li>Fill in three required sheets:
+          <ul>
+            <li><strong>Portfolio_Holdings:</strong> Your current positions (asset name, type, quantity, price)</li>
+            <li><strong>Price_History:</strong> Historical prices (minimum 252 days for daily data)</li>
+            <li><strong>Configuration:</strong> VaR parameters (confidence level, time horizon, frequency)</li>
+          </ul>
+        </li>
+        <li>Upload the completed Excel file</li>
+        <li>Configure parameters:
+          <ul>
+            <li>Confidence Level: 90%, 95%, 99%, or 99.9%</li>
+            <li>Time Horizon: 1 day, 10 days, or 21 days</li>
+            <li>Data Frequency: Detected automatically from file</li>
+          </ul>
+        </li>
+        <li>Click <strong>"Calculate VaR"</strong></li>
+      </ol>
+
+      <h3>Understanding VaR Results</h3>
+      <h4>Key Metrics:</h4>
+      <ul>
+        <li><strong>Portfolio VaR:</strong> Maximum expected loss at specified confidence level</li>
+        <li><strong>Portfolio Volatility:</strong> Annualized volatility percentage</li>
+        <li><strong>Diversification Benefit:</strong> Risk reduction from holding multiple assets</li>
+        <li><strong>Likelihood Score:</strong> Mapped from portfolio volatility (1-5 or 1-6)</li>
+        <li><strong>Impact Score:</strong> Mapped from portfolio value (1-5 or 1-6)</li>
+      </ul>
+
+      <h4>Asset Contributions:</h4>
+      <ul>
+        <li><strong>Standalone VaR:</strong> Risk if asset held in isolation</li>
+        <li><strong>VaR Contribution:</strong> Asset's contribution to portfolio VaR</li>
+        <li><strong>Diversification Benefit:</strong> Risk reduction from portfolio effect</li>
+      </ul>
+
+      <h4>Correlation Matrix:</h4>
+      <p>Shows correlation coefficients between all assets:</p>
+      <ul>
+        <li><span style="color: red;">🔴 Red (&gt; 0.7):</span> Strong positive correlation</li>
+        <li><span style="color: orange;">🟠 Orange (0.3 to 0.7):</span> Weak positive correlation</li>
+        <li><span style="color: gray;">⚪ Gray (-0.3 to 0.3):</span> Neutral</li>
+        <li><span style="color: blue;">🔵 Blue (-0.7 to -0.3):</span> Weak negative correlation</li>
+        <li><span style="color: green;">🟢 Green (&lt; -0.7):</span> Strong negative correlation</li>
+      </ul>
+
+      <h3>Best Practices for VaR Analysis</h3>
+      <ul>
+        <li>Use at least 252 data points for daily data (1 trading year)</li>
+        <li>Ensure price data is clean and complete (no missing values)</li>
+        <li>Update VaR calculations regularly (monthly or quarterly)</li>
+        <li>Review diversification benefits to optimize portfolio</li>
+        <li>Compare standalone VaR vs contribution to identify concentration risk</li>
+        <li>Customize thresholds to match your organization's risk appetite</li>
       </ul>
     `,
     },

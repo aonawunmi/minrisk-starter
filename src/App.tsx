@@ -13,7 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Upload, Plus, Search, RefreshCw, Settings, Table, Pencil, Trash2, ChevronsUpDown, FileUp, AlertTriangle, ArrowUpDown, Sparkles, Calendar, Archive } from "lucide-react";
 import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
-import { askGemini, ChatMsg } from '@/lib/ai';
+import { askClaude, ChatMsg } from '@/lib/ai';
 import SupaPing from "@/components/SupaPing";
 import UserMenu from "@/components/UserMenu";
 import AdminDashboard from "@/components/AdminDashboard";
@@ -227,7 +227,7 @@ const callGeminiAPI = async (prompt: string, schema?: any): Promise<any> => {
   // Prepend instruction (when schema provided) so model returns parseable JSON
   const fullPrompt = schema ? `${schemaInstruction(schema)}\n\n${prompt}` : prompt;
 
-  const text = await askGemini(fullPrompt); // calls /api/gemini under the hood
+  const text = await askClaude(fullPrompt); // calls Claude API
 
   // Robust JSON parsing (handles ```json fences and extra prose)
   const tryParse = (s: string) => {
@@ -1961,13 +1961,59 @@ function EditRiskDialog({ initial, config, onSave, children, open, onOpenChange 
     const period = (initial as any).period || initial.relevant_period;
     return (<Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-3xl max-h-[90vh] flex flex-col"><DialogHeader><DialogTitle>Edit {initial.risk_code} {period && <span className="text-sm font-normal text-gray-500">({period})</span>}</DialogTitle></DialogHeader><RiskFields form={form} setForm={setForm} config={config} codePreview={initial.risk_code} codeLocked /><DialogFooter className="pt-4"><Button onClick={handleSave}>Save</Button></DialogFooter></DialogContent></Dialog>); 
 }
-function RiskFields({ form, setForm, config, codePreview, codeLocked }: { form: Omit<RiskRow, 'risk_code'>; setForm: React.Dispatch<React.SetStateAction<Omit<RiskRow, "risk_code">>>; config: AppConfig; codePreview: string; codeLocked?: boolean }) { 
+function RiskFields({ form, setForm, config, codePreview, codeLocked }: { form: Omit<RiskRow, 'risk_code'>; setForm: React.Dispatch<React.SetStateAction<Omit<RiskRow, "risk_code">>>; config: AppConfig; codePreview: string; codeLocked?: boolean }) {
     const [isSuggesting, setIsSuggesting] = useState(false);
-    const setField = <K extends keyof Omit<RiskRow, 'risk_code'>>(k: K, v: Omit<RiskRow, 'risk_code'>[K]) => setForm(p => ({ ...p, [k]: v })); 
-    const addControl = () => setForm(p => ({ ...p, controls: [...p.controls, { id: crypto.randomUUID(), description: "", target: "Likelihood", design: 0, implementation: 0, monitoring: 0, effectiveness_evaluation: 0 }] })); 
-    const updateControl = (id: string, updatedControl: Partial<Control>) => setForm(p => ({ ...p, controls: p.controls.map(c => c.id === id ? { ...c, ...updatedControl } : c) })); 
-    const removeControl = (id: string) => setForm(p => ({ ...p, controls: p.controls.filter(c => c.id !== id) })); 
-    const residualRisk = calculateResidualRisk(form as RiskRow); 
+    const [isSuggestingRisk, setIsSuggestingRisk] = useState(false);
+    const setField = <K extends keyof Omit<RiskRow, 'risk_code'>>(k: K, v: Omit<RiskRow, 'risk_code'>[K]) => setForm(p => ({ ...p, [k]: v }));
+    const addControl = () => setForm(p => ({ ...p, controls: [...p.controls, { id: crypto.randomUUID(), description: "", target: "Likelihood", design: 0, implementation: 0, monitoring: 0, effectiveness_evaluation: 0 }] }));
+    const updateControl = (id: string, updatedControl: Partial<Control>) => setForm(p => ({ ...p, controls: p.controls.map(c => c.id === id ? { ...c, ...updatedControl } : c) }));
+    const removeControl = (id: string) => setForm(p => ({ ...p, controls: p.controls.filter(c => c.id !== id) }));
+    const residualRisk = calculateResidualRisk(form as RiskRow);
+
+    const handleSuggestRiskDetails = async () => {
+        const prompt = window.prompt("Describe the risk scenario you want to create (e.g., 'data breach due to weak passwords', 'operational failure in trading platform'):");
+        if (!prompt?.trim()) return;
+
+        setIsSuggestingRisk(true);
+        try {
+            const aiPrompt = `You are a risk management expert. Based on this risk scenario: "${prompt}", create a professional risk statement with:
+1. A concise risk title (max 10 words)
+2. A detailed risk description (2-3 sentences explaining the risk event, causes, and potential consequences)
+
+Return your response as a valid JSON object with this exact structure:
+{
+  "risk_title": "title here",
+  "risk_description": "description here"
+}
+
+Only return the JSON object, nothing else.`;
+
+            const text = await askClaude(aiPrompt);
+
+            // Extract JSON from response
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) {
+                throw new Error("Could not parse AI response");
+            }
+
+            const suggestion = JSON.parse(jsonMatch[0]) as { risk_title: string; risk_description: string };
+
+            if (suggestion.risk_title && suggestion.risk_description) {
+                setForm(p => ({
+                    ...p,
+                    risk_title: suggestion.risk_title,
+                    risk_description: suggestion.risk_description
+                }));
+            } else {
+                alert("The AI could not suggest risk details.");
+            }
+        } catch (error) {
+            console.error("Failed to get AI suggestions:", error);
+            alert("An error occurred while getting AI suggestions. Please try again.");
+        } finally {
+            setIsSuggestingRisk(false);
+        }
+    }; 
     
     const handleSuggestControls = async () => {
         if (!form.risk_title || !form.risk_description) {
@@ -1976,19 +2022,31 @@ function RiskFields({ form, setForm, config, codePreview, codeLocked }: { form: 
         }
         setIsSuggesting(true);
         try {
-            const prompt = `Based on the risk titled "${form.risk_title}" with the description "${form.risk_description}", suggest 3 relevant control measures. Include a mix of controls: some that reduce the 'Likelihood' of the risk occurring, and some that reduce the 'Impact' if it does occur. For each control, provide a brief description and specify whether it primarily targets 'Likelihood' or 'Impact'.`;
-            const schema = {
-              type: "ARRAY",
-              items: {
-                type: "OBJECT",
-                properties: {
-                  description: { type: "STRING" },
-                  target: { type: "STRING", enum: ["Likelihood", "Impact"] },
-                },
-                required: ["description", "target"],
-              },
-            };
-            const suggestions = await callGeminiAPI(prompt, schema) as {description: string, target: "Likelihood" | "Impact"}[];
+            const prompt = `Based on the risk titled "${form.risk_title}" with the description "${form.risk_description}", suggest 3 relevant control measures. Include a mix of controls: some that reduce the 'Likelihood' of the risk occurring, and some that reduce the 'Impact' if it does occur. For each control, provide a brief description and specify whether it primarily targets 'Likelihood' or 'Impact'.
+
+Return your response as a valid JSON array with this exact structure:
+[
+  {
+    "description": "control description here",
+    "target": "Likelihood"
+  },
+  {
+    "description": "control description here",
+    "target": "Impact"
+  }
+]
+
+Only return the JSON array, nothing else.`;
+
+            const text = await askClaude(prompt);
+
+            // Extract JSON from response
+            const jsonMatch = text.match(/\[[\s\S]*\]/);
+            if (!jsonMatch) {
+                throw new Error("Could not parse AI response");
+            }
+
+            const suggestions = JSON.parse(jsonMatch[0]) as {description: string, target: "Likelihood" | "Impact"}[];
 
             if (suggestions && suggestions.length > 0) {
                  setForm(p => ({
@@ -2019,7 +2077,7 @@ function RiskFields({ form, setForm, config, codePreview, codeLocked }: { form: 
 
     const periodOptions = ["Q1 2025", "Q2 2025", "Q3 2025", "Q4 2025", "Q1 2026", "Q2 2026", "Q3 2026", "Q4 2026", "FY2025", "FY2026"];
 
-    return (<div className="flex-grow overflow-y-auto -mr-4 pr-4 space-y-6"><div className="grid grid-cols-2 gap-4"><div><Label>Risk Code</Label><Input value={codePreview} readOnly={!!codeLocked} className={codeLocked ? "bg-gray-100" : ""} /></div><div><Label>Status</Label><Select value={form.status} onValueChange={v => setField('status', v as any)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["Open", "In Progress", "Closed"].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div className="col-span-2"><Label>Title</Label><Input value={form.risk_title} onChange={e => setField('risk_title', e.target.value)} /></div><div className="col-span-2"><Label>Description</Label><Textarea rows={3} value={form.risk_description} onChange={e => setField('risk_description', e.target.value)} /></div><div><Label>Division</Label><Select value={form.division} onValueChange={v => setField('division', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.divisions.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Department</Label><Select value={form.department} onValueChange={v => setField('department', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.departments.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Category</Label><Select value={form.category} onValueChange={v => setField('category', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.categories.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Owner</Label><Select value={form.owner} onValueChange={v => setField('owner', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.owners.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div className="col-span-2"><Label>Relevant Period</Label><Select value={form.relevant_period || undefined} onValueChange={v => setField('relevant_period', v)}><SelectTrigger><SelectValue placeholder="Select period..." /></SelectTrigger><SelectContent>{periodOptions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}<SelectItem value="custom">Custom...</SelectItem></SelectContent></Select>{form.relevant_period === "custom" && <Input placeholder="Enter custom period (e.g., H1 2025)" value="" onChange={e => setField('relevant_period', e.target.value)} className="mt-2" />}</div></div><div className="space-y-2"><h3 className="font-semibold text-gray-800">Inherent Risk</h3><div className="grid grid-cols-2 gap-4"><div><Label>Likelihood (Inherent)</Label><Select value={String(form.likelihood_inherent)} onValueChange={v => setField('likelihood_inherent', Number(v))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.likelihoodLabels.map((label, index) => <SelectItem key={index + 1} value={String(index + 1)}>{label}</SelectItem>)}</SelectContent></Select></div><div><Label>Impact (Inherent)</Label><Select value={String(form.impact_inherent)} onValueChange={v => setField('impact_inherent', Number(v))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.impactLabels.map((label, index) => <SelectItem key={index + 1} value={String(index + 1)}>{label}</SelectItem>)}</SelectContent></Select></div></div></div><div className="space-y-3"><div className="flex justify-between items-center"><h3 className="font-semibold text-gray-800">Controls</h3><div className="flex gap-2">{/* <Button onClick={handleSuggestControls} size="sm" variant="outline" disabled={isSuggesting}><Sparkles className="mr-2 h-4 w-4"/>{isSuggesting ? 'Thinking...' : 'Suggest Controls'}</Button> */}<Button onClick={addControl} size="sm" variant="outline"><Plus className="mr-2 h-4 w-4" />Add Control</Button></div></div>{form.controls.map((control, index) => (<div key={control.id} className="border rounded-lg p-4 space-y-4 bg-gray-50"><div className="flex justify-between items-start"><div className="flex-grow space-y-2"><Label>Control #{index + 1} Description</Label><Textarea placeholder="e.g., Daily reconciliation process" value={control.description} onChange={e => updateControl(control.id, { description: e.target.value })} /></div><Button variant="ghost" size="sm" className="ml-4" onClick={() => removeControl(control.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button></div><div><Label>Target</Label><Select value={control.target} onValueChange={(v: "Likelihood" | "Impact") => updateControl(control.id, { target: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Likelihood">Likelihood</SelectItem><SelectItem value="Impact">Impact</SelectItem></SelectContent></Select></div><div className="grid grid-cols-2 gap-4"><div><Label>D (Design)</Label><Select value={String(control.design)} onValueChange={v => updateControl(control.id, { design: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_DESIGN_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>I (Implementation)</Label><Select value={String(control.implementation)} onValueChange={v => updateControl(control.id, { implementation: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_IMPLEMENTATION_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>M (Monitoring)</Label><Select value={String(control.monitoring)} onValueChange={v => updateControl(control.id, { monitoring: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_MONITORING_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>E (Evaluation)</Label><Select value={String(control.effectiveness_evaluation)} onValueChange={v => updateControl(control.id, { effectiveness_evaluation: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_EFFECTIVENESS_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div></div></div>))}{form.controls.length === 0 && <p className="text-sm text-center text-gray-500 py-4">No controls added. Residual risk will equal inherent risk.</p>}</div><div className="space-y-2"><h3 className="font-semibold text-gray-800">Residual Risk (Calculated)</h3><div className="grid grid-cols-2 gap-4 p-4 border rounded-lg bg-blue-50"><div><Label>Likelihood (Residual)</Label><Input readOnly value={`${residualRisk.likelihood.toFixed(2)} (${config.likelihoodLabels[Math.round(residualRisk.likelihood)-1] || 'N/A'})`} className="bg-white font-mono" /></div><div><Label>Impact (Residual)</Label><Input readOnly value={`${residualRisk.impact.toFixed(2)} (${config.impactLabels[Math.round(residualRisk.impact)-1] || 'N/A'})`} className="bg-white font-mono" /></div></div></div></div>); 
+    return (<div className="flex-grow overflow-y-auto -mr-4 pr-4 space-y-6"><div className="grid grid-cols-2 gap-4"><div><Label>Risk Code</Label><Input value={codePreview} readOnly={!!codeLocked} className={codeLocked ? "bg-gray-100" : ""} /></div><div><Label>Status</Label><Select value={form.status} onValueChange={v => setField('status', v as any)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["Open", "In Progress", "Closed"].map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div className="col-span-2"><div className="flex justify-between items-center mb-2"><Label>Title & Description</Label><Button onClick={handleSuggestRiskDetails} size="sm" variant="outline" disabled={isSuggestingRisk}><Sparkles className="mr-2 h-4 w-4"/>{isSuggestingRisk ? 'Thinking...' : 'Suggest Risk Details'}</Button></div><Input value={form.risk_title} onChange={e => setField('risk_title', e.target.value)} placeholder="Risk title" /></div><div className="col-span-2"><Textarea rows={3} value={form.risk_description} onChange={e => setField('risk_description', e.target.value)} placeholder="Risk description" /></div><div><Label>Division</Label><Select value={form.division} onValueChange={v => setField('division', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.divisions.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Department</Label><Select value={form.department} onValueChange={v => setField('department', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.departments.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Category</Label><Select value={form.category} onValueChange={v => setField('category', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.categories.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div><Label>Owner</Label><Select value={form.owner} onValueChange={v => setField('owner', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.owners.map(x => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><div className="col-span-2"><Label>Relevant Period</Label><Select value={form.relevant_period || undefined} onValueChange={v => setField('relevant_period', v)}><SelectTrigger><SelectValue placeholder="Select period..." /></SelectTrigger><SelectContent>{periodOptions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}<SelectItem value="custom">Custom...</SelectItem></SelectContent></Select>{form.relevant_period === "custom" && <Input placeholder="Enter custom period (e.g., H1 2025)" value="" onChange={e => setField('relevant_period', e.target.value)} className="mt-2" />}</div></div><div className="space-y-2"><h3 className="font-semibold text-gray-800">Inherent Risk</h3><div className="grid grid-cols-2 gap-4"><div><Label>Likelihood (Inherent)</Label><Select value={String(form.likelihood_inherent)} onValueChange={v => setField('likelihood_inherent', Number(v))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.likelihoodLabels.map((label, index) => <SelectItem key={index + 1} value={String(index + 1)}>{label}</SelectItem>)}</SelectContent></Select></div><div><Label>Impact (Inherent)</Label><Select value={String(form.impact_inherent)} onValueChange={v => setField('impact_inherent', Number(v))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{config.impactLabels.map((label, index) => <SelectItem key={index + 1} value={String(index + 1)}>{label}</SelectItem>)}</SelectContent></Select></div></div></div><div className="space-y-3"><div className="flex justify-between items-center"><h3 className="font-semibold text-gray-800">Controls</h3><div className="flex gap-2"><Button onClick={handleSuggestControls} size="sm" variant="outline" disabled={isSuggesting}><Sparkles className="mr-2 h-4 w-4"/>{isSuggesting ? 'Thinking...' : 'Suggest Controls'}</Button><Button onClick={addControl} size="sm" variant="outline"><Plus className="mr-2 h-4 w-4" />Add Control</Button></div></div>{form.controls.map((control, index) => (<div key={control.id} className="border rounded-lg p-4 space-y-4 bg-gray-50"><div className="flex justify-between items-start"><div className="flex-grow space-y-2"><Label>Control #{index + 1} Description</Label><Textarea placeholder="e.g., Daily reconciliation process" value={control.description} onChange={e => updateControl(control.id, { description: e.target.value })} /></div><Button variant="ghost" size="sm" className="ml-4" onClick={() => removeControl(control.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button></div><div><Label>Target</Label><Select value={control.target} onValueChange={(v: "Likelihood" | "Impact") => updateControl(control.id, { target: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Likelihood">Likelihood</SelectItem><SelectItem value="Impact">Impact</SelectItem></SelectContent></Select></div><div className="grid grid-cols-2 gap-4"><div><Label>D (Design)</Label><Select value={String(control.design)} onValueChange={v => updateControl(control.id, { design: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_DESIGN_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>I (Implementation)</Label><Select value={String(control.implementation)} onValueChange={v => updateControl(control.id, { implementation: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_IMPLEMENTATION_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>M (Monitoring)</Label><Select value={String(control.monitoring)} onValueChange={v => updateControl(control.id, { monitoring: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_MONITORING_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div><div><Label>E (Evaluation)</Label><Select value={String(control.effectiveness_evaluation)} onValueChange={v => updateControl(control.id, { effectiveness_evaluation: Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTROL_EFFECTIVENESS_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent></Select></div></div></div>))}{form.controls.length === 0 && <p className="text-sm text-center text-gray-500 py-4">No controls added. Residual risk will equal inherent risk.</p>}</div><div className="space-y-2"><h3 className="font-semibold text-gray-800">Residual Risk (Calculated)</h3><div className="grid grid-cols-2 gap-4 p-4 border rounded-lg bg-blue-50"><div><Label>Likelihood (Residual)</Label><Input readOnly value={`${residualRisk.likelihood.toFixed(2)} (${config.likelihoodLabels[Math.round(residualRisk.likelihood)-1] || 'N/A'})`} className="bg-white font-mono" /></div><div><Label>Impact (Residual)</Label><Input readOnly value={`${residualRisk.impact.toFixed(2)} (${config.impactLabels[Math.round(residualRisk.impact)-1] || 'N/A'})`} className="bg-white font-mono" /></div></div></div></div>); 
 }
 
 function ConfigDialog({ config, onSave }: { config: AppConfig; onSave: (c: AppConfig) => void }) {
@@ -2149,8 +2207,8 @@ function AIAssistantTab({ onAddMultipleRisks, config, onSwitchTab }: { onAddMult
 
     const fullPrompt = `${instruction}\n\nBusiness description:\n${prompt}`;
 
-    // Calls our /api/gemini via '@/lib/ai'
-    const text = await askGemini(fullPrompt);
+    // Calls Claude API via '@/lib/ai'
+    const text = await askClaude(fullPrompt);
 
     const parsed = parseRisks(text);
 

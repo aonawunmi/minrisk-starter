@@ -1,52 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
+import { askClaude } from "@/lib/ai";
 
-type Msg = { role: "user" | "model"; content: string };
-
-/** Resolve the AI endpoint in this order:
- *  1) window.__MINRISK_AT_PATH (set by App at runtime / logged in console)
- *  2) Vite env VITE_AT_PATH
- *  3) Fallback to /api/gemini (local dev API route)
- */
-function getAIEndpoint(): string {
-  try {
-    const w = window as any;
-    if (w && typeof w.__MINRISK_AT_PATH === "string" && w.__MINRISK_AT_PATH) {
-      return w.__MINRISK_AT_PATH;
-    }
-  } catch {
-    /* noop */
-  }
-  return import.meta.env.VITE_AT_PATH || "/api/gemini";
-}
-
-/** Be liberal in what we accept back from the server and normalize to a string */
-function normalizeAIResponse(data: unknown): string {
-  // If server already returned a string
-  if (typeof data === "string") return data;
-
-  // If server returned { text: "..." }
-  if (data && typeof (data as any).text === "string") return (data as any).text;
-
-  // If a raw Gemini shape was forwarded
-  try {
-    const d: any = data;
-    const parts = d?.candidates?.[0]?.content?.parts;
-    if (Array.isArray(parts)) {
-      const txt = parts.map((p: any) => p?.text).filter(Boolean).join("\n");
-      if (txt) return txt;
-    }
-  } catch {
-    /* noop */
-  }
-
-  // Last resort: JSON stringify so caller sees _something_ helpful
-  try {
-    return JSON.stringify(data);
-  } catch {
-    return String(data);
-  }
-}
+type Msg = { role: "user" | "assistant"; content: string };
 
 export default function AskAI() {
   const [open, setOpen] = useState(false);
@@ -73,32 +29,9 @@ export default function AskAI() {
     setInput("");
 
     try {
-      const url = getAIEndpoint();
-
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // include prior messages so your API can keep context (safe if ignored)
-        body: JSON.stringify({ prompt, history }),
-      });
-
-      // Non-2xx: capture any text body so we see the real error
-      if (!res.ok) {
-        const details = await res.text().catch(() => "");
-        throw new Error(details || `AI endpoint error ${res.status} ${res.statusText}`);
-      }
-
-      // Some servers return JSON, some return text—handle both
-      const raw = await res.text();
-      let data: unknown;
-      try {
-        data = raw ? JSON.parse(raw) : "";
-      } catch {
-        data = raw; // plain text
-      }
-
-      const text = normalizeAIResponse(data);
-      setHistory((h) => [...h, { role: "model", content: text }]);
+      // Call Claude AI directly
+      const text = await askClaude(prompt, history);
+      setHistory((h) => [...h, { role: "assistant", content: text }]);
     } catch (e: any) {
       setError(e?.message || "Request failed");
       // remove the just-added user turn to keep the thread tidy on failure
