@@ -10,9 +10,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Upload, Plus, Search, RefreshCw, Settings, Table, Pencil, Trash2, ChevronsUpDown, FileUp, AlertTriangle, ArrowUpDown, Sparkles, Calendar, Archive } from "lucide-react";
+import { Upload, Plus, Search, RefreshCw, Settings, Table, Pencil, Trash2, ChevronsUpDown, FileUp, AlertTriangle, ArrowUpDown, Sparkles, Calendar, Archive, Download } from "lucide-react";
 import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
+import html2canvas from 'html2canvas';
 import { askClaude, ChatMsg } from '@/lib/ai';
 import SupaPing from "@/components/SupaPing";
 import UserMenu from "@/components/UserMenu";
@@ -1149,6 +1150,13 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
     const [historyData, setHistoryData] = useState<any[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    const [selectedRisk, setSelectedRisk] = useState<ProcessedRisk | null>(null);
+    const [exportingImage, setExportingImage] = useState(false);
+
+    // Period comparison states
+    const [comparisonMode, setComparisonMode] = useState(false);
+    const [period1, setPeriod1] = useState<string>('');
+    const [period2, setPeriod2] = useState<string>('');
 
     // Filter states
     const [filterDivision, setFilterDivision] = useState<string>('all');
@@ -1179,6 +1187,45 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
             console.error('Error loading history:', error);
         } finally {
             setLoadingHistory(false);
+        }
+    };
+
+    // Export heatmap as image
+    const exportHeatmapAsImage = async () => {
+        setExportingImage(true);
+        try {
+            const element = document.getElementById('heatmap-container');
+            if (!element) {
+                console.error('Heatmap container not found');
+                return;
+            }
+
+            const canvas = await html2canvas(element, {
+                scale: 2, // Higher quality
+                backgroundColor: '#ffffff',
+                logging: false,
+                useCORS: true
+            });
+
+            // Convert canvas to blob and download
+            canvas.toBlob((blob) => {
+                if (!blob) return;
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                const timestamp = new Date().toISOString().split('T')[0];
+                const periodInfo = selectedPeriods.length > 0 ? `_${selectedPeriods.join('-')}` : '';
+                link.href = url;
+                link.download = `MinRisk-Heatmap_${timestamp}${periodInfo}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }, 'image/png');
+        } catch (error) {
+            console.error('Error exporting heatmap:', error);
+            alert('Failed to export heatmap. Please try again.');
+        } finally {
+            setExportingImage(false);
         }
     };
 
@@ -1268,6 +1315,49 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
             statuses: Array.from(new Set(sourceData.map(r => r.status))).filter(Boolean).sort()
         };
     }, [processedData, processedHistoryData, dataSource]);
+
+    // Period comparison data
+    const comparisonData = useMemo(() => {
+        if (!comparisonMode || !period1 || !period2) return null;
+
+        const sourceData = dataSource === 'active' ? processedData : processedHistoryData;
+        const period1Data = sourceData.filter(r => r.relevant_period === period1);
+        const period2Data = sourceData.filter(r => r.relevant_period === period2);
+
+        // Calculate risk movements
+        const movements: { risk: ProcessedRisk; from: { l: number; i: number }; to: { l: number; i: number }; improved: boolean }[] = [];
+
+        period1Data.forEach(risk1 => {
+            const risk2 = period2Data.find(r => r.risk_code === risk1.risk_code);
+            if (risk2) {
+                const from = { l: Math.round(risk1.likelihood_residual), i: Math.round(risk1.impact_residual) };
+                const to = { l: Math.round(risk2.likelihood_residual), i: Math.round(risk2.impact_residual) };
+                const score1 = from.l * from.i;
+                const score2 = to.l * to.i;
+
+                if (from.l !== to.l || from.i !== to.i) {
+                    movements.push({
+                        risk: risk2,
+                        from,
+                        to,
+                        improved: score2 < score1
+                    });
+                }
+            }
+        });
+
+        return {
+            period1Data,
+            period2Data,
+            movements,
+            stats: {
+                improved: movements.filter(m => m.improved).length,
+                deteriorated: movements.filter(m => !m.improved).length,
+                unchanged: period2Data.length - movements.length,
+                new: period2Data.filter(r2 => !period1Data.find(r1 => r1.risk_code === r2.risk_code)).length
+            }
+        };
+    }, [comparisonMode, period1, period2, processedData, processedHistoryData, dataSource]);
     
     return (
         <Card className="rounded-2xl shadow-sm">
@@ -1282,14 +1372,24 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
                             {loadingHistory && <span className="ml-2 text-gray-400">(Loading history...)</span>}
                         </div>
                         <div className="flex items-center gap-4">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={exportHeatmapAsImage}
+                                disabled={exportingImage}
+                                className="gap-2"
+                            >
+                                <Download className="h-4 w-4" />
+                                {exportingImage ? 'Exporting...' : 'Export Image'}
+                            </Button>
                             <div className="flex items-center gap-2"><Checkbox id="showInherent" checked={heatMapView.inherent} onCheckedChange={c => setHeatMapView(v => ({ ...v, inherent: !!c }))} /><label htmlFor="showInherent" className="text-sm">Show Inherent</label></div>
                             <div className="flex items-center gap-2"><Checkbox id="showResidual" checked={heatMapView.residual} onCheckedChange={c => setHeatMapView(v => ({ ...v, residual: !!c }))} /><label htmlFor="showResidual" className="text-sm">Show Residual</label></div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 flex-wrap">
                         <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">Data Source:</span>
-                            <Select value={dataSource} onValueChange={(v: 'active' | 'history') => { setDataSource(v); setSelectedPeriods([]); }}>
+                            <Select value={dataSource} onValueChange={(v: 'active' | 'history') => { setDataSource(v); setSelectedPeriods([]); setComparisonMode(false); }}>
                                 <SelectTrigger className="w-36">
                                     <SelectValue />
                                 </SelectTrigger>
@@ -1299,7 +1399,61 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
                                 </SelectContent>
                             </Select>
                         </div>
-                        {(dataSource === 'active' ? uniquePeriods.length > 0 : historicalPeriods.length > 0) && (
+
+                        {/* Comparison Mode Toggle */}
+                        {(dataSource === 'history' || (dataSource === 'active' && uniquePeriods.length >= 2)) && (
+                            <div className="flex items-center gap-2">
+                                <Checkbox
+                                    id="comparisonMode"
+                                    checked={comparisonMode}
+                                    onCheckedChange={(checked) => {
+                                        setComparisonMode(!!checked);
+                                        if (!checked) {
+                                            setPeriod1('');
+                                            setPeriod2('');
+                                        }
+                                    }}
+                                />
+                                <label htmlFor="comparisonMode" className="text-sm font-medium cursor-pointer">
+                                    Compare Periods
+                                </label>
+                            </div>
+                        )}
+
+                        {/* Period Selectors for Comparison Mode */}
+                        {comparisonMode && (
+                            <>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium">Period 1:</span>
+                                    <Select value={period1} onValueChange={setPeriod1}>
+                                        <SelectTrigger className="w-36">
+                                            <SelectValue placeholder="Select..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {(dataSource === 'active' ? uniquePeriods : historicalPeriods).map(p => (
+                                                <SelectItem key={p} value={p} disabled={p === period2}>{p}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium">Period 2:</span>
+                                    <Select value={period2} onValueChange={setPeriod2}>
+                                        <SelectTrigger className="w-36">
+                                            <SelectValue placeholder="Select..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {(dataSource === 'active' ? uniquePeriods : historicalPeriods).map(p => (
+                                                <SelectItem key={p} value={p} disabled={p === period1}>{p}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </>
+                        )}
+
+                        {/* Regular Period Filter (when not in comparison mode) */}
+                        {!comparisonMode && (dataSource === 'active' ? uniquePeriods.length > 0 : historicalPeriods.length > 0) && (
                             <div className="flex items-center gap-2">
                                 <span className="text-sm font-medium">Filter by Period:</span>
                                 <MultiSelectPopover
@@ -1351,7 +1505,39 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
                     </div>
                 </div>
 
-                <div className="flex">
+                {/* Comparison View Stats */}
+                {comparisonMode && comparisonData && (
+                    <div className="mb-4 grid grid-cols-4 gap-3">
+                        <Card className="bg-green-50">
+                            <CardContent className="p-3">
+                                <div className="text-xs text-gray-600">Improved</div>
+                                <div className="text-2xl font-bold text-green-700">{comparisonData.stats.improved}</div>
+                            </CardContent>
+                        </Card>
+                        <Card className="bg-red-50">
+                            <CardContent className="p-3">
+                                <div className="text-xs text-gray-600">Deteriorated</div>
+                                <div className="text-2xl font-bold text-red-700">{comparisonData.stats.deteriorated}</div>
+                            </CardContent>
+                        </Card>
+                        <Card className="bg-gray-50">
+                            <CardContent className="p-3">
+                                <div className="text-xs text-gray-600">Unchanged</div>
+                                <div className="text-2xl font-bold text-gray-700">{comparisonData.stats.unchanged}</div>
+                            </CardContent>
+                        </Card>
+                        <Card className="bg-blue-50">
+                            <CardContent className="p-3">
+                                <div className="text-xs text-gray-600">New Risks</div>
+                                <div className="text-2xl font-bold text-blue-700">{comparisonData.stats.new}</div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+
+                {/* Regular Single Heatmap View */}
+                {(!comparisonMode || !comparisonData) && (
+                <div id="heatmap-container" className="flex">
                     <div className="flex flex-col justify-start pt-8 pr-2">
                          {Array.from({ length: config.matrixSize }, (_, i) => config.matrixSize - i).map(imp => (
                             <div key={imp} className="h-20 flex items-center justify-center text-xs font-semibold">{config.impactLabels[imp-1]}</div>
@@ -1367,11 +1553,31 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
                                     const bgColor = scoreColor(bucketName);
                                     const allRisksInCell = [...new Map([...cell.inherent, ...cell.residual].map(item => [item['risk_code'], item])).values()];
 
+                                    // Check if this cell should be highlighted
+                                    const isHighlighted = selectedRisk && (
+                                        (Math.round(selectedRisk.likelihood_inherent) === likelihood && Math.round(selectedRisk.impact_inherent) === impact) ||
+                                        (Math.round(selectedRisk.likelihood_residual) === likelihood && Math.round(selectedRisk.impact_residual) === impact)
+                                    );
+
+                                    // Check if this cell is the "target" cell (the opposite position of selected risk)
+                                    const isTargetCell = selectedRisk && (
+                                        (heatMapView.inherent && !heatMapView.residual && Math.round(selectedRisk.likelihood_residual) === likelihood && Math.round(selectedRisk.impact_residual) === impact) ||
+                                        (heatMapView.residual && !heatMapView.inherent && Math.round(selectedRisk.likelihood_inherent) === likelihood && Math.round(selectedRisk.impact_inherent) === impact) ||
+                                        (heatMapView.inherent && heatMapView.residual && (
+                                            (Math.round(selectedRisk.likelihood_residual) === likelihood && Math.round(selectedRisk.impact_residual) === impact && Math.round(selectedRisk.likelihood_inherent) !== likelihood) ||
+                                            (Math.round(selectedRisk.likelihood_inherent) === likelihood && Math.round(selectedRisk.impact_inherent) === impact && Math.round(selectedRisk.likelihood_residual) !== likelihood)
+                                        ))
+                                    );
+
                                     return (
-                                        <Popover key={`${likelihood}-${impact}`}>
+                                        <Popover key={`${likelihood}-${impact}`} onOpenChange={(open) => { if (!open) setSelectedRisk(null); }}>
                                             <PopoverTrigger asChild>
                                                 <div
-                                                     className="h-20 border border-gray-200 flex items-center justify-center p-1 relative cursor-pointer"
+                                                     className={`h-20 border flex items-center justify-center p-1 relative cursor-pointer transition-all ${
+                                                         isTargetCell ? 'border-4 border-amber-500 shadow-lg' :
+                                                         isHighlighted ? 'border-2 border-purple-600' :
+                                                         'border-gray-200'
+                                                     }`}
                                                      style={{ backgroundColor: `${bgColor}E6` }}>
                                                     <div className="flex gap-2 text-lg font-bold">
                                                         {heatMapView.inherent && cell.inherent.length > 0 && <span className="text-blue-700">{cell.inherent.length}</span>}
@@ -1381,17 +1587,41 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
                                                 </div>
                                             </PopoverTrigger>
                                             {allRisksInCell.length > 0 && (
-                                                <PopoverContent>
+                                                <PopoverContent className="w-96">
                                                     <div className="font-bold text-sm mb-2">Risks in cell (L:{likelihood}, I:{impact})</div>
+                                                    {selectedRisk && (
+                                                        <div className="mb-2 text-xs bg-amber-50 border border-amber-300 rounded p-2">
+                                                            <span className="font-semibold text-amber-800">💡 Tip:</span> The amber-highlighted cell shows where this risk moved to/from
+                                                        </div>
+                                                    )}
                                                     <div className="max-h-60 overflow-y-auto">
                                                         {heatMapView.inherent && cell.inherent.length > 0 && (
                                                             <div>
                                                                 <h4 className="font-semibold text-blue-700 mt-2">Inherent Position</h4>
                                                                 {cell.inherent.map(risk => (
-                                                                    <button key={risk.risk_code} className="w-full text-left border-b p-2 text-xs hover:bg-gray-100" onClick={() => onEditRisk(risk)}>
-                                                                        <p className="font-bold">{risk.risk_code}: {risk.risk_title}</p>
-                                                                        <p className="text-gray-600 text-xs">(Residual L: {risk.likelihood_residual.toFixed(1)}, I: {risk.impact_residual.toFixed(1)})</p>
-                                                                    </button>
+                                                                    <div key={risk.risk_code} className={`border-b p-2 text-xs ${selectedRisk?.risk_code === risk.risk_code ? 'bg-purple-100' : ''}`}>
+                                                                        <button
+                                                                            className="w-full text-left hover:bg-gray-100 p-1 rounded"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setSelectedRisk(risk);
+                                                                            }}
+                                                                        >
+                                                                            <p className="font-bold">{risk.risk_code}: {risk.risk_title}</p>
+                                                                            <p className="text-gray-600 text-xs">
+                                                                                Inherent (L:{risk.likelihood_inherent}, I:{risk.impact_inherent}) →
+                                                                                Residual (L:{risk.likelihood_residual.toFixed(1)}, I:{risk.impact_residual.toFixed(1)})
+                                                                            </p>
+                                                                        </button>
+                                                                        {canEdit && (
+                                                                            <button
+                                                                                className="text-blue-600 hover:underline text-xs mt-1"
+                                                                                onClick={() => onEditRisk(risk)}
+                                                                            >
+                                                                                Edit Risk
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
                                                                 ))}
                                                             </div>
                                                         )}
@@ -1399,9 +1629,29 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
                                                              <div>
                                                                 <h4 className="font-semibold text-rose-700 mt-2">Residual Position</h4>
                                                                 {cell.residual.map(risk => (
-                                                                    <button key={risk.risk_code} className="w-full text-left border-b p-2 text-xs hover:bg-gray-100" onClick={() => onEditRisk(risk)}>
-                                                                        <p className="font-bold">{risk.risk_code}: {risk.risk_title}</p>
-                                                                    </button>
+                                                                    <div key={risk.risk_code} className={`border-b p-2 text-xs ${selectedRisk?.risk_code === risk.risk_code ? 'bg-purple-100' : ''}`}>
+                                                                        <button
+                                                                            className="w-full text-left hover:bg-gray-100 p-1 rounded"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setSelectedRisk(risk);
+                                                                            }}
+                                                                        >
+                                                                            <p className="font-bold">{risk.risk_code}: {risk.risk_title}</p>
+                                                                            <p className="text-gray-600 text-xs">
+                                                                                Inherent (L:{risk.likelihood_inherent}, I:{risk.impact_inherent}) →
+                                                                                Residual (L:{risk.likelihood_residual.toFixed(1)}, I:{risk.impact_residual.toFixed(1)})
+                                                                            </p>
+                                                                        </button>
+                                                                        {canEdit && (
+                                                                            <button
+                                                                                className="text-blue-600 hover:underline text-xs mt-1"
+                                                                                onClick={() => onEditRisk(risk)}
+                                                                            >
+                                                                                Edit Risk
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
                                                                 ))}
                                                             </div>
                                                         )}
@@ -1420,6 +1670,111 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
                         </div>
                     </div>
                 </div>
+                )}
+
+                {/* Comparison View - Two Side-by-Side Heatmaps */}
+                {comparisonMode && comparisonData && (
+                    <div id="heatmap-container" className="grid grid-cols-2 gap-6">
+                        {[
+                            { data: comparisonData.period1Data, period: period1, title: `Period 1: ${period1}` },
+                            { data: comparisonData.period2Data, period: period2, title: `Period 2: ${period2}` }
+                        ].map(({ data, period, title }, idx) => {
+                            // Build heatmap grid for this period
+                            const grid: ProcessedRisk[][][] = Array(config.matrixSize).fill(0).map(() =>
+                                Array(config.matrixSize).fill(0).map(() => [] as ProcessedRisk[])
+                            );
+                            data.forEach(risk => {
+                                const i = Math.round(risk.impact_residual) - 1;
+                                const l = Math.round(risk.likelihood_residual) - 1;
+                                if (i >= 0 && i < config.matrixSize && l >= 0 && l < config.matrixSize) {
+                                    grid[i][l].push(risk);
+                                }
+                            });
+
+                            return (
+                                <div key={idx} className="border rounded-lg p-3">
+                                    <h3 className="text-sm font-bold mb-2 text-center">{title}</h3>
+                                    <div className="flex">
+                                        <div className="flex flex-col justify-start pt-6 pr-1">
+                                            {Array.from({ length: config.matrixSize }, (_, i) => config.matrixSize - i).map(imp => (
+                                                <div key={imp} className="h-16 flex items-center justify-center text-[10px] font-semibold">{config.impactLabels[imp-1]}</div>
+                                            ))}
+                                        </div>
+                                        <div className="flex-grow">
+                                            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${config.matrixSize}, 1fr)` }}>
+                                                {grid.slice().reverse().map((row, impIndex) => (
+                                                    row.map((risks, probIndex) => {
+                                                        const impact = config.matrixSize - impIndex;
+                                                        const likelihood = probIndex + 1;
+                                                        const bucketName = bucket(likelihood, impact, config.matrixSize);
+                                                        const bgColor = scoreColor(bucketName);
+
+                                                        // Check if risks moved (for highlighting)
+                                                        const movedRisks = risks.filter((r: ProcessedRisk) =>
+                                                            comparisonData.movements.find(m => m.risk.risk_code === r.risk_code)
+                                                        );
+                                                        const improvedCount = movedRisks.filter((r: ProcessedRisk) => {
+                                                            const movement = comparisonData.movements.find(m => m.risk.risk_code === r.risk_code);
+                                                            return movement?.improved && idx === 1; // Only show in period 2
+                                                        }).length;
+                                                        const deterioratedCount = movedRisks.filter((r: ProcessedRisk) => {
+                                                            const movement = comparisonData.movements.find(m => m.risk.risk_code === r.risk_code);
+                                                            return movement && !movement.improved && idx === 1; // Only show in period 2
+                                                        }).length;
+
+                                                        return (
+                                                            <Popover key={`${likelihood}-${impact}`}>
+                                                                <PopoverTrigger asChild>
+                                                                    <div
+                                                                        className="h-16 border border-gray-200 flex flex-col items-center justify-center p-1 relative cursor-pointer"
+                                                                        style={{ backgroundColor: `${bgColor}E6` }}
+                                                                    >
+                                                                        <div className="text-base font-bold">{risks.length}</div>
+                                                                        {idx === 1 && (improvedCount > 0 || deterioratedCount > 0) && (
+                                                                            <div className="text-[10px] flex gap-1">
+                                                                                {improvedCount > 0 && <span className="text-green-700">↓{improvedCount}</span>}
+                                                                                {deterioratedCount > 0 && <span className="text-red-700">↑{deterioratedCount}</span>}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </PopoverTrigger>
+                                                                {risks.length > 0 && (
+                                                                    <PopoverContent className="w-80">
+                                                                        <div className="font-bold text-xs mb-2">{title} - Cell (L:{likelihood}, I:{impact})</div>
+                                                                        <div className="max-h-48 overflow-y-auto text-xs space-y-1">
+                                                                            {risks.map((risk: ProcessedRisk) => {
+                                                                                const movement = comparisonData.movements.find(m => m.risk.risk_code === risk.risk_code);
+                                                                                return (
+                                                                                    <div key={risk.risk_code} className="border-b pb-1">
+                                                                                        <div className="font-semibold">{risk.risk_code}: {risk.risk_title}</div>
+                                                                                        {movement && idx === 1 && (
+                                                                                            <div className={`text-[10px] ${movement.improved ? 'text-green-600' : 'text-red-600'}`}>
+                                                                                                {movement.improved ? '✓ Improved' : '⚠ Deteriorated'} from L:{movement.from.l}, I:{movement.from.i}
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    </PopoverContent>
+                                                                )}
+                                                            </Popover>
+                                                        );
+                                                    })
+                                                ))}
+                                            </div>
+                                            <div className="flex justify-between px-1">
+                                                {Array.from({ length: config.matrixSize }, (_, i) => i + 1).map(lik => (
+                                                    <div key={lik} className="w-16 text-center text-[10px] font-semibold">{config.likelihoodLabels[lik-1]}</div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </CardContent>
         </Card>
     );
