@@ -10,9 +10,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Upload, Plus, Search, RefreshCw, Settings, Table, Pencil, Trash2, ChevronsUpDown, FileUp, AlertTriangle, ArrowUpDown, Sparkles, Calendar, Archive } from "lucide-react";
+import { Upload, Plus, Search, RefreshCw, Settings, Table, Pencil, Trash2, ChevronsUpDown, FileUp, AlertTriangle, ArrowUpDown, Sparkles, Calendar, Archive, Download, ArrowRight } from "lucide-react";
 import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
+import html2canvas from 'html2canvas';
 import { askClaude, ChatMsg } from '@/lib/ai';
 import SupaPing from "@/components/SupaPing";
 import UserMenu from "@/components/UserMenu";
@@ -1149,6 +1150,13 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
     const [historyData, setHistoryData] = useState<any[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    const heatmapRef = React.useRef<HTMLDivElement>(null);
+    const [exportFormat, setExportFormat] = useState<'png' | 'jpeg'>('png');
+    const [isExporting, setIsExporting] = useState(false);
+    const [highlightedRisk, setHighlightedRisk] = useState<ProcessedRisk | null>(null);
+    const [comparisonMode, setComparisonMode] = useState(false);
+    const [comparisonPeriod1, setComparisonPeriod1] = useState<string>('');
+    const [comparisonPeriod2, setComparisonPeriod2] = useState<string>('');
 
     // Filter states
     const [filterDivision, setFilterDivision] = useState<string>('all');
@@ -1268,7 +1276,72 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
             statuses: Array.from(new Set(sourceData.map(r => r.status))).filter(Boolean).sort()
         };
     }, [processedData, processedHistoryData, dataSource]);
-    
+
+    // Export heatmap functionality
+    const handleExport = async () => {
+        if (!heatmapRef.current || isExporting) return;
+        setIsExporting(true);
+        try {
+            const canvas = await html2canvas(heatmapRef.current, {
+                backgroundColor: '#ffffff',
+                scale: 2,
+                logging: false,
+                useCORS: true
+            });
+
+            canvas.toBlob((blob) => {
+                if (!blob) return;
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const timestamp = new Date().toISOString().split('T')[0];
+                a.download = `risk-heatmap-${timestamp}.${exportFormat}`;
+                a.click();
+                URL.revokeObjectURL(url);
+                setIsExporting(false);
+            }, `image/${exportFormat}`);
+        } catch (error) {
+            console.error('Export failed:', error);
+            setIsExporting(false);
+        }
+    };
+
+    // Get data for comparison periods
+    const comparisonData = useMemo(() => {
+        if (!comparisonMode || !comparisonPeriod1 || !comparisonPeriod2) return null;
+
+        const sourceData = dataSource === 'active' ? processedData : processedHistoryData;
+        const data1 = sourceData.filter(r => r.relevant_period === comparisonPeriod1);
+        const data2 = sourceData.filter(r => r.relevant_period === comparisonPeriod2);
+
+        // Build heatmap grids for both periods
+        const buildGrid = (risks: ProcessedRisk[]) => {
+            const grid: { [key: string]: ProcessedRisk[] } = {};
+            risks.forEach(risk => {
+                const l = Math.round(risk.likelihood_residual);
+                const i = Math.round(risk.impact_residual);
+                const key = `${l}-${i}`;
+                if (!grid[key]) grid[key] = [];
+                grid[key].push(risk);
+            });
+            return grid;
+        };
+
+        return {
+            period1: { data: data1, grid: buildGrid(data1) },
+            period2: { data: data2, grid: buildGrid(data2) }
+        };
+    }, [comparisonMode, comparisonPeriod1, comparisonPeriod2, processedData, processedHistoryData, dataSource]);
+
+    // Calculate cell position helper
+    const getCellCenter = (likelihood: number, impact: number, cellSize: number = 80) => {
+        const xOffset = 80; // Left axis width
+        const yOffset = 60; // Top padding
+        const x = xOffset + (likelihood - 1) * cellSize + cellSize / 2;
+        const y = yOffset + (config.matrixSize - impact) * cellSize + cellSize / 2;
+        return { x, y };
+    };
+
     return (
         <Card className="rounded-2xl shadow-sm">
             <CardContent className="p-4">
@@ -1349,15 +1422,69 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
                             </SelectContent>
                         </Select>
                     </div>
+
+                    {/* Export and Comparison Controls */}
+                    <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-gray-200 mt-3">
+                        <div className="flex items-center gap-2">
+                            <Button onClick={handleExport} disabled={isExporting} variant="outline" size="sm">
+                                <Download className="h-4 w-4 mr-2" />
+                                {isExporting ? 'Exporting...' : 'Export Heatmap'}
+                            </Button>
+                            <Select value={exportFormat} onValueChange={(v: 'png' | 'jpeg') => setExportFormat(v)}>
+                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="png">PNG</SelectItem>
+                                    <SelectItem value="jpeg">JPEG</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <Checkbox
+                                id="comparisonMode"
+                                checked={comparisonMode}
+                                onCheckedChange={c => {
+                                    setComparisonMode(!!c);
+                                    if (!c) {
+                                        setComparisonPeriod1('');
+                                        setComparisonPeriod2('');
+                                    }
+                                }}
+                            />
+                            <label htmlFor="comparisonMode" className="text-sm font-medium">Quarter Comparison</label>
+                        </div>
+
+                        {comparisonMode && (dataSource === 'active' ? uniquePeriods.length > 0 : historicalPeriods.length > 0) && (
+                            <>
+                                <Select value={comparisonPeriod1} onValueChange={setComparisonPeriod1}>
+                                    <SelectTrigger className="w-36"><SelectValue placeholder="Period 1" /></SelectTrigger>
+                                    <SelectContent>
+                                        {(dataSource === 'active' ? uniquePeriods : historicalPeriods).map(p => (
+                                            <SelectItem key={p} value={p}>{p}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <ArrowRight className="h-4 w-4 text-gray-400" />
+                                <Select value={comparisonPeriod2} onValueChange={setComparisonPeriod2}>
+                                    <SelectTrigger className="w-36"><SelectValue placeholder="Period 2" /></SelectTrigger>
+                                    <SelectContent>
+                                        {(dataSource === 'active' ? uniquePeriods : historicalPeriods).map(p => (
+                                            <SelectItem key={p} value={p}>{p}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </>
+                        )}
+                    </div>
                 </div>
 
-                <div className="flex">
+                <div ref={heatmapRef} className="flex mt-4">
                     <div className="flex flex-col justify-start pt-8 pr-2">
                          {Array.from({ length: config.matrixSize }, (_, i) => config.matrixSize - i).map(imp => (
                             <div key={imp} className="h-20 flex items-center justify-center text-xs font-semibold">{config.impactLabels[imp-1]}</div>
                         ))}
                     </div>
-                    <div className="flex-grow">
+                    <div className="flex-grow relative">
                         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${config.matrixSize}, 1fr)` }}>
                             {heatmapData.slice().reverse().map((row, impIndex) => (
                                 row.map((cell, probIndex) => {
@@ -1371,7 +1498,12 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
                                         <Popover key={`${likelihood}-${impact}`}>
                                             <PopoverTrigger asChild>
                                                 <div
-                                                     className="h-20 border border-gray-200 flex items-center justify-center p-1 relative cursor-pointer"
+                                                     className={`h-20 border flex items-center justify-center p-1 relative cursor-pointer ${
+                                                         highlightedRisk && (
+                                                             (Math.round(highlightedRisk.likelihood_residual) === likelihood && Math.round(highlightedRisk.impact_residual) === impact) ||
+                                                             (highlightedRisk.likelihood_inherent === likelihood && highlightedRisk.impact_inherent === impact)
+                                                         ) ? 'border-4 border-purple-600 ring-4 ring-purple-300' : 'border-gray-200'
+                                                     }`}
                                                      style={{ backgroundColor: `${bgColor}E6` }}>
                                                     <div className="flex gap-2 text-lg font-bold">
                                                         {heatMapView.inherent && cell.inherent.length > 0 && <span className="text-blue-700">{cell.inherent.length}</span>}
@@ -1388,10 +1520,22 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
                                                             <div>
                                                                 <h4 className="font-semibold text-blue-700 mt-2">Inherent Position</h4>
                                                                 {cell.inherent.map(risk => (
-                                                                    <button key={risk.risk_code} className="w-full text-left border-b p-2 text-xs hover:bg-gray-100" onClick={() => onEditRisk(risk)}>
-                                                                        <p className="font-bold">{risk.risk_code}: {risk.risk_title}</p>
-                                                                        <p className="text-gray-600 text-xs">(Residual L: {risk.likelihood_residual.toFixed(1)}, I: {risk.impact_residual.toFixed(1)})</p>
-                                                                    </button>
+                                                                    <div key={risk.risk_code} className="border-b">
+                                                                        <button
+                                                                            className={`w-full text-left p-2 text-xs hover:bg-gray-100 ${highlightedRisk?.risk_code === risk.risk_code ? 'bg-purple-50' : ''}`}
+                                                                            onClick={() => {
+                                                                                if (highlightedRisk?.risk_code === risk.risk_code) {
+                                                                                    setHighlightedRisk(null);
+                                                                                } else {
+                                                                                    setHighlightedRisk(risk);
+                                                                                }
+                                                                            }}
+                                                                        >
+                                                                            <p className="font-bold">{risk.risk_code}: {risk.risk_title}</p>
+                                                                            <p className="text-gray-600 text-xs">(Residual L: {risk.likelihood_residual.toFixed(1)}, I: {risk.impact_residual.toFixed(1)})</p>
+                                                                            {highlightedRisk?.risk_code === risk.risk_code && <p className="text-purple-600 text-xs mt-1">✓ Showing migration path</p>}
+                                                                        </button>
+                                                                    </div>
                                                                 ))}
                                                             </div>
                                                         )}
@@ -1399,8 +1543,19 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
                                                              <div>
                                                                 <h4 className="font-semibold text-rose-700 mt-2">Residual Position</h4>
                                                                 {cell.residual.map(risk => (
-                                                                    <button key={risk.risk_code} className="w-full text-left border-b p-2 text-xs hover:bg-gray-100" onClick={() => onEditRisk(risk)}>
+                                                                    <button
+                                                                        key={risk.risk_code}
+                                                                        className={`w-full text-left border-b p-2 text-xs hover:bg-gray-100 ${highlightedRisk?.risk_code === risk.risk_code ? 'bg-purple-50' : ''}`}
+                                                                        onClick={() => {
+                                                                            if (highlightedRisk?.risk_code === risk.risk_code) {
+                                                                                onEditRisk(risk);
+                                                                            } else {
+                                                                                setHighlightedRisk(risk);
+                                                                            }
+                                                                        }}
+                                                                    >
                                                                         <p className="font-bold">{risk.risk_code}: {risk.risk_title}</p>
+                                                                        {highlightedRisk?.risk_code === risk.risk_code && <p className="text-purple-600 text-xs mt-1">✓ Showing migration path (click again to edit)</p>}
                                                                     </button>
                                                                 ))}
                                                             </div>
@@ -1413,6 +1568,98 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
                                 })
                             ))}
                         </div>
+
+                        {/* SVG Overlay for connection lines and migration arrows */}
+                        <svg className="absolute top-0 left-0 pointer-events-none" style={{ width: '100%', height: '100%' }}>
+                            <defs>
+                                <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                                    <polygon points="0 0, 10 3, 0 6" fill="#9333ea" />
+                                </marker>
+                                <marker id="arrowhead-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                                    <polygon points="0 0, 10 3, 0 6" fill="#16a34a" />
+                                </marker>
+                                <marker id="arrowhead-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                                    <polygon points="0 0, 10 3, 0 6" fill="#dc2626" />
+                                </marker>
+                            </defs>
+
+                            {/* Draw connection line for highlighted risk (inherent → residual) */}
+                            {highlightedRisk && heatMapView.inherent && heatMapView.residual && (
+                                <>
+                                    {(() => {
+                                        const inherentPos = getCellCenter(highlightedRisk.likelihood_inherent, highlightedRisk.impact_inherent);
+                                        const residualPos = getCellCenter(Math.round(highlightedRisk.likelihood_residual), Math.round(highlightedRisk.impact_residual));
+                                        const inherentScore = highlightedRisk.likelihood_inherent * highlightedRisk.impact_inherent;
+                                        const residualScore = highlightedRisk.likelihood_residual * highlightedRisk.impact_residual;
+                                        const isImprovement = residualScore < inherentScore;
+                                        const lineColor = isImprovement ? '#16a34a' : '#dc2626';
+                                        const markerUrl = isImprovement ? 'url(#arrowhead-green)' : 'url(#arrowhead-red)';
+
+                                        return (
+                                            <>
+                                                <line
+                                                    x1={inherentPos.x}
+                                                    y1={inherentPos.y}
+                                                    x2={residualPos.x}
+                                                    y2={residualPos.y}
+                                                    stroke={lineColor}
+                                                    strokeWidth="3"
+                                                    strokeDasharray="5,5"
+                                                    markerEnd={markerUrl}
+                                                />
+                                                <circle cx={inherentPos.x} cy={inherentPos.y} r="6" fill="#3b82f6" stroke="white" strokeWidth="2" />
+                                                <circle cx={residualPos.x} cy={residualPos.y} r="6" fill="#e11d48" stroke="white" strokeWidth="2" />
+                                            </>
+                                        );
+                                    })()}
+                                </>
+                            )}
+
+                            {/* Draw comparison migration arrows */}
+                            {comparisonMode && comparisonData && comparisonPeriod1 && comparisonPeriod2 && (
+                                <>
+                                    {(() => {
+                                        const arrows: JSX.Element[] = [];
+                                        // Match risks by risk_code between the two periods
+                                        const riskMap1 = new Map(comparisonData.period1.data.map(r => [r.risk_code, r]));
+                                        const riskMap2 = new Map(comparisonData.period2.data.map(r => [r.risk_code, r]));
+
+                                        riskMap1.forEach((risk1, code) => {
+                                            const risk2 = riskMap2.get(code);
+                                            if (risk2) {
+                                                const pos1 = getCellCenter(Math.round(risk1.likelihood_residual), Math.round(risk1.impact_residual));
+                                                const pos2 = getCellCenter(Math.round(risk2.likelihood_residual), Math.round(risk2.impact_residual));
+
+                                                // Only draw if positions are different
+                                                if (pos1.x !== pos2.x || pos1.y !== pos2.y) {
+                                                    const score1 = risk1.likelihood_residual * risk1.impact_residual;
+                                                    const score2 = risk2.likelihood_residual * risk2.impact_residual;
+                                                    const isImprovement = score2 < score1;
+                                                    const arrowColor = isImprovement ? '#16a34a' : (score2 > score1 ? '#dc2626' : '#6b7280');
+
+                                                    arrows.push(
+                                                        <line
+                                                            key={code}
+                                                            x1={pos1.x}
+                                                            y1={pos1.y}
+                                                            x2={pos2.x}
+                                                            y2={pos2.y}
+                                                            stroke={arrowColor}
+                                                            strokeWidth="2"
+                                                            strokeOpacity="0.6"
+                                                            markerEnd={isImprovement ? 'url(#arrowhead-green)' : (score2 > score1 ? 'url(#arrowhead-red)' : 'url(#arrowhead)')}
+                                                        />
+                                                    );
+                                                }
+                                            }
+                                        });
+
+                                        return arrows;
+                                    })()}
+                                </>
+                            )}
+                        </svg>
+
                         <div className="flex justify-between pl-8 pr-8">
                            {Array.from({ length: config.matrixSize }, (_, i) => i + 1).map(lik => (
                                 <div key={lik} className="w-20 text-center text-xs font-semibold">{config.likelihoodLabels[lik-1]}</div>
@@ -1420,6 +1667,41 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
                         </div>
                     </div>
                 </div>
+
+                {/* Legend for migration visualization */}
+                {(highlightedRisk || (comparisonMode && comparisonData)) && (
+                    <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="text-sm font-semibold mb-2">Legend:</div>
+                        <div className="flex flex-wrap gap-4 text-xs">
+                            {highlightedRisk && (
+                                <>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-4 h-4 rounded-full bg-blue-500 border-2 border-white"></div>
+                                        <span>Inherent Position</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-4 h-4 rounded-full bg-rose-600 border-2 border-white"></div>
+                                        <span>Residual Position</span>
+                                    </div>
+                                </>
+                            )}
+                            <div className="flex items-center gap-2">
+                                <div className="w-6 h-0.5 bg-green-600"></div>
+                                <span>Risk Improved</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="w-6 h-0.5 bg-red-600"></div>
+                                <span>Risk Worsened</span>
+                            </div>
+                            {comparisonMode && (
+                                <div className="flex items-center gap-2">
+                                    <div className="w-6 h-0.5 bg-gray-500"></div>
+                                    <span>No Change</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );
