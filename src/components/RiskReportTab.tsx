@@ -185,10 +185,10 @@ export function RiskReportTab({ risks, config }: RiskReportTabProps) {
                       .map(([key, data]) => (
                         <tr key={key} className="hover:bg-gray-50">
                           <td className="border border-gray-300 px-3 py-2 text-sm whitespace-nowrap">
-                            {data.likelihood} - {config.likelihoodLabels[data.likelihood - 1] || data.likelihood}
+                            {Number(data.likelihood).toFixed(2)} - {config.likelihoodLabels[Math.round(data.likelihood) - 1] || data.likelihood}
                           </td>
                           <td className="border border-gray-300 px-3 py-2 text-sm whitespace-nowrap">
-                            {data.impact} - {config.impactLabels[data.impact - 1] || data.impact}
+                            {Number(data.impact).toFixed(2)} - {config.impactLabels[Math.round(data.impact) - 1] || data.impact}
                           </td>
                           <td className="border border-gray-300 px-3 py-2 text-right font-semibold text-sm">
                             {data.count}
