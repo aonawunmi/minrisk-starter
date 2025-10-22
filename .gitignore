@@ -4,3 +4,19 @@ dist/
 !.env.example
 .DS_Store
 *.pptx
+
+# Vercel deployment
+.vercel-deploy
+
+# Backup files
+*.backup.*
+*.bak
+
+# Test data files
+*.xlsx
+*.csv
+*.pdf
+
+# Database setup scripts
+setup-database.mjs
+check-db.mjs
