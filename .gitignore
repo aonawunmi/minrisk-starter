@@ -20,3 +20,9 @@ dist/
 # Database setup scripts
 setup-database.mjs
 check-db.mjs
+
+# Compiled JavaScript files in src/ (TypeScript outputs)
+src/**/*.js
+src/**/*.jsx
+!src/**/*.test.js
+!src/**/*.spec.js

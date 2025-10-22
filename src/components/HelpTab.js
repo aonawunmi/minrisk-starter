@@ -38,7 +38,7 @@ export default function HelpTab() {
                     if (!matchesSearch)
                         return null;
                     return (_jsxs(Card, { children: [_jsx(CardHeader, { className: "cursor-pointer hover:bg-gray-50", onClick: () => toggleSection(section.id), children: _jsxs("div", { className: "flex items-center justify-between", children: [_jsxs(CardTitle, { className: "text-lg flex items-center gap-2", children: [section.icon, section.title] }), isExpanded ? (_jsx(ChevronDown, { className: "h-5 w-5 text-gray-500" })) : (_jsx(ChevronRight, { className: "h-5 w-5 text-gray-500" }))] }) }), isExpanded && (_jsx(CardContent, { children: _jsx("div", { className: "prose prose-sm max-w-none", dangerouslySetInnerHTML: { __html: section.content } }) }))] }, section.id));
-                }) }), _jsx(Card, { children: _jsxs(CardContent, { className: "pt-6 text-center text-sm text-gray-500", children: [_jsx("p", { children: "MinRisk User Manual - Version 1.0" }), _jsx("p", { children: "Last Updated: January 2025" })] }) })] }));
+                }) }), _jsx(Card, { children: _jsxs(CardContent, { className: "pt-6 text-center text-sm text-gray-500", children: [_jsx("p", { children: "MinRisk User Manual - Version 1.1" }), _jsx("p", { children: "Last Updated: January 2025" }), _jsx("p", { className: "mt-2 text-xs", children: "\u2728 Now powered by Claude AI" })] }) })] }));
 }
 // Manual content sections
 const sections = [
@@ -182,10 +182,67 @@ const sections = [
     },
     {
         id: 'ai-assistant',
-        title: 'AI Assistant',
+        title: 'AI Assistant (Powered by Claude AI)',
         icon: '🤖',
         content: `
-      <h3>Generating Risk Suggestions</h3>
+      <h3>AI Assistant Features</h3>
+      <p>MinRisk now uses <strong>Claude AI by Anthropic</strong> to provide intelligent assistance throughout your risk management workflow.</p>
+
+      <h3>1. Floating AI Chat Assistant</h3>
+      <p>Access general risk management help anytime:</p>
+      <ol>
+        <li>Click the <strong>"Ask AI"</strong> button (bottom right corner with sparkle icon)</li>
+        <li>Ask questions like:
+          <ul>
+            <li>"How do I assess inherent risk likelihood?"</li>
+            <li>"What's the difference between likelihood and impact controls?"</li>
+            <li>"How should I prioritize residual risks?"</li>
+            <li>"Explain the DIME control scoring framework"</li>
+          </ul>
+        </li>
+        <li>Get instant, context-aware responses</li>
+        <li>Continue the conversation with follow-up questions</li>
+      </ol>
+
+      <h3>2. AI-Powered Risk Creation</h3>
+      <p>Use AI to help draft professional risk statements:</p>
+      <ol>
+        <li>Click <strong>"Add Risk"</strong> button</li>
+        <li>In the dialog, click <strong>"Suggest Risk Details"</strong> button (top section)</li>
+        <li>Describe your risk scenario, for example:
+          <ul>
+            <li>"data breach due to weak passwords"</li>
+            <li>"operational failure in trading platform"</li>
+            <li>"supplier disruption affecting production"</li>
+          </ul>
+        </li>
+        <li>AI generates:
+          <ul>
+            <li><strong>Professional risk title</strong> (concise, 10 words max)</li>
+            <li><strong>Detailed risk description</strong> (2-3 sentences covering causes and consequences)</li>
+          </ul>
+        </li>
+        <li>Review and edit as needed before saving</li>
+      </ol>
+
+      <h3>3. AI-Generated Control Measures</h3>
+      <p>Get intelligent control suggestions for your risks:</p>
+      <ol>
+        <li>In the Add/Edit Risk dialog, fill in <strong>risk title</strong> and <strong>description</strong></li>
+        <li>Scroll to the <strong>Controls</strong> section</li>
+        <li>Click <strong>"Suggest Controls"</strong> button</li>
+        <li>AI analyzes your risk and generates <strong>3 relevant control measures</strong>:
+          <ul>
+            <li>Mix of Likelihood and Impact controls</li>
+            <li>Specific, actionable descriptions</li>
+            <li>Default DIME scores (Design, Implementation, Monitoring, Effectiveness = 2)</li>
+          </ul>
+        </li>
+        <li>Review, adjust DIME scores, and edit descriptions as needed</li>
+        <li>Add more controls manually if required</li>
+      </ol>
+
+      <h3>4. Bulk Risk Generation (AI Assistant Tab)</h3>
       <ol>
         <li>Navigate to <strong>AI Assistant</strong> tab</li>
         <li>Describe your project/process:
@@ -204,13 +261,24 @@ const sections = [
         <li>Edit risks to add risk codes, scores, and controls</li>
       </ol>
 
-      <h4>Tips for Better Results:</h4>
+      <h3>Tips for Better AI Results</h3>
       <ul>
-        <li>Be specific and detailed</li>
-        <li>Include industry and regulatory context</li>
-        <li>Mention specific concerns (security, compliance, etc.)</li>
-        <li>Try rephrasing if results aren't useful</li>
+        <li><strong>Be specific and detailed</strong> - More context = better suggestions</li>
+        <li><strong>Include industry context</strong> - Mention your sector, regulations, compliance requirements</li>
+        <li><strong>Describe the scenario</strong> - What could go wrong? What are you trying to protect?</li>
+        <li><strong>Iterate and refine</strong> - Try rephrasing if results aren't useful</li>
+        <li><strong>Use natural language</strong> - Talk to Claude like you would to a risk management consultant</li>
       </ul>
+
+      <h3>About Claude AI</h3>
+      <p>MinRisk uses <strong>Claude 3.5 Haiku</strong> by Anthropic, a cost-efficient AI model optimized for:</p>
+      <ul>
+        <li>Fast response times</li>
+        <li>Accurate risk analysis</li>
+        <li>Context-aware suggestions</li>
+        <li>Professional business writing</li>
+      </ul>
+      <p><strong>Note:</strong> All AI suggestions should be reviewed by risk management professionals before use.</p>
     `,
     },
     {
