@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BarChart3, ListOrdered, FileText } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { BarChart3, ListOrdered, FileText, X } from 'lucide-react';
 import type { AppConfig } from '../App';
 
 type ProcessedRisk = {
@@ -30,6 +32,21 @@ export function RiskReportTab({ risks, config }: RiskReportTabProps) {
   const [activeSubTab, setActiveSubTab] = useState('profile');
   const [sortColumn, setSortColumn] = useState<'category' | 'avgLikelihood' | 'avgImpact' | 'avgScore' | 'riskCount'>('avgScore');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  const [showCategoryMap, setShowCategoryMap] = useState(true); // Show map first, then list
+
+  // Handle category click
+  const handleCategoryClick = (categoryName: string) => {
+    setSelectedCategory(categoryName);
+    setShowCategoryMap(true); // Reset to show map first
+    setShowCategoryDialog(true);
+  };
+
+  // Get risks for selected category
+  const categoryRisks = selectedCategory
+    ? risks.filter(r => r.category === selectedCategory)
+    : [];
 
   // Calculate residual risk profile data
   const residualRiskProfile = risks.reduce((acc, risk) => {
@@ -385,7 +402,7 @@ export function RiskReportTab({ risks, config }: RiskReportTabProps) {
                           return (
                             <div
                               key={category.category}
-                              className="absolute rounded-full cursor-pointer transition-all hover:scale-110 hover:z-10 shadow-lg"
+                              className="absolute rounded-full cursor-pointer transition-all hover:scale-110 hover:z-10 shadow-lg hover:shadow-2xl"
                               style={{
                                 left: `${xPercent}%`,
                                 top: `${yPercent}%`,
@@ -398,7 +415,8 @@ export function RiskReportTab({ risks, config }: RiskReportTabProps) {
                                 alignItems: 'center',
                                 justifyContent: 'center',
                               }}
-                              title={`${category.category}\nAvg L: ${category.avgLikelihood.toFixed(2)}, Avg I: ${category.avgImpact.toFixed(2)}\n${category.riskCount} risks, Score: ${category.avgScore.toFixed(2)}`}
+                              title={`${category.category}\nAvg L: ${category.avgLikelihood.toFixed(2)}, Avg I: ${category.avgImpact.toFixed(2)}\n${category.riskCount} risks, Score: ${category.avgScore.toFixed(2)}\n\nClick to view risks`}
+                              onClick={() => handleCategoryClick(category.category)}
                             >
                               <div className="text-center px-2">
                                 <div
@@ -543,6 +561,190 @@ export function RiskReportTab({ risks, config }: RiskReportTabProps) {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Category Detail Dialog */}
+      <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
+        <DialogContent className="max-w-6xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>{selectedCategory} - Risk Distribution</span>
+              <Badge variant="outline" className="ml-2">
+                {categoryRisks.length} Risks
+              </Badge>
+            </DialogTitle>
+          </DialogHeader>
+
+          <Tabs value={showCategoryMap ? 'map' : 'list'} onValueChange={(v) => setShowCategoryMap(v === 'map')} className="flex-1 flex flex-col overflow-hidden">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="map">Risk Heatmap</TabsTrigger>
+              <TabsTrigger value="list">Risk List</TabsTrigger>
+            </TabsList>
+
+            {/* Heatmap View */}
+            <TabsContent value="map" className="flex-1 overflow-y-auto mt-4">
+              <div className="relative bg-gray-50 border-2 border-gray-300 rounded-lg" style={{ height: '500px', width: '100%' }}>
+                {/* Axis labels */}
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-sm font-semibold text-gray-800">
+                  Likelihood →
+                </div>
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 -rotate-90 text-sm font-semibold text-gray-800 origin-center">
+                  Impact →
+                </div>
+
+                {/* Chart area */}
+                <div className="absolute" style={{ left: '60px', right: '60px', top: '40px', bottom: '40px' }}>
+                  {/* Background grid */}
+                  <div className="absolute inset-0 bg-white border border-gray-300">
+                    {/* Vertical grid lines */}
+                    {[...Array(config.matrixSize - 1)].map((_, i) => (
+                      <div
+                        key={`v-${i}`}
+                        className="absolute border-l border-gray-200"
+                        style={{
+                          left: `${((i + 1) / config.matrixSize) * 100}%`,
+                          top: 0,
+                          bottom: 0
+                        }}
+                      />
+                    ))}
+                    {/* Horizontal grid lines */}
+                    {[...Array(config.matrixSize - 1)].map((_, i) => (
+                      <div
+                        key={`h-${i}`}
+                        className="absolute border-t border-gray-200"
+                        style={{
+                          top: `${((i + 1) / config.matrixSize) * 100}%`,
+                          left: 0,
+                          right: 0
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Y-axis labels */}
+                  <div className="absolute -left-8 inset-y-0 flex flex-col justify-between py-1">
+                    {[...Array(config.matrixSize)].map((_, i) => (
+                      <div key={i} className="text-xs font-medium text-gray-700 text-right">
+                        {config.matrixSize - i}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* X-axis labels */}
+                  <div className="absolute inset-x-0 -bottom-6 flex justify-between px-1">
+                    {[...Array(config.matrixSize)].map((_, i) => (
+                      <div key={i} className="text-xs font-medium text-gray-700">
+                        {i + 1}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Risk bubbles */}
+                  <div className="absolute inset-0">
+                    {categoryRisks.length > 0 ? (
+                      categoryRisks.map((risk) => {
+                        const xPercent = ((risk.likelihood_residual - 1) / (config.matrixSize - 1)) * 100;
+                        const yPercent = ((config.matrixSize - risk.impact_residual) / (config.matrixSize - 1)) * 100;
+                        const bgColor = risk.residual_score >= 12 ? '#dc2626' :
+                                       risk.residual_score >= 6 ? '#f97316' :
+                                       risk.residual_score >= 3 ? '#facc15' : '#84cc16';
+
+                        return (
+                          <div
+                            key={risk.risk_code}
+                            className="absolute rounded-lg cursor-pointer transition-all hover:scale-110 hover:z-10 shadow-md hover:shadow-xl"
+                            style={{
+                              left: `${xPercent}%`,
+                              top: `${yPercent}%`,
+                              width: '60px',
+                              height: '60px',
+                              transform: 'translate(-50%, -50%)',
+                              backgroundColor: bgColor,
+                              border: '2px solid white',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '4px',
+                            }}
+                            title={`${risk.risk_code}: ${risk.risk_title}\nL: ${risk.likelihood_residual}, I: ${risk.impact_residual}\nScore: ${risk.residual_score}`}
+                          >
+                            <div className="text-center">
+                              <div className="text-xs font-bold text-white leading-tight">
+                                {risk.risk_code}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-gray-500">
+                        No risks in this category
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* List View */}
+            <TabsContent value="list" className="flex-1 overflow-y-auto mt-4">
+              <div className="space-y-4">
+                {categoryRisks.length > 0 ? (
+                  categoryRisks.map((risk) => (
+                    <Card key={risk.risk_code} className="border-l-4" style={{
+                      borderLeftColor: risk.residual_score >= 12 ? '#dc2626' :
+                                      risk.residual_score >= 6 ? '#f97316' :
+                                      risk.residual_score >= 3 ? '#facc15' : '#84cc16'
+                    }}>
+                      <CardContent className="pt-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-bold text-gray-900">[{risk.risk_code}]</span>
+                              <span className="font-semibold text-gray-800">{risk.risk_title}</span>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-2">{risk.risk_description}</p>
+                          </div>
+                          <Badge variant={risk.status === 'Open' ? 'destructive' : risk.status === 'In Progress' ? 'default' : 'secondary'}>
+                            {risk.status}
+                          </Badge>
+                        </div>
+
+                        <div className="grid grid-cols-4 gap-3 text-sm">
+                          <div>
+                            <span className="text-gray-500 font-medium">Owner:</span>
+                            <div className="text-gray-900">{risk.owner}</div>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 font-medium">Division:</span>
+                            <div className="text-gray-900">{risk.division}</div>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 font-medium">Residual L×I:</span>
+                            <div className="text-gray-900 font-semibold">
+                              {risk.likelihood_residual} × {risk.impact_residual} = {risk.residual_score}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 font-medium">Inherent L×I:</span>
+                            <div className="text-gray-400">
+                              {risk.likelihood_inherent} × {risk.impact_inherent} = {risk.inherent_score}
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : (
+                  <div className="text-center text-gray-500 py-8">
+                    No risks found in this category
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

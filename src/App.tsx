@@ -21,7 +21,13 @@ import AdminDashboard from "@/components/AdminDashboard";
 import BulkDeletionDialog from "@/components/BulkDeletionDialog";
 import { VarSandboxTab } from "@/components/VarSandboxTab";
 import { RiskReportTab } from "@/components/RiskReportTab";
+import { AIChatAssistant } from "@/components/AIChatAssistant";
+import { AIRiskGenerator } from "@/components/AIRiskGenerator";
+import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
+// Lazy load incidents to avoid blocking app startup
+const IncidentLogTab = React.lazy(() => import("@/components/incidents/IncidentLogTab").then(m => ({ default: m.IncidentLogTab })));
 import { loadRisks, createRisk, updateRisk, deleteRisk, loadConfig, saveConfig as saveConfigToDb } from '@/lib/database';
+import { loadIncidents, type Incident } from '@/lib/incidents';
 
 // Make the endpoint visible in DevTools:
 ;(window as any).__MINRISK_AI_PATH = import.meta.env.VITE_AI_PATH ?? '/api/gemini'
@@ -35,7 +41,7 @@ console.log('AI endpoint:', (window as any).__MINRISK_AI_PATH)
 
 // ===== TYPES =====
 export type Control = { id: string; description: string; target: "Likelihood" | "Impact"; design: number; implementation: number; monitoring: number; effectiveness_evaluation: number; };
-export type RiskRow = { risk_code: string; risk_title: string; risk_description: string; division: string; department: string; category: string; owner: string; relevant_period: string | null; likelihood_inherent: number; impact_inherent: number; controls: Control[]; status: "Open" | "In Progress" | "Closed"; user_id?: string; user_email?: string; };
+export type RiskRow = { risk_code: string; risk_title: string; risk_description: string; division: string; department: string; category: string; owner: string; relevant_period: string | null; likelihood_inherent: number; impact_inherent: number; controls: Control[]; status: "Open" | "In Progress" | "Closed"; user_id?: string; user_email?: string; linked_incident_count?: number; last_incident_date?: string; };
 export type AppConfig = {
     matrixSize: 5 | 6;
     likelihoodLabels: string[];
@@ -45,7 +51,7 @@ export type AppConfig = {
     categories: string[];
     owners: string[];
 };
-type ProcessedRisk = RiskRow & { likelihood_residual: number, impact_residual: number, inherent_score: number, residual_score: number };
+export type ProcessedRisk = RiskRow & { likelihood_residual: number, impact_residual: number, inherent_score: number, residual_score: number };
 type ParsedRisk = Omit<RiskRow, 'risk_code' | 'controls'> & { controls: []; errors?: string[] };
 type ParsedControl = Omit<Control, 'id'> & { risk_code: string; risk_title?: string; errors?: string[] };
 type DiscoveredConfig = { divisions: string[]; departments: string[]; categories: string[] };
@@ -285,6 +291,7 @@ export default function MinRiskLatest() {
     const [showChangePeriodDialog, setShowChangePeriodDialog] = useState(false);
     const [newPeriod, setNewPeriod] = useState<string>("");
     const [showCommitDialog, setShowCommitDialog] = useState(false);
+    const [incidents, setIncidents] = useState<Incident[]>([]);
 
     // Toast notification function
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -383,6 +390,14 @@ export default function MinRiskLatest() {
                 console.log('⚠️  Loaded risks:', risks.length);
                 setRows(risks);
 
+                console.log('📊 Loading incidents...');
+                const { data: incidentsData, error: incidentsError } = await loadIncidents();
+                console.log('📊 Loaded incidents:', incidentsData?.length || 0);
+                if (incidentsError) {
+                    console.error('❌ Failed to load incidents:', incidentsError);
+                }
+                setIncidents(incidentsData || []);
+
                 console.log('⚙️  Loading config...');
                 const dbConfig = await loadConfig();
                 console.log('⚙️  Config loaded:', dbConfig);
@@ -430,7 +445,40 @@ export default function MinRiskLatest() {
         }
         return sortableItems;
     }, [processedData, sortConfig]);
-    
+
+    // Function to reload risks and incidents from database (used by AI Risk Generator and Incidents)
+    const loadRisksFromDB = async () => {
+        try {
+            console.log('🔄 loadRisksFromDB called - reloading risks...');
+            console.log('🔍 typeof loadRisks:', typeof loadRisks);
+            console.log('🔍 loadRisks.name:', loadRisks.name);
+            console.log('🔍 About to call loadRisks()...');
+            const risks = await loadRisks();
+            console.log('✅ Risks reloaded:', risks.length, 'risks');
+
+            // Also reload incidents for analytics
+            const { data: incidentsData, error: incidentsError } = await loadIncidents();
+            console.log('✅ Incidents reloaded:', incidentsData?.length || 0, 'incidents');
+            if (incidentsError) {
+                console.error('❌ Failed to reload incidents:', incidentsError);
+            }
+            setIncidents(incidentsData || []);
+
+            // Debug: Check if incident counts are in the data
+            const risksWithIncidents = risks.filter(r => r.linked_incident_count && r.linked_incident_count > 0);
+            console.log('🔍 Risks with incident counts:', risksWithIncidents.length);
+            if (risksWithIncidents.length > 0) {
+                console.log('📊 Sample risk with incidents:', risksWithIncidents[0].risk_code, 'count:', risksWithIncidents[0].linked_incident_count);
+            }
+
+            setRows(risks);
+            showToast('Risks reloaded successfully', 'success');
+        } catch (error) {
+            console.error('Error reloading risks:', error);
+            showToast('Failed to reload risks', 'error');
+        }
+    };
+
     const addMultipleRisks = async (risksToAdd: Omit<RiskRow, 'risk_code'>[]) => {
         for (const risk of risksToAdd) {
             const riskCode = nextRiskCode(rows, risk.division, risk.category);
@@ -755,15 +803,21 @@ export default function MinRiskLatest() {
 
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="mb-4"><TabsTrigger value="register">Risk Register</TabsTrigger><TabsTrigger value="control_register">Control Register</TabsTrigger><TabsTrigger value="heatmap">Heat Map</TabsTrigger><TabsTrigger value="risk_report">📊 Risk Report</TabsTrigger><TabsTrigger value="var_sandbox">📊 VaR Sandbox</TabsTrigger><TabsTrigger value="history">📜 History</TabsTrigger>{/* <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger> */}{canEdit && <TabsTrigger value="import_risks">Risk Import</TabsTrigger>}{canEdit && <TabsTrigger value="import_controls">Control Import</TabsTrigger>}{isAdmin && <TabsTrigger value="admin">👥 Admin</TabsTrigger>}</TabsList>
+            <TabsList className="mb-4"><TabsTrigger value="register">Risk Register</TabsTrigger><TabsTrigger value="control_register">Control Register</TabsTrigger><TabsTrigger value="heatmap">Heat Map</TabsTrigger><TabsTrigger value="analytics">📊 Analytics</TabsTrigger><TabsTrigger value="risk_report">📋 Risk Report</TabsTrigger><TabsTrigger value="var_sandbox">📈 VaR Sandbox</TabsTrigger><TabsTrigger value="incidents">🚨 Incidents</TabsTrigger><TabsTrigger value="history">📜 History</TabsTrigger><TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger>{canEdit && <TabsTrigger value="import_risks">Risk Import</TabsTrigger>}{canEdit && <TabsTrigger value="import_controls">Control Import</TabsTrigger>}{isAdmin && <TabsTrigger value="admin">👥 Admin</TabsTrigger>}</TabsList>
 
             <TabsContent value="register"><RiskRegisterTab sortedData={sortedData} rowCount={filtered.length} requestSort={requestSort} onAdd={add} onEdit={setEditingRisk} onRemove={remove} config={config} rows={filtered} allRows={rows} priorityRisks={priorityRisks} setPriorityRisks={setPriorityRisks} canEdit={canEdit} filters={filters} setFilters={setFilters} isAdmin={isAdmin} /></TabsContent>
             <TabsContent value="control_register"><ControlRegisterTab allRisks={filtered} priorityRisks={priorityRisks} canEdit={canEdit} /></TabsContent>
             <TabsContent value="heatmap"><HeatmapTab processedData={processedData} allRows={rows} uniquePeriods={uniquePeriods} heatMapView={heatMapView} setHeatMapView={setHeatMapView} priorityRisks={priorityRisks} config={config} onEditRisk={setEditingRisk} canEdit={canEdit} /></TabsContent>
+            <TabsContent value="analytics"><AnalyticsDashboard risks={processedData} incidents={incidents} selectedPeriod={filters.periods} /></TabsContent>
             <TabsContent value="risk_report"><RiskReportTab risks={processedData} config={config} /></TabsContent>
             <TabsContent value="var_sandbox"><VarSandboxTab matrixSize={config.matrixSize} showToast={showToast} /></TabsContent>
+            <TabsContent value="incidents">
+                <React.Suspense fallback={<div className="flex items-center justify-center p-8"><div className="h-8 w-8 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin" /></div>}>
+                    <IncidentLogTab onRisksUpdate={loadRisksFromDB} />
+                </React.Suspense>
+            </TabsContent>
             <TabsContent value="history"><RiskHistoryTab config={config} showToast={showToast} isAdmin={isAdmin} /></TabsContent>
-            {/* <TabsContent value="ai_assistant"><AIAssistantTab onAddMultipleRisks={addMultipleRisks} config={config} onSwitchTab={setActiveTab}/></TabsContent> */}
+            <TabsContent value="ai_assistant"><AIRiskGenerator onRisksGenerated={loadRisksFromDB} /></TabsContent>
             <TabsContent value="import_risks"><RiskImportTab onImport={handleRiskBulkImport} currentConfig={config} canEdit={canEdit} /></TabsContent>
             <TabsContent value="import_controls"><ControlImportTab onImport={handleControlBulkImport} allRisks={rows} canEdit={canEdit} /></TabsContent>
             {isAdmin && <TabsContent value="admin"><AdminDashboard config={config} showToast={showToast} /></TabsContent>}
@@ -842,6 +896,9 @@ export default function MinRiskLatest() {
                 {toast.message}
             </div>
         )}
+
+        {/* AI Chat Assistant - Floating Button */}
+        <AIChatAssistant />
     </div>;
 }
 
@@ -1016,6 +1073,7 @@ return (
                 </th>
                 <th className="px-3 py-2 text-left font-semibold text-gray-700">Bucket (Res)</th>
                 <th className="px-3 py-2 text-left font-semibold text-gray-700">Status</th>
+                <th className="px-3 py-2 text-center font-semibold text-gray-700">Incidents</th>
                 {isAdmin && (
                   <th className="px-3 py-2 text-left font-semibold text-gray-700">
                     <MultiSelectPopover
@@ -1057,6 +1115,15 @@ return (
                       </span>
                     </td>
                     <td className="px-3 py-2">{r.status}</td>
+                    <td className="px-3 py-2 text-center">
+                      {(r.linked_incident_count ?? 0) > 0 ? (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                          {r.linked_incident_count}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
                     {isAdmin && (
                       <td className="px-3 py-2 text-xs text-gray-600">{r.user_email || 'N/A'}</td>
                     )}

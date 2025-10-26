@@ -1,5 +1,6 @@
 // src/lib/database.ts
 // Database operations for MinRisk using Supabase
+// UPDATED: Added incident count fields
 import { supabase } from './supabase';
 // =====================================================
 // HELPER FUNCTIONS
@@ -22,6 +23,8 @@ function dbToAppRisk(dbRisk, controls, userEmail) {
         status: dbRisk.status,
         user_id: dbRisk.user_id,
         user_email: userEmail,
+        linked_incident_count: dbRisk.linked_incident_count,
+        last_incident_date: dbRisk.last_incident_date,
         controls: controls.map(c => ({
             id: c.id,
             description: c.description,
@@ -212,16 +215,39 @@ export async function saveConfig(config) {
  * Load all risks with their controls
  */
 export async function loadRisks() {
+    console.log('📥 loadRisks() called in database.ts');
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user)
+    if (!user) {
+        console.log('❌ No user found in loadRisks');
         return [];
+    }
     // Fetch risks
+    console.log('📡 Fetching risks from Supabase...');
     const { data: risks, error: risksError } = await supabase
         .from('risks')
         .select('*')
         .order('created_at', { ascending: false });
-    if (risksError || !risks)
+    if (risksError) {
+        console.error('❌ Error fetching risks:', risksError);
         return [];
+    }
+    if (!risks) {
+        console.log('❌ No risks returned');
+        return [];
+    }
+    console.log('✅ Fetched', risks.length, 'risks from DB');
+    // Debug: Check what fields are in the first risk
+    if (risks.length > 0) {
+        console.log('🔍 Sample risk from DB:', Object.keys(risks[0]));
+        console.log('🔍 Has linked_incident_count?', 'linked_incident_count' in risks[0]);
+        const riskWithCount = risks.find(r => r.linked_incident_count && r.linked_incident_count > 0);
+        if (riskWithCount) {
+            console.log('🎯 Found risk with count in DB:', riskWithCount.risk_code, riskWithCount.linked_incident_count);
+        }
+        else {
+            console.log('⚠️ No risks with linked_incident_count > 0 found in DB');
+        }
+    }
     // Fetch all controls for these risks
     const riskIds = risks.map(r => r.id);
     const { data: controls } = await supabase
