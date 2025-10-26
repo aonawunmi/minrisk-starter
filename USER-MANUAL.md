@@ -6,13 +6,18 @@
 3. [Risk Register](#risk-register)
 4. [Heatmap](#heatmap)
 5. [Control Register](#control-register)
-6. [Historical Risk Management](#historical-risk-management) ✨ NEW
-7. [AI Assistant](#ai-assistant)
-8. [Configuration](#configuration)
-9. [Admin Dashboard](#admin-dashboard)
-10. [Archive Management](#archive-management)
-11. [Audit Trail](#audit-trail)
-12. [Best Practices](#best-practices)
+6. [Historical Risk Management](#historical-risk-management)
+7. [Incidents Module](#incidents-module) ✨ NEW
+8. [Interactive Analytics Dashboard](#interactive-analytics-dashboard) ✨ NEW
+9. [AI Features](#ai-features) ✨ ENHANCED
+   - [AI Risk Generator](#ai-risk-generator)
+   - [AI Chat Assistant](#ai-chat-assistant)
+   - [AI Control Suggester](#ai-control-suggester)
+10. [Configuration](#configuration)
+11. [Admin Dashboard](#admin-dashboard)
+12. [Archive Management](#archive-management)
+13. [Audit Trail](#audit-trail)
+14. [Best Practices](#best-practices)
 
 ---
 
@@ -371,46 +376,788 @@ When editing a risk from the Risk Register:
 
 ---
 
-## AI Assistant
+## Incidents Module
+
+✨ **NEW in Version 4.0** - Enterprise Risk Management Enhancement
 
 ### Overview
-Generate risk suggestions using AI based on your project or process description.
+The Incidents Module provides comprehensive operational incident tracking and management, with intelligent AI-powered risk linking and control adequacy assessment.
 
-### How to Use
+### Accessing the Incidents Module
 
-1. **Navigate to AI Assistant tab**
-2. **Describe your project/process** in the text box
-   - Be specific about:
-     - Type of business/project
-     - Key activities
-     - Technologies used
-     - Stakeholders involved
+Navigate to the **Incidents** tab in the main navigation bar.
 
-3. **Click "Generate Risk Suggestions"**
-4. **Review AI-generated risks**:
-   - Each suggestion includes:
-     - Risk Title
-     - Risk Description
+### Key Features
 
-5. **Select risks to add**:
-   - Check boxes for risks you want to keep
-   - For each selected risk, fill in:
-     - Category
-     - Division
+- **Comprehensive incident logging** with financial impact tracking
+- **AI-powered risk linking** - Automatically suggest related risks
+- **Control adequacy assessment** - AI evaluates if existing controls are sufficient
+- **Statistics dashboard** - Real-time incident metrics
+- **Search and filtering** - Find incidents quickly
+- **CSV export** - Export incident data for reporting
 
-6. **Click "Add Selected to Register"**
-7. **Edit the risks** in Risk Register to:
-   - Assign risk code
-   - Set likelihood and impact
-   - Add controls
-   - Assign owner
+---
 
-### Tips for Better AI Results
+### Recording an Incident
 
-- **Be detailed**: "Implementing cloud-based CRM for sales team" vs "New system"
-- **Include context**: Industry, size, regulatory requirements
-- **Specify concerns**: Security, compliance, performance issues
-- **Rephrase if needed**: Try different descriptions for better results
+#### Step 1: Click "Report Incident" Button
+
+Click the "+ Report Incident" button in the top right of the Incidents tab.
+
+#### Step 2: Fill in Incident Details
+
+**Basic Information:**
+- **Title**: Short descriptive title (required)
+- **Description**: Detailed description of what happened (required)
+- **Incident Date**: When the incident occurred (required)
+- **Reported By**: Your name (auto-filled)
+- **Reporter Email**: Your email (auto-filled)
+
+**Classification:**
+- **Division**: Business division where incident occurred
+- **Department**: Specific department
+- **Incident Type**: Select from:
+  - Loss Event
+  - Near Miss
+  - Control Failure
+  - Breach
+  - Other
+
+**Severity & Impact:**
+- **Severity**: 1-5 scale (1=Minimal, 5=Critical)
+- **Financial Impact**: Monetary loss in your currency
+- **Impact Description**: Describe the consequences
+
+**Investigation:**
+- **Status**: Current status
+  - Reported (initial)
+  - Under Investigation
+  - Resolved
+  - Closed
+- **Root Cause**: Analysis of what caused the incident
+- **Corrective Actions**: Steps taken to prevent recurrence
+
+#### Step 3: Save the Incident
+
+Click "Save Incident" to create the record.
+
+---
+
+### Viewing and Managing Incidents
+
+#### Incident Statistics
+
+At the top of the Incidents tab, you'll see key metrics:
+
+| Metric | Description |
+|--------|-------------|
+| **Total Incidents** | Count of all incidents |
+| **Open** | Incidents in Reported or Under Investigation status |
+| **High Severity** | Incidents rated 4 or 5 |
+| **Financial Impact** | Total monetary losses |
+
+#### Incidents Table
+
+The table displays all incidents with:
+- S/N (sequential number)
+- Title
+- Date
+- Type
+- Severity (color-coded badge)
+- Financial Impact
+- Status (color-coded badge)
+- Actions (View/Edit/Delete)
+
+#### Filtering Incidents
+
+Use the filter section to narrow down incidents:
+
+1. **Search Bar**: Search across title, description, root cause, and actions
+2. **Status Filter**: Filter by status (All, Reported, Under Investigation, Resolved, Closed)
+3. **Type Filter**: Filter by incident type
+4. **Severity Filter**: Filter by severity level (1-5)
+
+---
+
+### AI-Powered Risk Linking
+
+✨ One of the most powerful features of the Incidents Module.
+
+#### How It Works
+
+When you view an incident detail:
+
+1. Click the **"View Details"** button (eye icon) on any incident
+2. Navigate to the **"Risk Linking"** tab in the dialog
+3. Click **"Suggest Risks with AI"** button
+
+**The AI analyzes:**
+- Incident title and description
+- Incident type and severity
+- Impact description
+- Root cause analysis
+- Your existing risks in the Risk Register
+
+**AI provides:**
+- **Suggested risk links** with confidence scores (High/Medium/Low)
+- **Rationale** explaining why each risk is relevant
+- **One-click linking** to connect incident to risks
+
+#### Linking Manually
+
+You can also link risks manually:
+
+1. In the Risk Linking tab, use the **search bar** to find risks
+2. Click **"Link Risk"** next to the relevant risk
+3. The risk is immediately linked
+
+#### View Linked Risks
+
+- See all linked risks in the Risk Linking tab
+- Each linked risk shows: code, title, category, and inherent score
+- **Unlink** by clicking the "Unlink" button
+
+---
+
+### AI Control Adequacy Assessment
+
+✨ **Advanced Feature** - Evaluate if your controls are sufficient
+
+#### How It Works
+
+After linking an incident to risks:
+
+1. In the incident detail dialog, navigate to **"Control Assessment"** tab
+2. Click **"Assess Control Adequacy"** button
+
+**The AI analyzes:**
+- The incident details (what went wrong)
+- All controls associated with the linked risks
+- Control effectiveness ratings (DIME scores)
+- Incident severity and financial impact
+
+**AI provides:**
+- **Overall Adequacy Score**: 0-100 scale
+  - 80-100: Controls are adequate
+  - 60-79: Controls need minor improvements
+  - 40-59: Controls need significant improvements
+  - 0-39: Controls are inadequate
+- **Detailed Assessment**: Explanation of findings
+- **Actionable Recommendations**: Specific improvements needed
+- **Priority Level**: Critical / High / Medium / Low
+
+#### Acting on Recommendations
+
+Use the AI assessment to:
+1. **Update control effectiveness ratings** in the Risk Register
+2. **Add new controls** to address gaps
+3. **Implement recommended actions**
+4. **Track improvements** by re-assessing after changes
+
+---
+
+### Incident Analytics
+
+View incident trends and patterns:
+
+- **Incident timeline**: Visualize when incidents occur
+- **Severity distribution**: See breakdown by severity
+- **Type distribution**: Common incident types
+- **Financial impact trends**: Track losses over time
+- **Status workflow**: Monitor investigation progress
+
+---
+
+### Exporting Incident Data
+
+Click the **"Export CSV"** button to export all visible incidents:
+
+**Export includes:**
+- All incident fields
+- Linked risk codes
+- Financial impact
+- Status and dates
+- Investigation details
+
+Use exported data for:
+- Board reporting
+- Regulatory submissions
+- Insurance claims
+- Trend analysis
+- External audits
+
+---
+
+### Best Practices for Incidents
+
+**1. Report Promptly**
+- Record incidents as soon as they're discovered
+- Include all available information
+- Update as investigation progresses
+
+**2. Use AI Risk Linking**
+- Always run AI suggestions for risk linking
+- Review AI rationale carefully
+- Link to multiple risks if applicable
+
+**3. Assess Control Adequacy**
+- Run assessment after linking risks
+- Implement AI recommendations
+- Re-assess after improvements
+
+**4. Maintain Status Updates**
+- Move status through workflow:
+  - Reported → Under Investigation → Resolved → Closed
+- Document progress in corrective actions
+
+**5. Financial Impact**
+- Be as accurate as possible with monetary losses
+- Include indirect costs when significant
+- Update if impact increases
+
+**6. Root Cause Analysis**
+- Go deep - find the true root cause
+- Don't stop at symptoms
+- Use "5 Whys" technique
+
+---
+
+## Interactive Analytics Dashboard
+
+✨ **NEW in Version 4.0** - Executive-Level Insights
+
+### Overview
+
+The Analytics Dashboard provides interactive visualizations and executive metrics for risk oversight and decision-making.
+
+### Accessing Analytics
+
+Navigate to the **Analytics** tab in the main navigation bar.
+
+---
+
+### Dashboard Sections
+
+#### 1. Executive Metrics (Top Row)
+
+Real-time key performance indicators:
+
+| Metric | Description |
+|--------|-------------|
+| **Total Risks** | Count of all active risks |
+| **Critical Risks** | Risks with residual score ≥ 20 (Severe) |
+| **High Risks** | Risks with residual score 12-19 (High) |
+| **Avg Inherent Score** | Average risk level before controls |
+| **Avg Residual Score** | Average risk level after controls |
+| **Control Effectiveness** | Percentage reduction from controls |
+| **Total Incidents** | All incidents recorded |
+| **Open Incidents** | Incidents not yet closed |
+| **High Severity Incidents** | Incidents rated 4 or 5 |
+| **Financial Impact** | Total monetary losses |
+
+#### 2. Risk Distribution by Severity
+
+**Interactive bar chart** showing risk counts by severity level:
+
+- **Severe** (score ≥ 20) - Red
+- **High** (score 12-19) - Orange
+- **Moderate** (score 6-11) - Yellow
+- **Low** (score 3-5) - Light green
+- **Minimal** (score < 3) - Dark green
+
+**🔄 Interactive Features:**
+- **Click any bar** to drill down and see all risks in that severity level
+- **Modal dialog** opens showing complete risk details
+- **View risk details** including controls, scores, and status
+- **Close dialog** to return to dashboard
+
+#### 3. Risk Distribution by Category
+
+**Interactive bar chart** showing risk counts by category:
+
+- Operational
+- Financial
+- Strategic
+- Compliance
+- Technology
+- Market
+- Reputational
+- etc.
+
+**🔄 Interactive Features:**
+- **Click any bar** to see all risks in that category
+- Filter by severity within category
+- Export category-specific data
+
+#### 4. Risk Distribution by Division
+
+**Interactive bar chart** showing risk counts by business division:
+
+**🔄 Interactive Features:**
+- **Click any bar** to see all risks in that division
+- Compare risk profiles across divisions
+- Identify high-risk business units
+
+#### 5. Risk Category Positioning Map
+
+**Interactive heatmap-style grid** showing risks by category and severity:
+
+**Severity Rows:**
+- Severe (≥20)
+- High (12-19)
+- Moderate (6-11)
+- Low (3-5)
+- Minimal (<3)
+
+**Category Columns:**
+- All your risk categories
+
+**🔄 Interactive Features:**
+- **Click any cell** to see intermediate view showing risk count
+- **Click count badge** to drill down to see all risks in that cell
+- **Color-coded** by severity for quick assessment
+- **Navigate back** using breadcrumb trail
+
+**Use Cases:**
+- **Executive reporting**: Present risk landscape visually
+- **Board meetings**: Show risk concentrations
+- **Strategic planning**: Identify which categories need attention
+- **Compliance**: Demonstrate risk coverage
+
+#### 6. Trend Analysis
+
+Track how your risk profile changes over time:
+
+**Period-over-Period Comparison:**
+- Risk count by period
+- Average scores by period
+- Severity distribution changes
+- New vs. closed risks
+
+**Filters:**
+- Select time periods to compare
+- Filter by division or category
+- View inherent vs. residual trends
+
+#### 7. Control Effectiveness Analysis
+
+Visual breakdown of control performance:
+
+**DIME Score Distribution:**
+- Design effectiveness
+- Implementation quality
+- Monitoring effectiveness
+- Overall effectiveness evaluation
+
+**Low-Performing Controls:**
+- Table of controls with scores < 2.0
+- Associated risks
+- Target (Likelihood/Impact)
+- Average DIME score
+
+**Use this to:**
+- Identify control gaps
+- Prioritize control improvements
+- Track control maturity over time
+
+---
+
+### Using Analytics for Decision-Making
+
+#### For Executive Leadership
+
+**Monthly Board Report:**
+1. Show **Executive Metrics** - high-level KPIs
+2. Present **Risk Category Positioning Map** - visual landscape
+3. Highlight **Critical and High Risks** - drill down from charts
+4. Review **Incident trends** - operational performance
+5. Demonstrate **Control Effectiveness** - risk mitigation progress
+
+#### For Risk Managers
+
+**Weekly Review:**
+1. Check **Severe and High Risk counts** - any increases?
+2. Review **Distribution by Division** - which units need attention?
+3. Analyze **Control Effectiveness** - which controls need improvement?
+4. Monitor **Open Incidents** - investigation progress?
+
+#### For Auditors
+
+**Quarterly Audit:**
+1. **Risk Category Positioning Map** - coverage across all categories?
+2. **Control Effectiveness Analysis** - adequate control environment?
+3. **Trend Analysis** - is risk profile improving?
+4. **Incident patterns** - recurring issues?
+
+---
+
+### Period Filtering in Analytics
+
+Use the **Period Filter** to analyze historical data:
+
+1. **Select period(s)** from dropdown (Q1 2025, FY2025, etc.)
+2. **Multi-select** to compare periods
+3. All charts and metrics update automatically
+4. **Export** period-specific data
+
+---
+
+## AI Features
+
+✨ **ENHANCED in Version 4.0** - Powered by Claude AI & Gemini
+
+MinRisk includes three powerful AI features to accelerate your risk management process:
+
+1. **AI Risk Generator** - Generate context-specific risks
+2. **AI Chat Assistant** - Conversational risk management help
+3. **AI Control Suggester** - Get control recommendations
+
+---
+
+### AI Risk Generator
+
+**Purpose**: Quickly generate relevant risks based on your industry and business context.
+
+#### How to Use
+
+1. **Navigate to Risk Register tab**
+2. Look for the **"AI Risk Generator"** card at the top
+3. Click **"Generate Risks"** button
+
+#### Fill in Context
+
+Provide context to help AI generate relevant risks:
+
+**Required:**
+- **Industry / Sector**: e.g., Banking, Insurance, Healthcare, Manufacturing
+
+**Optional (improves quality):**
+- **Business Unit / Department**: e.g., Trading Desk, IT Operations
+- **Risk Category**: Focus on specific category (or leave as "All")
+- **Number of Risks**: How many to generate (1-10, default: 5)
+- **Additional Context**: Any specific concerns, projects, or focus areas
+
+**Example Context:**
+```
+Industry: Banking
+Business Unit: Digital Banking Platform
+Risk Category: Technology
+Additional Context: We're launching a new mobile banking app with
+biometric authentication. Concerned about cybersecurity, data privacy,
+and system availability.
+```
+
+#### Review AI-Generated Risks
+
+AI generates risks with:
+- **Risk Title**: Clear, concise title
+- **Risk Description**: Detailed description of the risk scenario
+- **Category**: Automatically assigned category
+- **Severity**: Initial severity assessment (Critical/High/Medium/Low)
+- **Likelihood**: Expected likelihood level
+
+#### Select and Save Risks
+
+1. **Review** each generated risk
+2. **Check the box** next to risks you want to keep
+3. **Click "Save Selected"** button
+4. Risks are added to your Risk Register with:
+   - Unique risk code (AI-001, AI-002, etc.)
+   - Default values (you can edit later)
+   - Status: Open
+
+#### Edit After Saving
+
+After saving AI-generated risks:
+1. Find them in Risk Register (look for AI- prefix)
+2. **Edit** to refine details
+3. **Adjust** likelihood and impact
+4. **Add controls** to mitigate the risk
+5. **Assign owner** and set period
+
+#### Best Practices
+
+**Be Specific in Context:**
+- ✅ "Cloud-based SaaS platform for healthcare providers, handling PHI data, integrating with EHR systems"
+- ❌ "Software project"
+
+**Use Additional Context:**
+- Mention specific technologies
+- Note regulatory requirements
+- Highlight unique challenges
+- Reference recent incidents or concerns
+
+**Review Carefully:**
+- AI suggestions are starting points
+- Customize to your organization
+- May need to split or combine risks
+- Add organization-specific details
+
+---
+
+### AI Chat Assistant
+
+**Purpose**: Get conversational help with risk management tasks and questions.
+
+#### How to Use
+
+1. **Navigate to any tab** in MinRisk
+2. Look for the **floating chat icon** in the bottom right corner
+3. Click to open the **AI Chat Assistant**
+
+#### What You Can Ask
+
+**Risk Analysis:**
+- "Analyze the risks in my Financial category"
+- "What are my highest severity risks?"
+- "Compare inherent vs residual scores"
+
+**Control Recommendations:**
+- "Suggest controls for risk OPS-001"
+- "How can I improve this control?"
+- "What DIME score should I aim for?"
+
+**Best Practices:**
+- "How should I structure my risk register?"
+- "What's a good risk naming convention?"
+- "How often should I review risks?"
+
+**Incident Response:**
+- "Help me write a root cause analysis for this incident"
+- "What corrective actions should I consider?"
+- "Is this incident linked to any risks?"
+
+**Reporting:**
+- "How do I present risk data to executives?"
+- "What metrics should I track?"
+- "Help me create a board report"
+
+#### Chat Features
+
+**Context-Aware:**
+- AI has access to your current view
+- Can reference risks on screen
+- Understands your filters and selections
+
+**Interactive:**
+- Ask follow-up questions
+- Request clarification
+- Iterate on suggestions
+
+**Actionable:**
+- Get specific recommendations
+- Receive step-by-step guidance
+- Copy suggested text
+
+#### Example Conversations
+
+**Example 1: Risk Analysis**
+```
+You: What are my top 3 risks by residual score?
+
+AI: Based on your current Risk Register, your top 3 risks by
+residual score are:
+
+1. OPS-007: System Downtime (Score: 20)
+   - Critical severity, needs immediate attention
+   - Consider adding redundancy controls
+
+2. FIN-003: Payment Processing Failure (Score: 16)
+   - High severity, review transaction monitoring
+
+3. TECH-011: Cybersecurity Breach (Score: 15)
+   - High severity, assess firewall effectiveness
+
+Would you like me to suggest controls for any of these?
+```
+
+**Example 2: Control Guidance**
+```
+You: How do I improve the DIME score for my access control?
+
+AI: To improve DIME scores for access controls, focus on:
+
+**Design (D):**
+- Implement role-based access control (RBAC)
+- Use principle of least privilege
+- Document access policies clearly
+
+**Implementation (I):**
+- Ensure all systems enforce access rules
+- Regular access reviews
+- Automated provisioning/deprovisioning
+
+**Monitoring (M):**
+- Log all access attempts
+- Alert on unusual access patterns
+- Regular access reports to management
+
+**Effectiveness (E):**
+- Conduct access audits quarterly
+- Test with penetration testing
+- Review after any security incidents
+
+Start with improving implementation and monitoring for
+quick wins.
+```
+
+#### Tips for Best Results
+
+**Be Specific:**
+- Reference specific risk codes
+- Mention exact concerns
+- Provide context
+
+**Use Natural Language:**
+- Ask questions conversationally
+- No need for special syntax
+- Rephrase if unclear
+
+**Iterate:**
+- Ask follow-up questions
+- Request more detail
+- Explore alternatives
+
+---
+
+### AI Control Suggester
+
+**Purpose**: Get AI recommendations for effective controls to mitigate specific risks.
+
+#### How to Use
+
+1. **Open a risk** for editing in the Risk Register
+2. Scroll to the **Controls section**
+3. Click the **"✨ AI Control Suggester"** button
+
+#### What AI Analyzes
+
+The AI examines:
+- **Risk title and description**
+- **Risk category** (Operational, Financial, etc.)
+- **Likelihood and impact levels**
+- **Your existing controls** (if any)
+- **Industry best practices**
+
+#### AI Recommendations
+
+AI provides:
+
+**Suggested Controls:**
+- **Description**: What the control does
+- **Target**: Whether it reduces Likelihood or Impact
+- **Rationale**: Why this control is effective
+- **Implementation Tips**: How to implement
+
+**Example Output:**
+```
+Risk: Cybersecurity Breach (TECH-011)
+
+Recommended Controls:
+
+1. Multi-Factor Authentication (MFA)
+   Target: Likelihood
+   Rationale: Prevents unauthorized access even if passwords
+   are compromised
+   Implementation: Deploy MFA for all user accounts, starting
+   with admin and privileged users
+
+2. Security Information and Event Management (SIEM)
+   Target: Impact
+   Rationale: Enables rapid detection and response to reduce
+   breach impact
+   Implementation: Implement SIEM solution with 24/7 monitoring
+   and automated alerting
+
+3. Regular Vulnerability Scanning
+   Target: Likelihood
+   Rationale: Identifies and remediates vulnerabilities before
+   exploitation
+   Implementation: Weekly automated scans, monthly manual
+   assessments, patch within 30 days
+```
+
+#### Adding Suggested Controls
+
+1. **Review** each suggested control
+2. **Click "Add Control"** button next to the suggestion
+3. Control is automatically added with:
+   - Description pre-filled
+   - Target (Likelihood/Impact) set
+   - Initial DIME scores (you should review and adjust)
+
+4. **Adjust DIME scores** based on your actual implementation
+
+#### Rating Controls (DIME Framework)
+
+For each control, rate 1-5 on four dimensions:
+
+**Design (D):**
+- How well is the control designed?
+- Does it address the root cause?
+- Is it appropriate for the risk level?
+
+**Implementation (I):**
+- How well is it implemented?
+- Is it fully operational?
+- Are there gaps in coverage?
+
+**Monitoring (M):**
+- How well is it monitored?
+- Are violations detected promptly?
+- Is there regular oversight?
+
+**Effectiveness Evaluation (E):**
+- Overall effectiveness assessment
+- Does it achieve intended results?
+- Evidence of risk reduction?
+
+**Rating Scale:**
+- **5 - Fully Effective**: Control operates as designed, fully implemented
+- **4 - Substantially Effective**: Minor gaps, mostly effective
+- **3 - Moderately Effective**: Some gaps, partially effective
+- **2 - Partially Effective**: Significant gaps, limited effectiveness
+- **1 - Not Effective**: Control not working or not implemented
+
+#### Control Effectiveness Calculation
+
+**For each control:**
+```
+Average DIME = (D + I + M + E) / 4
+```
+
+**Impact on residual risk:**
+```
+If control targets Likelihood:
+  Residual Likelihood = Inherent Likelihood - (Avg DIME / 2)
+
+If control targets Impact:
+  Residual Impact = Inherent Impact - (Avg DIME / 2)
+```
+
+**Multiple controls** compound the effect.
+
+#### Best Practices for Controls
+
+**1. Balance Likelihood and Impact Controls**
+- Don't focus only on one dimension
+- Some risks need both types
+- Consider cost-benefit
+
+**2. Be Honest in DIME Ratings**
+- Accurate ratings drive better decisions
+- Low scores highlight improvement areas
+- Re-rate after enhancements
+
+**3. Document Implementation**
+- Note specific tools/processes used
+- Document monitoring procedures
+- Track effectiveness evidence
+
+**4. Regular Review**
+- Review DIME scores quarterly
+- Update after control changes
+- Re-run AI suggestions if risk changes
 
 ---
 
@@ -881,30 +1628,146 @@ When exporting data (future feature):
 
 ---
 
-**Version**: 3.0
-**Last Updated**: October 2025
+**Version**: 4.0
+**Last Updated**: October 26, 2025
 **For**: MinRisk Application
 
 ---
 
-## What's New in Version 3.0
+## What's New in Version 4.0
 
-### Phase 3B - Period Management (October 2025)
-- ✨ **Historical Risk Management**: New History tab for viewing past risk snapshots
-- ✨ **Copy to New Period**: Quickly copy risks from previous periods
-- ✨ **Smart Duplicate Handling**: Auto-generates unique codes when copying
-- ✨ **Tab-Based Filtering**: Cleaner UX with filters in each tab
-- ✨ **Heatmap Search**: Search risks directly in heatmap view
-- ✨ **Period Display**: See period when editing risks
-- ✨ **Organization Config**: Fixed RLS so all users see same dropdowns
+### 🎯 Major Release - Enterprise Risk Management & AI Enhancement
 
-### Previous Updates
-- **Phase 2D**: Admin role management improvements
-- **Phase 2C**: Toast notification system
-- **Phase 2B**: Enhanced audit trail with CSV export
-- **Phase 2A**: Time period tracking and filtering
-- **Phase 1**: Core risk management system
+Version 4.0 represents a significant evolution of MinRisk, adding comprehensive incident management, advanced analytics, and powerful AI capabilities.
 
 ---
 
-*This manual covers the current implementation.*
+### Phase 1 - Incidents Module ✨ NEW
+
+**Comprehensive Incident Tracking & Management**
+
+- ✨ **Full Incident Lifecycle Management**: Record, investigate, resolve, and close incidents
+- ✨ **AI-Powered Risk Linking**: Automatically suggest which risks relate to each incident
+- ✨ **Control Adequacy Assessment**: AI evaluates if your controls are sufficient after incidents
+- ✨ **Financial Impact Tracking**: Monitor monetary losses from incidents
+- ✨ **Incident Analytics**: Real-time statistics and trends
+- ✨ **Root Cause Analysis**: Document investigation findings
+- ✨ **Corrective Actions Tracking**: Record remediation steps
+- ✨ **Advanced Search & Filtering**: Find incidents by status, type, severity
+- ✨ **CSV Export**: Export incident data for reporting
+
+**Database enhancements:**
+- New `incidents` table with full audit trail
+- Automatic incident count synchronization to risks
+- Real-time risk-incident relationship tracking
+
+---
+
+### Phase 2 - AI Features ✨ ENHANCED
+
+**Powered by Claude AI & Google Gemini**
+
+#### 1. AI Risk Generator
+- **Context-aware risk generation**: Provide industry and business context
+- **Intelligent categorization**: Auto-assigns categories and severity
+- **Batch generation**: Generate 1-10 risks at once
+- **Sequential risk codes**: Automatically assigns AI-001, AI-002, etc.
+- **One-click save**: Add generated risks directly to your register
+
+#### 2. AI Chat Assistant
+- **Conversational interface**: Ask questions in natural language
+- **Context-aware**: Understands your current view and filters
+- **Risk analysis**: Get insights about your risk profile
+- **Control recommendations**: Ask for specific control guidance
+- **Best practices**: Get advice on risk management processes
+- **Reporting help**: Assistance with executive presentations
+
+#### 3. AI Control Suggester
+- **Risk-specific recommendations**: Tailored to each risk's profile
+- **Likelihood & Impact targeting**: Controls for both dimensions
+- **Implementation guidance**: Practical tips for deploying controls
+- **DIME framework support**: Helps structure control assessments
+- **Industry best practices**: Suggests proven control methodologies
+
+---
+
+### Interactive Analytics Dashboard ✨ NEW
+
+**Executive-Level Risk Intelligence**
+
+#### Visual Analytics
+- ✨ **Executive Metrics**: 10 real-time KPIs at a glance
+- ✨ **Risk Distribution by Severity**: Interactive bar chart with drill-down
+- ✨ **Risk Distribution by Category**: Clickable chart by risk type
+- ✨ **Risk Distribution by Division**: Business unit risk comparison
+- ✨ **Risk Category Positioning Map**: Interactive heatmap-style grid
+- ✨ **Trend Analysis**: Period-over-period risk profile changes
+- ✨ **Control Effectiveness Analysis**: DIME score distribution and gaps
+
+#### Interactive Features
+- **Click any chart** to drill down to filtered risk details
+- **View complete risk information** in modal dialogs
+- **Navigate back** with intuitive breadcrumb trails
+- **Period filtering** for historical analysis
+- **Export capabilities** for reporting
+
+#### Use Cases
+- **Board presentations**: Visual risk landscape overview
+- **Executive dashboards**: Real-time metrics and KPIs
+- **Risk committee meetings**: Category and division analysis
+- **Audit support**: Control effectiveness demonstration
+- **Compliance reporting**: Risk coverage and trends
+
+---
+
+### Additional Enhancements
+
+**User Experience:**
+- 🎨 **Improved navigation**: Clearer tab structure
+- 🎨 **Better filtering**: Tab-specific filter sections
+- 🎨 **Enhanced modals**: Richer detail views
+- 🎨 **Color-coded badges**: Instant severity recognition
+
+**Performance:**
+- ⚡ **Optimized queries**: Faster data loading
+- ⚡ **Indexed searches**: Quicker filtering
+- ⚡ **Reduced bundle size**: Faster initial load
+
+**Security:**
+- 🔒 **Enhanced RLS policies**: Stricter data isolation
+- 🔒 **AI audit logging**: Track all AI operations
+- 🔒 **Incident access control**: Role-based permissions
+
+---
+
+### Version History
+
+**Version 4.0 (October 26, 2025)** - Current Release
+- Incidents Module with AI-powered risk linking
+- Interactive Analytics Dashboard
+- AI Risk Generator, Chat Assistant, Control Suggester
+- Production deployment ready
+
+**Version 3.0 (October 2025)**
+- Historical Risk Management with History tab
+- Copy to New Period functionality
+- Tab-based filtering improvements
+- Period display in risk editing
+
+**Version 2.0 (September 2025)**
+- Time period tracking and filtering
+- Enhanced audit trail with CSV export
+- Toast notification system
+- Admin role management improvements
+
+**Version 1.0 (August 2025)**
+- Core risk management system
+- Risk Register with CRUD operations
+- Heatmap visualizations
+- Control Register with DIME framework
+- User authentication and authorization
+- Admin dashboard
+
+---
+
+*This manual covers the current implementation. For technical documentation, see IMPLEMENTATION-STATUS.md and ERM-IMPLEMENTATION-PROGRESS.md.*
