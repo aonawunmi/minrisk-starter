@@ -123,9 +123,9 @@ export default function HelpTab() {
       {/* Version Info */}
       <Card>
         <CardContent className="pt-6 text-center text-sm text-gray-500">
-          <p>MinRisk User Manual - Version 1.1</p>
-          <p>Last Updated: January 2025</p>
-          <p className="mt-2 text-xs">✨ Now powered by Claude AI</p>
+          <p>MinRisk User Manual - Version 4.0</p>
+          <p>Last Updated: October 26, 2025</p>
+          <p className="mt-2 text-xs">✨ Now with Incidents, Analytics & Enhanced AI</p>
         </CardContent>
       </Card>
     </div>
@@ -273,104 +273,284 @@ const sections = [
     `,
   },
   {
-    id: 'ai-assistant',
-    title: 'AI Assistant (Powered by Claude AI)',
+    id: 'incidents-module',
+    title: 'Incidents Module ✨ NEW',
+    icon: '🚨',
+    content: `
+      <h3>About Incidents</h3>
+      <p>Track operational incidents, link them to risks, and assess control adequacy using AI.</p>
+
+      <h3>Recording an Incident</h3>
+      <ol>
+        <li>Navigate to <strong>Incidents</strong> tab</li>
+        <li>Click <strong>"Report Incident"</strong> button</li>
+        <li>Fill in incident details:
+          <ul>
+            <li><strong>Title & Description:</strong> What happened</li>
+            <li><strong>Incident Date:</strong> When it occurred</li>
+            <li><strong>Type:</strong> Loss Event, Near Miss, Control Failure, Breach, Other</li>
+            <li><strong>Severity:</strong> 1-5 scale (1=Minimal, 5=Critical)</li>
+            <li><strong>Financial Impact:</strong> Monetary loss amount</li>
+            <li><strong>Status:</strong> Reported → Under Investigation → Resolved → Closed</li>
+            <li><strong>Root Cause:</strong> Analysis of what caused it</li>
+            <li><strong>Corrective Actions:</strong> Steps taken to prevent recurrence</li>
+          </ul>
+        </li>
+        <li>Click <strong>"Save Incident"</strong></li>
+      </ol>
+
+      <h3>AI-Powered Risk Linking</h3>
+      <ol>
+        <li>Click <strong>"View Details"</strong> (eye icon) on any incident</li>
+        <li>Go to <strong>"Risk Linking"</strong> tab</li>
+        <li>Click <strong>"Suggest Risks with AI"</strong></li>
+        <li>AI analyzes the incident and suggests related risks with confidence scores</li>
+        <li>Click <strong>"Link"</strong> to connect incident to risk</li>
+        <li>Or use search bar to manually link risks</li>
+      </ol>
+
+      <h3>AI Control Adequacy Assessment</h3>
+      <ol>
+        <li>After linking risks, go to <strong>"Control Assessment"</strong> tab</li>
+        <li>Click <strong>"Assess Control Adequacy"</strong></li>
+        <li>AI evaluates:
+          <ul>
+            <li><strong>Overall Adequacy Score:</strong> 0-100 (80+ = adequate)</li>
+            <li><strong>Assessment Details:</strong> What's working, what's not</li>
+            <li><strong>Recommendations:</strong> Specific improvements needed</li>
+            <li><strong>Priority Level:</strong> Critical / High / Medium / Low</li>
+          </ul>
+        </li>
+        <li>Use recommendations to improve controls in Risk Register</li>
+      </ol>
+
+      <h3>Incident Statistics</h3>
+      <p>View real-time metrics at top of Incidents tab:</p>
+      <ul>
+        <li><strong>Total Incidents:</strong> Count of all incidents</li>
+        <li><strong>Open:</strong> Reported or Under Investigation</li>
+        <li><strong>High Severity:</strong> Incidents rated 4 or 5</li>
+        <li><strong>Financial Impact:</strong> Total monetary losses</li>
+      </ul>
+
+      <h3>Filtering & Export</h3>
+      <ul>
+        <li>Search across all incident fields</li>
+        <li>Filter by Status, Type, Severity</li>
+        <li>Click <strong>"Export CSV"</strong> for reporting</li>
+      </ul>
+    `,
+  },
+  {
+    id: 'analytics-dashboard',
+    title: 'Analytics Dashboard ✨ NEW',
+    icon: '📊',
+    content: `
+      <h3>About Analytics</h3>
+      <p>Interactive visualizations and executive metrics for risk oversight and decision-making.</p>
+
+      <h3>Accessing Analytics</h3>
+      <p>Navigate to <strong>Analytics</strong> tab in main navigation.</p>
+
+      <h3>Executive Metrics (Top Row)</h3>
+      <p>10 real-time KPIs at a glance:</p>
+      <ul>
+        <li><strong>Total Risks:</strong> Count of all active risks</li>
+        <li><strong>Critical Risks:</strong> Residual score ≥ 20</li>
+        <li><strong>High Risks:</strong> Residual score 12-19</li>
+        <li><strong>Avg Inherent/Residual Scores:</strong> Before/after controls</li>
+        <li><strong>Control Effectiveness:</strong> % reduction from controls</li>
+        <li><strong>Incident Metrics:</strong> Total, open, high severity, financial impact</li>
+      </ul>
+
+      <h3>Interactive Charts</h3>
+      <p>All charts are clickable for drill-down analysis:</p>
+
+      <h4>Risk Distribution by Severity:</h4>
+      <ul>
+        <li><strong>Click any bar</strong> → See all risks in that severity level</li>
+        <li>Color-coded: Red (Severe), Orange (High), Yellow (Moderate), Green (Low/Minimal)</li>
+        <li>Modal shows complete risk details with controls</li>
+      </ul>
+
+      <h4>Risk Distribution by Category:</h4>
+      <ul>
+        <li>Operational, Financial, Strategic, Compliance, etc.</li>
+        <li>Click bars to filter and view risks by category</li>
+      </ul>
+
+      <h4>Risk Distribution by Division:</h4>
+      <ul>
+        <li>Compare risk profiles across business units</li>
+        <li>Click to see division-specific risks</li>
+      </ul>
+
+      <h4>Risk Category Positioning Map:</h4>
+      <ul>
+        <li>Interactive heatmap-style grid</li>
+        <li><strong>Click any cell</strong> → See count badge</li>
+        <li><strong>Click count</strong> → View all risks in that cell</li>
+        <li>Navigate back with breadcrumb trail</li>
+        <li>Color-coded by severity for quick assessment</li>
+      </ul>
+
+      <h3>Trend Analysis</h3>
+      <ul>
+        <li>Period-over-period risk profile changes</li>
+        <li>Track risk counts and scores over time</li>
+        <li>Severity distribution trends</li>
+      </ul>
+
+      <h3>Control Effectiveness Analysis</h3>
+      <ul>
+        <li>DIME score distribution across all controls</li>
+        <li>Low-performing controls table (scores < 2.0)</li>
+        <li>Identify gaps and prioritize improvements</li>
+      </ul>
+
+      <h3>Period Filtering</h3>
+      <ul>
+        <li>Multi-select periods (Q1 2025, FY2025, etc.)</li>
+        <li>All charts update automatically</li>
+        <li>Historical data analysis</li>
+      </ul>
+
+      <h3>Use Cases</h3>
+      <ul>
+        <li><strong>Board Presentations:</strong> Show Risk Category Positioning Map</li>
+        <li><strong>Executive Dashboards:</strong> Use Executive Metrics</li>
+        <li><strong>Risk Committee:</strong> Review distribution charts</li>
+        <li><strong>Audit Support:</strong> Control Effectiveness Analysis</li>
+      </ul>
+    `,
+  },
+  {
+    id: 'ai-features',
+    title: 'AI Features (Claude & Gemini) ✨ ENHANCED',
     icon: '🤖',
     content: `
-      <h3>AI Assistant Features</h3>
-      <p>MinRisk now uses <strong>Claude AI by Anthropic</strong> to provide intelligent assistance throughout your risk management workflow.</p>
-
-      <h3>1. Floating AI Chat Assistant</h3>
-      <p>Access general risk management help anytime:</p>
+      <h3>Overview</h3>
+      <p>MinRisk includes three powerful AI features powered by <strong>Claude AI & Google Gemini</strong>:</p>
       <ol>
-        <li>Click the <strong>"Ask AI"</strong> button (bottom right corner with sparkle icon)</li>
-        <li>Ask questions like:
-          <ul>
-            <li>"How do I assess inherent risk likelihood?"</li>
-            <li>"What's the difference between likelihood and impact controls?"</li>
-            <li>"How should I prioritize residual risks?"</li>
-            <li>"Explain the DIME control scoring framework"</li>
-          </ul>
-        </li>
-        <li>Get instant, context-aware responses</li>
-        <li>Continue the conversation with follow-up questions</li>
+        <li><strong>AI Risk Generator</strong> - Generate context-specific risks</li>
+        <li><strong>AI Chat Assistant</strong> - Conversational help and guidance</li>
+        <li><strong>AI Control Suggester</strong> - Get control recommendations</li>
       </ol>
 
-      <h3>2. AI-Powered Risk Creation</h3>
-      <p>Use AI to help draft professional risk statements:</p>
+      <h3>1. AI Risk Generator</h3>
+      <p><strong>Purpose:</strong> Quickly generate relevant risks based on your industry and business context.</p>
+
+      <h4>How to Use:</h4>
       <ol>
-        <li>Click <strong>"Add Risk"</strong> button</li>
-        <li>In the dialog, click <strong>"Suggest Risk Details"</strong> button (top section)</li>
-        <li>Describe your risk scenario, for example:
+        <li>Go to <strong>Risk Register</strong> tab</li>
+        <li>Look for <strong>"AI Risk Generator"</strong> card at top</li>
+        <li>Click <strong>"Generate Risks"</strong> button</li>
+        <li>Fill in context:
           <ul>
-            <li>"data breach due to weak passwords"</li>
-            <li>"operational failure in trading platform"</li>
-            <li>"supplier disruption affecting production"</li>
+            <li><strong>Industry/Sector</strong> (required): Banking, Insurance, Healthcare, etc.</li>
+            <li><strong>Business Unit</strong> (optional): Trading Desk, IT Operations, etc.</li>
+            <li><strong>Risk Category</strong> (optional): Focus on specific category</li>
+            <li><strong>Number of Risks</strong>: 1-10 (default: 5)</li>
+            <li><strong>Additional Context</strong>: Specific concerns or projects</li>
           </ul>
         </li>
-        <li>AI generates:
-          <ul>
-            <li><strong>Professional risk title</strong> (concise, 10 words max)</li>
-            <li><strong>Detailed risk description</strong> (2-3 sentences covering causes and consequences)</li>
-          </ul>
-        </li>
-        <li>Review and edit as needed before saving</li>
+        <li>Click <strong>"Generate Risks"</strong></li>
+        <li>Review AI-generated risks (title, description, category, severity)</li>
+        <li>Check boxes next to risks you want</li>
+        <li>Click <strong>"Save Selected"</strong></li>
+        <li>Risks added with codes AI-001, AI-002, etc.</li>
       </ol>
 
-      <h3>3. AI-Generated Control Measures</h3>
-      <p>Get intelligent control suggestions for your risks:</p>
-      <ol>
-        <li>In the Add/Edit Risk dialog, fill in <strong>risk title</strong> and <strong>description</strong></li>
-        <li>Scroll to the <strong>Controls</strong> section</li>
-        <li>Click <strong>"Suggest Controls"</strong> button</li>
-        <li>AI analyzes your risk and generates <strong>3 relevant control measures</strong>:
-          <ul>
-            <li>Mix of Likelihood and Impact controls</li>
-            <li>Specific, actionable descriptions</li>
-            <li>Default DIME scores (Design, Implementation, Monitoring, Effectiveness = 2)</li>
-          </ul>
-        </li>
-        <li>Review, adjust DIME scores, and edit descriptions as needed</li>
-        <li>Add more controls manually if required</li>
-      </ol>
-
-      <h3>4. Bulk Risk Generation (AI Assistant Tab)</h3>
-      <ol>
-        <li>Navigate to <strong>AI Assistant</strong> tab</li>
-        <li>Describe your project/process:
-          <ul>
-            <li>Type of business/project</li>
-            <li>Key activities</li>
-            <li>Technologies used</li>
-            <li>Stakeholders</li>
-          </ul>
-        </li>
-        <li>Click <strong>"Generate Risk Suggestions"</strong></li>
-        <li>Review AI-generated risks</li>
-        <li>Select risks you want to add (checkboxes)</li>
-        <li>Fill in Category and Division for each</li>
-        <li>Click <strong>"Add Selected to Register"</strong></li>
-        <li>Edit risks to add risk codes, scores, and controls</li>
-      </ol>
-
-      <h3>Tips for Better AI Results</h3>
+      <h4>Tips:</h4>
       <ul>
-        <li><strong>Be specific and detailed</strong> - More context = better suggestions</li>
-        <li><strong>Include industry context</strong> - Mention your sector, regulations, compliance requirements</li>
-        <li><strong>Describe the scenario</strong> - What could go wrong? What are you trying to protect?</li>
-        <li><strong>Iterate and refine</strong> - Try rephrasing if results aren't useful</li>
-        <li><strong>Use natural language</strong> - Talk to Claude like you would to a risk management consultant</li>
+        <li><strong>Be specific:</strong> "Cloud SaaS platform for healthcare" vs "Software"</li>
+        <li><strong>Mention technologies:</strong> AWS, Azure, specific tools</li>
+        <li><strong>Note regulations:</strong> GDPR, HIPAA, SOX, etc.</li>
+        <li><strong>Describe challenges:</strong> Recent incidents, concerns</li>
       </ul>
 
-      <h3>About Claude AI</h3>
-      <p>MinRisk uses <strong>Claude 3.5 Haiku</strong> by Anthropic, a cost-efficient AI model optimized for:</p>
+      <h3>2. AI Chat Assistant</h3>
+      <p><strong>Purpose:</strong> Get conversational help with risk management tasks.</p>
+
+      <h4>How to Use:</h4>
+      <ol>
+        <li>Look for <strong>floating chat icon</strong> (bottom-right corner)</li>
+        <li>Click to open AI Chat Assistant</li>
+        <li>Ask questions in natural language</li>
+        <li>Get instant responses</li>
+        <li>Continue conversation with follow-ups</li>
+      </ol>
+
+      <h4>What You Can Ask:</h4>
       <ul>
-        <li>Fast response times</li>
-        <li>Accurate risk analysis</li>
-        <li>Context-aware suggestions</li>
-        <li>Professional business writing</li>
+        <li><strong>Risk Analysis:</strong> "What are my highest severity risks?"</li>
+        <li><strong>Control Recommendations:</strong> "Suggest controls for risk OPS-001"</li>
+        <li><strong>Best Practices:</strong> "How should I structure my risk register?"</li>
+        <li><strong>Incident Response:</strong> "Help me write root cause analysis"</li>
+        <li><strong>Reporting:</strong> "How do I present risks to executives?"</li>
       </ul>
-      <p><strong>Note:</strong> All AI suggestions should be reviewed by risk management professionals before use.</p>
+
+      <h4>Features:</h4>
+      <ul>
+        <li><strong>Context-aware:</strong> Understands your current view</li>
+        <li><strong>Interactive:</strong> Ask follow-up questions</li>
+        <li><strong>Actionable:</strong> Get specific recommendations</li>
+      </ul>
+
+      <h3>3. AI Control Suggester</h3>
+      <p><strong>Purpose:</strong> Get AI recommendations for effective controls to mitigate risks.</p>
+
+      <h4>How to Use:</h4>
+      <ol>
+        <li>Open a risk for editing in Risk Register</li>
+        <li>Scroll to <strong>Controls</strong> section</li>
+        <li>Click <strong>"✨ AI Control Suggester"</strong> button</li>
+        <li>AI analyzes:
+          <ul>
+            <li>Risk title and description</li>
+            <li>Risk category and severity</li>
+            <li>Your existing controls</li>
+            <li>Industry best practices</li>
+          </ul>
+        </li>
+        <li>Review suggested controls:
+          <ul>
+            <li><strong>Description:</strong> What the control does</li>
+            <li><strong>Target:</strong> Likelihood or Impact</li>
+            <li><strong>Rationale:</strong> Why it's effective</li>
+            <li><strong>Implementation Tips:</strong> How to implement</li>
+          </ul>
+        </li>
+        <li>Click <strong>"Add Control"</strong> for each suggestion</li>
+        <li>Adjust DIME scores based on your implementation</li>
+      </ol>
+
+      <h4>Control Ratings (DIME):</h4>
+      <ul>
+        <li><strong>Design (D):</strong> How well designed?</li>
+        <li><strong>Implementation (I):</strong> How well implemented?</li>
+        <li><strong>Monitoring (M):</strong> How well monitored?</li>
+        <li><strong>Effectiveness (E):</strong> Overall evaluation?</li>
+      </ul>
+      <p>Rate each 1-5: 1=Not Effective, 2=Partially, 3=Moderately, 4=Substantially, 5=Fully</p>
+
+      <h3>AI Models Used</h3>
+      <ul>
+        <li><strong>Google Gemini 1.5 Flash:</strong> Fast, cost-efficient for all features</li>
+        <li><strong>Claude AI compatibility:</strong> Future integration planned</li>
+        <li><strong>Optimized prompts:</strong> Specifically tuned for risk management</li>
+      </ul>
+
+      <h3>Best Practices</h3>
+      <ul>
+        <li><strong>Review all suggestions:</strong> AI is a starting point, not final answer</li>
+        <li><strong>Customize for your org:</strong> Adapt to your specific context</li>
+        <li><strong>Be specific in prompts:</strong> More context = better results</li>
+        <li><strong>Iterate:</strong> Rephrase if results aren't useful</li>
+        <li><strong>Professional review:</strong> Have risk experts validate AI output</li>
+      </ul>
+
+      <p><strong>⚠️ Important:</strong> All AI suggestions should be reviewed by qualified risk management professionals before implementation.</p>
     `,
   },
   {
