@@ -26,12 +26,17 @@ import {
   Loader2,
   Plus,
   Trash2,
+  Save,
+  History,
 } from 'lucide-react';
 import { type Incident, linkIncidentToRisks, unlinkIncidentFromRisk, deleteIncident } from '@/lib/incidents';
 import { loadRisks } from '@/lib/database';
 import { type RiskRow } from '@/App';
 import { suggestRisksForIncident, type IncidentRiskSuggestion, assessControlAdequacy, type ControlAdequacyAssessment } from '@/lib/ai';
 import { IncidentForm } from './IncidentForm';
+import { EnhancementPlanHistory } from './EnhancementPlanHistory';
+import { EnhancementPlanReviewDialog } from './EnhancementPlanReviewDialog';
+import { type ControlEnhancementPlan, saveEnhancementPlan, type CreateEnhancementPlanInput } from '@/lib/controlEnhancements';
 
 // =====================================================
 // TYPES
@@ -115,6 +120,12 @@ export function IncidentDetailDialog({ incident, open, onClose, onUpdate, onRisk
   // AI control assessment state
   const [controlAssessment, setControlAssessment] = useState<ControlAdequacyAssessment | null>(null);
   const [isLoadingAssessment, setIsLoadingAssessment] = useState(false);
+
+  // Enhancement plan state
+  const [selectedPlan, setSelectedPlan] = useState<ControlEnhancementPlan | null>(null);
+  const [showPlanReview, setShowPlanReview] = useState(false);
+  const [isSavingPlan, setIsSavingPlan] = useState(false);
+  const [planHistoryKey, setPlanHistoryKey] = useState(0); // For refreshing history
 
   // Load risks
   useEffect(() => {
@@ -302,6 +313,52 @@ export function IncidentDetailDialog({ incident, open, onClose, onUpdate, onRisk
     }
   };
 
+  // Save assessment as enhancement plan
+  const handleSaveAssessment = async () => {
+    if (!controlAssessment) {
+      alert('No assessment to save. Please run the control assessment first.');
+      return;
+    }
+
+    setIsSavingPlan(true);
+    try {
+      // Map the assessment to enhancement plan format
+      const planData: CreateEnhancementPlanInput = {
+        incident_id: incident.id,
+        overall_adequacy_score: controlAssessment.adequacy_score || 5,
+        findings: controlAssessment.key_findings || [],
+        recommendations: controlAssessment.control_improvements.map(imp => ({
+          type: 'improvement' as const,
+          description: imp.suggestion,
+          priority: imp.priority?.toLowerCase() as 'high' | 'medium' | 'low' || 'medium',
+          risk_code: imp.risk_code,
+        })),
+        linked_risks_snapshot: linkedRisks.map(risk => ({
+          risk_code: risk.risk_code,
+          risk_title: risk.risk_title,
+          category: risk.category,
+          likelihood_inherent: risk.likelihood_inherent,
+          impact_inherent: risk.impact_inherent,
+        })),
+      };
+
+      const { data, error } = await saveEnhancementPlan(planData);
+
+      if (error || !data) {
+        throw new Error(error || 'Failed to save plan');
+      }
+
+      alert('Assessment saved successfully! You can review it in the Enhancement Plans tab.');
+      setPlanHistoryKey(prev => prev + 1); // Refresh history
+      setActiveTab('plans'); // Switch to plans tab
+    } catch (error: any) {
+      alert(`Failed to save assessment: ${error.message}`);
+      console.error(error);
+    } finally {
+      setIsSavingPlan(false);
+    }
+  };
+
   // Filter available risks (not already linked)
   const availableRisks = allRisks.filter(r => {
     const isNotLinked = !incident.linked_risk_codes.includes(r.risk_code);
@@ -398,6 +455,10 @@ export function IncidentDetailDialog({ incident, open, onClose, onUpdate, onRisk
             <TabsTrigger value="ai">
               <Sparkles className="h-4 w-4 mr-2" />
               Control Assessment
+            </TabsTrigger>
+            <TabsTrigger value="plans">
+              <History className="h-4 w-4 mr-2" />
+              Enhancement Plans
             </TabsTrigger>
           </TabsList>
 
@@ -750,25 +811,47 @@ export function IncidentDetailDialog({ incident, open, onClose, onUpdate, onRisk
                   Analyze if existing controls were adequate to prevent this incident
                 </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleGetControlAssessment}
-                disabled={isLoadingAssessment || linkedRisks.length === 0}
-                className="flex items-center gap-2"
-              >
-                {isLoadingAssessment ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    Assess Controls
-                  </>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGetControlAssessment}
+                  disabled={isLoadingAssessment || linkedRisks.length === 0}
+                  className="flex items-center gap-2"
+                >
+                  {isLoadingAssessment ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Assess Controls
+                    </>
+                  )}
+                </Button>
+                {controlAssessment && (
+                  <Button
+                    size="sm"
+                    onClick={handleSaveAssessment}
+                    disabled={isSavingPlan}
+                    className="flex items-center gap-2"
+                  >
+                    {isSavingPlan ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4" />
+                        Save Assessment
+                      </>
+                    )}
+                  </Button>
                 )}
-              </Button>
+              </div>
             </div>
 
             {linkedRisks.length === 0 && (
@@ -897,7 +980,32 @@ export function IncidentDetailDialog({ incident, open, onClose, onUpdate, onRisk
               </div>
             )}
           </TabsContent>
+
+          {/* Enhancement Plans Tab */}
+          <TabsContent value="plans" className="flex-1 overflow-y-auto mt-4">
+            <EnhancementPlanHistory
+              key={planHistoryKey}
+              incidentId={incident.id}
+              onSelectPlan={plan => {
+                setSelectedPlan(plan);
+                setShowPlanReview(true);
+              }}
+            />
+          </TabsContent>
         </Tabs>
+
+        {/* Enhancement Plan Review Dialog */}
+        <EnhancementPlanReviewDialog
+          plan={selectedPlan}
+          open={showPlanReview}
+          onClose={() => {
+            setShowPlanReview(false);
+            setSelectedPlan(null);
+          }}
+          onUpdate={() => {
+            setPlanHistoryKey(prev => prev + 1); // Refresh history
+          }}
+        />
       </DialogContent>
     </Dialog>
   );

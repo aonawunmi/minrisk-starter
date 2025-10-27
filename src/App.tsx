@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Upload, Plus, Search, RefreshCw, Settings, Table, Pencil, Trash2, ChevronsUpDown, FileUp, AlertTriangle, ArrowUpDown, Sparkles, Calendar, Archive, Download, ArrowRight } from "lucide-react";
+import { Upload, Plus, Search, RefreshCw, Settings, Table, Pencil, Trash2, ChevronsUpDown, FileUp, AlertTriangle, ArrowUpDown, Sparkles, Calendar, Archive, Download, ArrowRight, Brain } from "lucide-react";
 import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
 import html2canvas from 'html2canvas';
@@ -26,6 +26,7 @@ import { AIRiskGenerator } from "@/components/AIRiskGenerator";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 // Lazy load incidents to avoid blocking app startup
 const IncidentLogTab = React.lazy(() => import("@/components/incidents/IncidentLogTab").then(m => ({ default: m.IncidentLogTab })));
+import { IntelligenceDashboard } from "@/components/intelligence/IntelligenceDashboard";
 import { loadRisks, createRisk, updateRisk, deleteRisk, loadConfig, saveConfig as saveConfigToDb } from '@/lib/database';
 import { loadIncidents, type Incident } from '@/lib/incidents';
 
@@ -803,7 +804,21 @@ export default function MinRiskLatest() {
 
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="mb-4"><TabsTrigger value="register">Risk Register</TabsTrigger><TabsTrigger value="control_register">Control Register</TabsTrigger><TabsTrigger value="heatmap">Heat Map</TabsTrigger><TabsTrigger value="analytics">📊 Analytics</TabsTrigger><TabsTrigger value="risk_report">📋 Risk Report</TabsTrigger><TabsTrigger value="var_sandbox">📈 VaR Sandbox</TabsTrigger><TabsTrigger value="incidents">🚨 Incidents</TabsTrigger><TabsTrigger value="history">📜 History</TabsTrigger><TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger>{canEdit && <TabsTrigger value="import_risks">Risk Import</TabsTrigger>}{canEdit && <TabsTrigger value="import_controls">Control Import</TabsTrigger>}{isAdmin && <TabsTrigger value="admin">👥 Admin</TabsTrigger>}</TabsList>
+            <TabsList className="mb-4">
+                <TabsTrigger value="register">Risk Register</TabsTrigger>
+                <TabsTrigger value="control_register">Control Register</TabsTrigger>
+                <TabsTrigger value="heatmap">Heat Map</TabsTrigger>
+                <TabsTrigger value="analytics">📊 Analytics</TabsTrigger>
+                <TabsTrigger value="risk_report">📋 Risk Report</TabsTrigger>
+                <TabsTrigger value="var_sandbox">📈 VaR Sandbox</TabsTrigger>
+                <TabsTrigger value="incidents">🚨 Incidents</TabsTrigger>
+                <TabsTrigger value="intelligence">🧠 Intelligence</TabsTrigger>
+                <TabsTrigger value="history">📜 History</TabsTrigger>
+                <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger>
+                {canEdit && <TabsTrigger value="import_risks">Risk Import</TabsTrigger>}
+                {canEdit && <TabsTrigger value="import_controls">Control Import</TabsTrigger>}
+                {isAdmin && <TabsTrigger value="admin">👥 Admin</TabsTrigger>}
+            </TabsList>
 
             <TabsContent value="register"><RiskRegisterTab sortedData={sortedData} rowCount={filtered.length} requestSort={requestSort} onAdd={add} onEdit={setEditingRisk} onRemove={remove} config={config} rows={filtered} allRows={rows} priorityRisks={priorityRisks} setPriorityRisks={setPriorityRisks} canEdit={canEdit} filters={filters} setFilters={setFilters} isAdmin={isAdmin} /></TabsContent>
             <TabsContent value="control_register"><ControlRegisterTab allRisks={filtered} priorityRisks={priorityRisks} canEdit={canEdit} /></TabsContent>
@@ -815,6 +830,9 @@ export default function MinRiskLatest() {
                 <React.Suspense fallback={<div className="flex items-center justify-center p-8"><div className="h-8 w-8 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin" /></div>}>
                     <IncidentLogTab onRisksUpdate={loadRisksFromDB} isAdmin={isAdmin} />
                 </React.Suspense>
+            </TabsContent>
+            <TabsContent value="intelligence">
+                <IntelligenceDashboard />
             </TabsContent>
             <TabsContent value="history"><RiskHistoryTab config={config} showToast={showToast} isAdmin={isAdmin} /></TabsContent>
             <TabsContent value="ai_assistant"><AIRiskGenerator onRisksGenerated={loadRisksFromDB} /></TabsContent>
