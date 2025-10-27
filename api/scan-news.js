@@ -30,8 +30,8 @@ const NEWS_SOURCES = [
   { name: 'UN Environment', url: 'https://www.unep.org/news-and-stories/rss.xml', category: 'environmental', country: 'Global' },
 ];
 
-// Risk-related keywords
-const RISK_KEYWORDS = [
+// Default risk-related keywords (fallback if database query fails)
+const DEFAULT_RISK_KEYWORDS = [
   'risk', 'threat', 'vulnerability', 'breach', 'attack', 'fraud',
   'compliance', 'regulation', 'penalty', 'fine', 'sanction',
   'cybersecurity', 'data breach', 'ransomware', 'phishing',
@@ -42,6 +42,54 @@ const RISK_KEYWORDS = [
   'reputation', 'scandal', 'investigation',
   'audit', 'control', 'governance',
 ];
+
+/**
+ * Load active news sources from database
+ */
+async function loadNewsSources() {
+  try {
+    const { data, error } = await supabase
+      .from('news_sources')
+      .select('name, url, category, country')
+      .eq('is_active', true)
+      .order('name');
+
+    if (error) throw error;
+
+    // Convert to scanner format
+    return data.map(source => ({
+      name: source.name,
+      url: source.url,
+      category: source.category,
+      country: source.country
+    }));
+  } catch (error) {
+    console.error('Error loading news sources from database:', error);
+    // Return default sources as fallback
+    return NEWS_SOURCES;
+  }
+}
+
+/**
+ * Load active risk keywords from database
+ */
+async function loadRiskKeywords() {
+  try {
+    const { data, error } = await supabase
+      .from('risk_keywords')
+      .select('keyword')
+      .eq('is_active', true);
+
+    if (error) throw error;
+
+    const keywords = data.map(k => k.keyword);
+    return keywords.length > 0 ? keywords : DEFAULT_RISK_KEYWORDS;
+  } catch (error) {
+    console.error('Error loading risk keywords from database:', error);
+    // Return default keywords as fallback
+    return DEFAULT_RISK_KEYWORDS;
+  }
+}
 
 /**
  * Parse a single RSS feed
@@ -76,9 +124,9 @@ async function parseSingleFeed(source) {
 /**
  * Extract risk-related keywords from text
  */
-function extractKeywords(text) {
+function extractKeywords(text, keywords) {
   const lowerText = text.toLowerCase();
-  return RISK_KEYWORDS.filter(keyword => lowerText.includes(keyword));
+  return keywords.filter(keyword => lowerText.includes(keyword.toLowerCase()));
 }
 
 /**
@@ -99,15 +147,20 @@ function categorizeEvent(title, description) {
 /**
  * Store events in database and return detailed results
  */
-async function storeEvents(parsedFeeds) {
+async function storeEvents(parsedFeeds, maxAgeDays = 7, riskKeywords) {
   let stored = 0;
   const storedEvents = [];
   const allItems = []; // Track all items with their status
 
+  // Calculate cutoff date (only process news from last N days)
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - maxAgeDays);
+
   for (const feedData of parsedFeeds.events) {
     for (const item of feedData.items) {
-      const keywords = extractKeywords(item.title + ' ' + item.description);
+      const keywords = extractKeywords(item.title + ' ' + item.description, riskKeywords);
       const category = categorizeEvent(item.title, item.description);
+      const publishedDate = new Date(item.pubDate);
 
       const itemDetail = {
         title: item.title,
@@ -122,6 +175,14 @@ async function storeEvents(parsedFeeds) {
         status: 'pending',
         reason: null
       };
+
+      // Check if news is too old
+      if (publishedDate < cutoffDate) {
+        itemDetail.status = 'filtered';
+        itemDetail.reason = `Too old (published ${Math.floor((Date.now() - publishedDate.getTime()) / (1000 * 60 * 60 * 24))} days ago)`;
+        allItems.push(itemDetail);
+        continue;
+      }
 
       if (keywords.length === 0) {
         itemDetail.status = 'filtered';
@@ -397,10 +458,22 @@ export default async function handler(req, res) {
       throw new Error('Claude API key not configured. Please set ANTHROPIC_API_KEY in Vercel environment variables.');
     }
 
+    // Get parameters from request body (if provided)
+    const maxAgeDays = req.body?.maxAgeDays || 7; // Default to 7 days
+
+    // Load custom sources and keywords from database
+    console.log('📊 Loading configuration from database...');
+    const sourcesToScan = await loadNewsSources();
+    const riskKeywords = await loadRiskKeywords();
+
+    console.log(`📅 Filtering news from last ${maxAgeDays} days`);
+    console.log(`📡 Scanning ${sourcesToScan.length} sources`);
+    console.log(`🔍 Using ${riskKeywords.length} risk keywords`);
+
     // Parse all RSS feeds
     const parsedFeeds = { events: [], totalItems: 0 };
 
-    for (const source of NEWS_SOURCES) {
+    for (const source of sourcesToScan) {
       const result = await parseSingleFeed(source);
       if (result.items.length > 0) {
         parsedFeeds.events.push({
@@ -414,8 +487,8 @@ export default async function handler(req, res) {
     console.log(`📊 Total feeds processed: ${parsedFeeds.events.length}`);
     console.log(`📊 Total items found: ${parsedFeeds.totalItems}`);
 
-    // Store events in database
-    const storeResults = await storeEvents(parsedFeeds);
+    // Store events in database with date filtering
+    const storeResults = await storeEvents(parsedFeeds, maxAgeDays, riskKeywords);
 
     // Load risks for AI analysis
     console.log('📊 Loading risks from database...');
@@ -437,6 +510,8 @@ export default async function handler(req, res) {
       alerts_created: alertsCreated,
       events_filtered: storeResults.allItems?.filter(i => i.status === 'filtered').length || 0,
       events_duplicate: storeResults.allItems?.filter(i => i.status === 'duplicate').length || 0,
+      events_too_old: storeResults.allItems?.filter(i => i.reason?.includes('Too old')).length || 0,
+      max_age_days: maxAgeDays,
     };
 
     console.log('✅ News scanner completed successfully');

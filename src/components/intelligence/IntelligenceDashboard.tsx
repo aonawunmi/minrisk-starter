@@ -17,6 +17,8 @@ import {
   TrendingUp,
   Rss,
   Database,
+  Settings,
+  Tag,
 } from 'lucide-react';
 import {
   type RiskAlertWithEvent,
@@ -28,6 +30,8 @@ import { IntelligenceAlertCard } from './IntelligenceAlertCard';
 import { AlertReviewDialog } from './AlertReviewDialog';
 import { ScanResultsDialog } from './ScanResultsDialog';
 import { EventBrowser } from './EventBrowser';
+import { NewsSourcesManager } from './NewsSourcesManager';
+import { RiskKeywordsManager } from './RiskKeywordsManager';
 
 type IntelligenceDashboardProps = {
   riskCode?: string; // Optional: filter by specific risk
@@ -46,6 +50,8 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
   const [scanResults, setScanResults] = useState<any[]>([]);
   const [scanStats, setScanStats] = useState<any>(null);
   const [showEventBrowser, setShowEventBrowser] = useState(false);
+  const [showSourcesManager, setShowSourcesManager] = useState(false);
+  const [showKeywordsManager, setShowKeywordsManager] = useState(false);
   const [statistics, setStatistics] = useState({
     total: 0,
     pending: 0,
@@ -213,10 +219,26 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowEventBrowser(!showEventBrowser)}
+                onClick={() => setShowKeywordsManager(!showKeywordsManager)}
+                title="Manage Risk Keywords"
               >
-                <Database className="h-4 w-4 mr-2" />
-                {showEventBrowser ? 'Hide' : 'View'} Events
+                <Tag className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSourcesManager(!showSourcesManager)}
+                title="Manage News Sources"
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowEventBrowser(!showEventBrowser)}
+                title="Browse Stored Events"
+              >
+                <Database className="h-4 w-4" />
               </Button>
               <Button
                 variant="default"
@@ -362,6 +384,16 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
       {/* Event Browser */}
       {showEventBrowser && (
         <EventBrowser />
+      )}
+
+      {/* News Sources Manager */}
+      {showSourcesManager && (
+        <NewsSourcesManager />
+      )}
+
+      {/* Risk Keywords Manager */}
+      {showKeywordsManager && (
+        <RiskKeywordsManager />
       )}
 
       {/* Review Dialog */}
