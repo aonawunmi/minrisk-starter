@@ -12,5 +12,11 @@
       "source": "/((?!api).*)",
       "destination": "/index.html"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/scan-news",
+      "schedule": "0 */12 * * *"
+    }
   ]
 }
