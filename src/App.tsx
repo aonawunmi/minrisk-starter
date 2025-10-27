@@ -30,8 +30,8 @@ import { IntelligenceDashboard } from "@/components/intelligence/IntelligenceDas
 import { loadRisks, createRisk, updateRisk, deleteRisk, loadConfig, saveConfig as saveConfigToDb } from '@/lib/database';
 import { loadIncidents, type Incident } from '@/lib/incidents';
 
-// Make the endpoint visible in DevTools:
-;(window as any).__MINRISK_AI_PATH = import.meta.env.VITE_AI_PATH ?? '/api/gemini'
+// Make the endpoint visible in DevTools (Claude API):
+;(window as any).__MINRISK_AI_PATH = 'Claude API (direct)'
 console.log('AI endpoint:', (window as any).__MINRISK_AI_PATH)
 
 
@@ -201,10 +201,10 @@ function exportToCsv(filename: string, rows: any[]) {
     URL.revokeObjectURL(url);
 }
 
-// ===== GEMINI API HELPER =====
-// NEW: routes all AI calls through our Vercel endpoint,
+// ===== CLAUDE API HELPER =====
+// Routes all AI calls through Claude API,
 // and auto-injects a "return JSON only" instruction based on the schema.
-const callGeminiAPI = async (prompt: string, schema?: any): Promise<any> => {
+const callClaudeAPI = async (prompt: string, schema?: any): Promise<any> => {
   // Build a concise instruction from the caller's schema
   function schemaInstruction(s?: any): string {
     try {
@@ -2565,7 +2565,7 @@ function AIAssistantTab({ onAddMultipleRisks, config, onSwitchTab }: { onAddMult
   }
 
   try {
-    // Steer Gemini to return strict JSON
+    // Steer Claude to return strict JSON
     const instruction = [
       "You are a senior enterprise risk manager.",
       "From the business description below, generate 3–5 *inherent* risk candidates.",

@@ -3,6 +3,7 @@
 
 import { supabase } from './supabase';
 import type { RiskRow } from './database';
+import { askClaude } from './ai';
 
 // =====================================================
 // TYPES
@@ -512,21 +513,20 @@ Rules:
 - For regulatory events, consider if compliance/legal aspects are affected
 - Confidence should be high (>0.7) only for clear, direct impacts`;
 
-    // Call AI API (using existing Gemini setup)
-    const response = await fetch('/api/gemini', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt }),
-    });
+    // Call Claude AI API directly
+    const responseText = await askClaude(prompt);
 
-    if (!response.ok) {
-      throw new Error(`AI API error: ${response.statusText}`);
+    // Parse AI response - handle JSON wrapped in markdown code blocks
+    let jsonText = responseText.trim();
+
+    // Remove markdown code fences if present
+    if (jsonText.startsWith('```json')) {
+      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?$/g, '').trim();
+    } else if (jsonText.startsWith('```')) {
+      jsonText = jsonText.replace(/```\n?/g, '').trim();
     }
 
-    const result = await response.json();
-
-    // Parse AI response
-    const analysis: EventRiskAnalysis = JSON.parse(result.response);
+    const analysis: EventRiskAnalysis = JSON.parse(jsonText);
 
     return analysis;
   } catch (error) {

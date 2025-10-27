@@ -14,16 +14,6 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: 5174,
-      proxy: {
-        '/api/gemini': {
-          target: 'https://generativelanguage.googleapis.com',
-          changeOrigin: true,
-          rewrite: (path) => {
-            // Convert /api/gemini to Gemini API endpoint with API key
-            return `/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`;
-          },
-        },
-      },
     },
   };
 })

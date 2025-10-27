@@ -426,11 +426,11 @@ const sections = [
   },
   {
     id: 'ai-features',
-    title: 'AI Features (Claude & Gemini) ✨ ENHANCED',
+    title: 'AI Features (Claude) ✨ ENHANCED',
     icon: '🤖',
     content: `
       <h3>Overview</h3>
-      <p>MinRisk includes three powerful AI features powered by <strong>Claude AI & Google Gemini</strong>:</p>
+      <p>MinRisk includes powerful AI features powered by <strong>Claude AI (Anthropic)</strong>:</p>
       <ol>
         <li><strong>AI Risk Generator</strong> - Generate context-specific risks</li>
         <li><strong>AI Chat Assistant</strong> - Conversational help and guidance</li>
@@ -534,11 +534,11 @@ const sections = [
       </ul>
       <p>Rate each 1-5: 1=Not Effective, 2=Partially, 3=Moderately, 4=Substantially, 5=Fully</p>
 
-      <h3>AI Models Used</h3>
+      <h3>AI Model Used</h3>
       <ul>
-        <li><strong>Google Gemini 1.5 Flash:</strong> Fast, cost-efficient for all features</li>
-        <li><strong>Claude AI compatibility:</strong> Future integration planned</li>
-        <li><strong>Optimized prompts:</strong> Specifically tuned for risk management</li>
+        <li><strong>Claude 3.5 Sonnet:</strong> Advanced AI from Anthropic, optimized for complex reasoning</li>
+        <li><strong>Risk Management Focused:</strong> Prompts specifically tuned for ERM and compliance</li>
+        <li><strong>Reliable & Accurate:</strong> High-quality outputs with strong contextual understanding</li>
       </ul>
 
       <h3>Best Practices</h3>

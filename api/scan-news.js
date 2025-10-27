@@ -157,9 +157,9 @@ async function loadRisks() {
 }
 
 /**
- * Analyze event relevance to risks using Gemini AI
+ * Analyze event relevance to risks using Claude AI
  */
-async function analyzeEventRelevance(event, risks, geminiApiKey) {
+async function analyzeEventRelevance(event, risks, claudeApiKey) {
   try {
     // Filter risks by similar category for efficiency
     const categoryMap = {
@@ -215,22 +215,28 @@ Return ONLY valid JSON in this exact format:
 }`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
+      'https://api.anthropic.com/v1/messages',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': claudeApiKey,
+          'anthropic-version': '2023-06-01'
+        },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 1000,
-          },
+          model: 'claude-3-5-sonnet-20241022',
+          max_tokens: 1024,
+          temperature: 0.3,
+          messages: [{
+            role: 'user',
+            content: prompt
+          }]
         }),
       }
     );
 
     const result = await response.json();
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    const text = result.content?.[0]?.text || '{}';
 
     // Extract JSON from markdown code blocks if present
     const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/) || text.match(/\{[\s\S]*\}/);
@@ -248,12 +254,12 @@ Return ONLY valid JSON in this exact format:
 /**
  * Create risk alerts from AI analysis
  */
-async function createRiskAlerts(storedEvents, risks, geminiApiKey) {
+async function createRiskAlerts(storedEvents, risks, claudeApiKey) {
   let alertsCreated = 0;
 
   for (const event of storedEvents) {
     try {
-      const analysis = await analyzeEventRelevance(event, risks, geminiApiKey);
+      const analysis = await analyzeEventRelevance(event, risks, claudeApiKey);
 
       if (analysis.relevant && analysis.confidence >= 0.6 && analysis.risk_codes?.length > 0) {
         for (const riskCode of analysis.risk_codes) {
@@ -280,7 +286,7 @@ async function createRiskAlerts(storedEvents, risks, geminiApiKey) {
       }
 
       // Small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
     } catch (error) {
       console.error(`Error creating alert for event ${event.id}:`, error);
@@ -310,10 +316,10 @@ export default async function handler(req, res) {
   try {
     console.log('🚀 Starting news scanner...');
 
-    // Get Gemini API key from environment
-    const geminiApiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-    if (!geminiApiKey) {
-      throw new Error('Gemini API key not configured');
+    // Get Claude API key from environment
+    const claudeApiKey = process.env.VITE_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY;
+    if (!claudeApiKey) {
+      throw new Error('Claude API key not configured. Please set VITE_ANTHROPIC_API_KEY in Vercel environment variables.');
     }
 
     // Parse all RSS feeds
@@ -344,8 +350,8 @@ export default async function handler(req, res) {
     // Run AI analysis and create alerts
     let alertsCreated = 0;
     if (storeResults.events.length > 0 && risks.length > 0) {
-      console.log('🤖 Starting AI analysis...');
-      alertsCreated = await createRiskAlerts(storeResults.events, risks, geminiApiKey);
+      console.log('🤖 Starting Claude AI analysis...');
+      alertsCreated = await createRiskAlerts(storeResults.events, risks, claudeApiKey);
       console.log(`📊 Created ${alertsCreated} alerts`);
     }
 
