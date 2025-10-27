@@ -30,7 +30,7 @@ CREATE POLICY "Users can view own incidents; Admins see all"
             EXISTS (
                 SELECT 1 FROM user_profiles
                 WHERE id = auth.uid()
-                AND role = 'Admin'
+                AND role = 'admin'
             )
         )
     );
@@ -75,7 +75,7 @@ CREATE POLICY "Users update own incidents; Admins update all"
             EXISTS (
                 SELECT 1 FROM user_profiles
                 WHERE id = auth.uid()
-                AND role = 'Admin'
+                AND role = 'admin'
             )
         )
     )
@@ -107,13 +107,13 @@ ORDER BY policyname;
 -- =====================================================
 
 -- SECURITY MODEL:
--- 1. Regular Users (role != 'Admin'):
+-- 1. Regular Users (role != 'admin'):
 --    - Can only CREATE incidents for themselves
 --    - Can only VIEW their own incidents
 --    - Can only UPDATE their own incidents
 --    - Cannot DELETE incidents
 
--- 2. Admin Users (role = 'Admin'):
+-- 2. Admin Users (role = 'admin'):
 --    - Can VIEW all incidents in their organization
 --    - Can UPDATE all incidents in their organization
 --    - Can DELETE incidents in their organization
