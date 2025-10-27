@@ -131,6 +131,15 @@ export function NewsSourcesManager() {
     setError(null);
 
     try {
+      // Get user's organization_id
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('organization_id')
+        .eq('id', (await supabase.auth.getUser()).data.user?.id)
+        .single();
+
+      if (profileError) throw profileError;
+
       if (editingSource) {
         // Update existing
         const { error } = await supabase
@@ -149,6 +158,7 @@ export function NewsSourcesManager() {
         const { error } = await supabase
           .from('news_sources')
           .insert({
+            organization_id: profile.organization_id,
             name: formData.name,
             url: formData.url,
             category: formData.category,

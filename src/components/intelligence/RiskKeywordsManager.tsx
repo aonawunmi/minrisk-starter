@@ -130,9 +130,19 @@ export function RiskKeywordsManager() {
     setError(null);
 
     try {
+      // Get user's organization_id
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('organization_id')
+        .eq('id', (await supabase.auth.getUser()).data.user?.id)
+        .single();
+
+      if (profileError) throw profileError;
+
       const { error } = await supabase
         .from('risk_keywords')
         .insert({
+          organization_id: profile.organization_id,
           keyword: formData.keyword.toLowerCase().trim(),
           category: formData.category,
           is_active: true,
