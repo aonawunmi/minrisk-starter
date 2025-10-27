@@ -15,6 +15,7 @@ import {
   Loader2,
   RefreshCw,
   TrendingUp,
+  Rss,
 } from 'lucide-react';
 import {
   type RiskAlertWithEvent,
@@ -24,6 +25,7 @@ import {
 } from '../../lib/riskIntelligence';
 import { IntelligenceAlertCard } from './IntelligenceAlertCard';
 import { AlertReviewDialog } from './AlertReviewDialog';
+import { runNewsScanner } from '../../services/newsScanner';
 
 type IntelligenceDashboardProps = {
   riskCode?: string; // Optional: filter by specific risk
@@ -36,6 +38,8 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
   const [activeFilter, setActiveFilter] = useState<'all' | AlertStatus>('all');
   const [selectedAlert, setSelectedAlert] = useState<RiskAlertWithEvent | null>(null);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanMessage, setScanMessage] = useState('');
   const [statistics, setStatistics] = useState({
     total: 0,
     pending: 0,
@@ -90,6 +94,38 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
     loadStats();
   };
 
+  const handleScanNews = async () => {
+    setScanning(true);
+    setScanMessage('Scanning news feeds...');
+
+    try {
+      const result = await runNewsScanner();
+
+      if (result.success) {
+        setScanMessage(
+          `✅ Scan complete! Processed ${result.stats.feeds_processed} feeds, ` +
+          `found ${result.stats.events_found} events, ` +
+          `stored ${result.stats.events_stored} events, ` +
+          `created ${result.stats.alerts_created} alerts.`
+        );
+
+        // Reload data after 2 seconds
+        setTimeout(() => {
+          loadData();
+          loadStats();
+          setScanMessage('');
+        }, 2000);
+      } else {
+        setScanMessage('❌ Scan failed. Check console for details.');
+      }
+    } catch (error) {
+      console.error('Error running news scanner:', error);
+      setScanMessage('❌ Error running news scanner. Check console for details.');
+    } finally {
+      setScanning(false);
+    }
+  };
+
   const getFilterCount = (filter: 'all' | AlertStatus) => {
     if (filter === 'all') return alerts.length;
     return alerts.filter(a => a.status === filter).length;
@@ -123,10 +159,30 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
                 </p>
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={handleUpdate}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleScanNews}
+                disabled={scanning}
+              >
+                {scanning ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Scanning...
+                  </>
+                ) : (
+                  <>
+                    <Rss className="h-4 w-4 mr-2" />
+                    Scan News
+                  </>
+                )}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleUpdate}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -164,6 +220,11 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
               </span>
             </div>
           </div>
+          {scanMessage && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-900">
+              {scanMessage}
+            </div>
+          )}
         </CardContent>
       </Card>
 
