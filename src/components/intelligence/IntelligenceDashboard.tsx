@@ -16,6 +16,7 @@ import {
   RefreshCw,
   TrendingUp,
   Rss,
+  Database,
 } from 'lucide-react';
 import {
   type RiskAlertWithEvent,
@@ -25,6 +26,8 @@ import {
 } from '../../lib/riskIntelligence';
 import { IntelligenceAlertCard } from './IntelligenceAlertCard';
 import { AlertReviewDialog } from './AlertReviewDialog';
+import { ScanResultsDialog } from './ScanResultsDialog';
+import { EventBrowser } from './EventBrowser';
 
 type IntelligenceDashboardProps = {
   riskCode?: string; // Optional: filter by specific risk
@@ -39,6 +42,10 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState('');
+  const [showScanResults, setShowScanResults] = useState(false);
+  const [scanResults, setScanResults] = useState<any[]>([]);
+  const [scanStats, setScanStats] = useState<any>(null);
+  const [showEventBrowser, setShowEventBrowser] = useState(false);
   const [statistics, setStatistics] = useState({
     total: 0,
     pending: 0,
@@ -109,6 +116,10 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
       const result = await response.json();
 
       if (result.success) {
+        // Store scan results and stats
+        setScanResults(result.scanResults || []);
+        setScanStats(result.stats);
+
         setScanMessage(
           `✅ Scan complete! Processed ${result.stats.feeds_processed} feeds, ` +
           `found ${result.stats.events_found} events, ` +
@@ -116,12 +127,14 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
           `created ${result.stats.alerts_created} alerts.`
         );
 
-        // Reload data after 2 seconds
+        // Show scan results dialog
+        setShowScanResults(true);
+
+        // Reload data after a short delay
         setTimeout(() => {
           loadData();
           loadStats();
-          setScanMessage('');
-        }, 2000);
+        }, 1000);
       } else {
         setScanMessage(`❌ Scan failed: ${result.error || 'Unknown error'}`);
       }
@@ -136,6 +149,36 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
   const getFilterCount = (filter: 'all' | AlertStatus) => {
     if (filter === 'all') return alerts.length;
     return alerts.filter(a => a.status === filter).length;
+  };
+
+  const handleRetainEvent = async (item: any): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/scan-news', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'retain',
+          eventData: item,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setScanMessage('✅ Event saved successfully!');
+        setTimeout(() => setScanMessage(''), 3000);
+        return true;
+      } else {
+        setScanMessage(`❌ Failed to save event: ${result.error}`);
+        setTimeout(() => setScanMessage(''), 5000);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error retaining event:', error);
+      setScanMessage('❌ Error saving event. Check console for details.');
+      setTimeout(() => setScanMessage(''), 5000);
+      return false;
+    }
   };
 
   if (loading) {
@@ -167,6 +210,14 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowEventBrowser(!showEventBrowser)}
+              >
+                <Database className="h-4 w-4 mr-2" />
+                {showEventBrowser ? 'Hide' : 'View'} Events
+              </Button>
               <Button
                 variant="default"
                 size="sm"
@@ -308,6 +359,11 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
         </CardContent>
       </Card>
 
+      {/* Event Browser */}
+      {showEventBrowser && (
+        <EventBrowser />
+      )}
+
       {/* Review Dialog */}
       <AlertReviewDialog
         alert={selectedAlert}
@@ -318,6 +374,17 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
         }}
         onUpdate={handleUpdate}
       />
+
+      {/* Scan Results Dialog */}
+      {scanStats && (
+        <ScanResultsDialog
+          open={showScanResults}
+          onClose={() => setShowScanResults(false)}
+          results={scanResults}
+          stats={scanStats}
+          onRetain={handleRetainEvent}
+        />
+      )}
     </div>
   );
 }

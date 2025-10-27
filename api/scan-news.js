@@ -97,19 +97,38 @@ function categorizeEvent(title, description) {
 }
 
 /**
- * Store events in database
+ * Store events in database and return detailed results
  */
 async function storeEvents(parsedFeeds) {
   let stored = 0;
   const storedEvents = [];
+  const allItems = []; // Track all items with their status
 
   for (const feedData of parsedFeeds.events) {
     for (const item of feedData.items) {
       const keywords = extractKeywords(item.title + ' ' + item.description);
-
-      if (keywords.length === 0) continue; // Skip non-risk-related events
-
       const category = categorizeEvent(item.title, item.description);
+
+      const itemDetail = {
+        title: item.title,
+        description: item.description,
+        link: item.link,
+        pubDate: item.pubDate,
+        source_name: feedData.source.name,
+        source_category: feedData.source.category,
+        country: feedData.source.country,
+        category,
+        keywords,
+        status: 'pending',
+        reason: null
+      };
+
+      if (keywords.length === 0) {
+        itemDetail.status = 'filtered';
+        itemDetail.reason = 'No risk-related keywords found';
+        allItems.push(itemDetail);
+        continue; // Skip non-risk-related events
+      }
 
       const event = {
         title: item.title.substring(0, 500),
@@ -132,12 +151,23 @@ async function storeEvents(parsedFeeds) {
       if (!error && data) {
         stored++;
         storedEvents.push(data);
+        itemDetail.status = 'stored';
+        itemDetail.eventId = data.id;
+      } else if (error?.code === '23505') {
+        // Duplicate
+        itemDetail.status = 'duplicate';
+        itemDetail.reason = 'Already exists in database';
+      } else {
+        itemDetail.status = 'error';
+        itemDetail.reason = error?.message || 'Unknown error';
       }
+
+      allItems.push(itemDetail);
     }
   }
 
   console.log(`✅ Stored ${stored} events in database`);
-  return { stored, events: storedEvents };
+  return { stored, events: storedEvents, allItems };
 }
 
 /**
@@ -298,6 +328,39 @@ async function createRiskAlerts(storedEvents, risks, claudeApiKey) {
 }
 
 /**
+ * Manually save a filtered event
+ */
+async function manuallyRetainEvent(eventData) {
+  try {
+    const event = {
+      title: eventData.title.substring(0, 500),
+      description: eventData.description.substring(0, 2000),
+      source_name: eventData.source_name,
+      source_url: eventData.link,
+      published_date: new Date(eventData.pubDate),
+      category: eventData.category,
+      keywords: eventData.keywords || [],
+      country: eventData.country,
+    };
+
+    const { data, error } = await supabase
+      .from('external_events')
+      .insert(event)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return { success: true, event: data };
+  } catch (error) {
+    console.error('Error manually retaining event:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Main handler function
  */
 export default async function handler(req, res) {
@@ -312,6 +375,16 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Handle manual event retention
+  if (req.method === 'POST' && req.body?.action === 'retain') {
+    try {
+      const result = await manuallyRetainEvent(req.body.eventData);
+      return res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
   }
 
   try {
@@ -362,6 +435,8 @@ export default async function handler(req, res) {
       events_found: parsedFeeds.totalItems,
       events_stored: storeResults.stored,
       alerts_created: alertsCreated,
+      events_filtered: storeResults.allItems?.filter(i => i.status === 'filtered').length || 0,
+      events_duplicate: storeResults.allItems?.filter(i => i.status === 'duplicate').length || 0,
     };
 
     console.log('✅ News scanner completed successfully');
@@ -369,6 +444,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       stats,
+      scanResults: storeResults.allItems || [],
       message: 'News scan completed successfully',
     });
 
