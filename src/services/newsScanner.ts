@@ -55,7 +55,7 @@ async function parseSingleFeed(source: NewsSource): Promise<{
     console.log(`Parsing feed from ${source.name}: ${source.url}`);
     const feed = await parser.parseURL(source.url);
 
-    const items = feed.items.slice(0, 10).map(item => ({
+    const items = feed.items.slice(0, 10).map((item: any) => ({
       title: item.title || 'Untitled',
       description: item.contentSnippet || item.content || item.title || '',
       link: item.link || item.guid || '',

@@ -3,7 +3,11 @@
 // UPDATED: Added incident count fields
 
 import { supabase } from './supabase';
-import type { RiskRow, Control } from '../App';
+import type { RiskRow as AppRiskRow, Control } from '../App';
+
+// Re-export types for other modules
+export type { Control } from '../App';
+export type RiskRow = AppRiskRow;
 
 // =====================================================
 // TYPES

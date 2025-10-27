@@ -323,14 +323,16 @@ export function IncidentDetailDialog({ incident, open, onClose, onUpdate, onRisk
     setIsSavingPlan(true);
     try {
       // Map the assessment to enhancement plan format
+      // Convert adequacy_level to score: Adequate=8, Partially Adequate=5, Inadequate=3
+      const adequacyScoreMap = { 'Adequate': 8, 'Partially Adequate': 5, 'Inadequate': 3 };
       const planData: CreateEnhancementPlanInput = {
         incident_id: incident.id,
-        overall_adequacy_score: controlAssessment.adequacy_score || 5,
-        findings: controlAssessment.key_findings || [],
+        overall_adequacy_score: adequacyScoreMap[controlAssessment.adequacy_level] || 5,
+        findings: [controlAssessment.overall_reasoning],
         recommendations: controlAssessment.control_improvements.map(imp => ({
           type: 'improvement' as const,
-          description: imp.suggestion,
-          priority: imp.priority?.toLowerCase() as 'high' | 'medium' | 'low' || 'medium',
+          description: imp.reasoning,
+          priority: controlAssessment.priority.toLowerCase() as 'high' | 'medium' | 'low',
           risk_code: imp.risk_code,
         })),
         linked_risks_snapshot: linkedRisks.map(risk => ({

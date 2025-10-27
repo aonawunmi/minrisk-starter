@@ -58,7 +58,7 @@ export function AlertReviewDialog({ alert, open, onClose, onUpdate }: AlertRevie
       onClose();
       setReviewNotes('');
     } else {
-      alert(`Failed to accept alert: ${error}`);
+      window.alert(`Failed to accept alert: ${error}`);
       console.error(error);
     }
     setProcessing(false);
@@ -66,7 +66,7 @@ export function AlertReviewDialog({ alert, open, onClose, onUpdate }: AlertRevie
 
   const handleReject = async () => {
     if (!reviewNotes.trim()) {
-      alert('Please provide a reason for rejection');
+      window.alert('Please provide a reason for rejection');
       return;
     }
 
@@ -78,7 +78,7 @@ export function AlertReviewDialog({ alert, open, onClose, onUpdate }: AlertRevie
       onClose();
       setReviewNotes('');
     } else {
-      alert(`Failed to reject alert: ${error}`);
+      window.alert(`Failed to reject alert: ${error}`);
       console.error(error);
     }
     setProcessing(false);
