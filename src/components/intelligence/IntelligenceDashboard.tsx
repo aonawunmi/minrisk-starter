@@ -25,7 +25,6 @@ import {
 } from '../../lib/riskIntelligence';
 import { IntelligenceAlertCard } from './IntelligenceAlertCard';
 import { AlertReviewDialog } from './AlertReviewDialog';
-import { runNewsScanner } from '../../services/newsScanner';
 
 type IntelligenceDashboardProps = {
   riskCode?: string; // Optional: filter by specific risk
@@ -99,7 +98,15 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
     setScanMessage('Scanning news feeds...');
 
     try {
-      const result = await runNewsScanner();
+      // Call backend API endpoint instead of running scanner in browser
+      const response = await fetch('/api/scan-news', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
 
       if (result.success) {
         setScanMessage(
@@ -116,11 +123,11 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
           setScanMessage('');
         }, 2000);
       } else {
-        setScanMessage('❌ Scan failed. Check console for details.');
+        setScanMessage(`❌ Scan failed: ${result.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error running news scanner:', error);
-      setScanMessage('❌ Error running news scanner. Check console for details.');
+      setScanMessage('❌ Error connecting to news scanner API. Check console for details.');
     } finally {
       setScanning(false);
     }
