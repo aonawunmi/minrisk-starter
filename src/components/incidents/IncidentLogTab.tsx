@@ -38,6 +38,7 @@ type FilterConfig = {
   type: IncidentType | 'all';
   severity: number | 'all';
   hasLinkedRisks: boolean | 'all';
+  reportedBy: string | 'all';
   dateFrom?: string;
   dateTo?: string;
 };
@@ -90,9 +91,10 @@ const formatDate = (dateString: string): string => {
 
 type IncidentLogTabProps = {
   onRisksUpdate?: () => void;
+  isAdmin?: boolean;
 };
 
-export function IncidentLogTab({ onRisksUpdate }: IncidentLogTabProps = {}) {
+export function IncidentLogTab({ onRisksUpdate, isAdmin = false }: IncidentLogTabProps = {}) {
   // State
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,6 +105,7 @@ export function IncidentLogTab({ onRisksUpdate }: IncidentLogTabProps = {}) {
     type: 'all',
     severity: 'all',
     hasLinkedRisks: 'all',
+    reportedBy: 'all',
   });
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
@@ -131,6 +134,12 @@ export function IncidentLogTab({ onRisksUpdate }: IncidentLogTabProps = {}) {
       setStatistics(data);
     }
   };
+
+  // Get unique reporter names for filter
+  const uniqueReporters = useMemo(() => {
+    const reporters = Array.from(new Set(incidents.map(inc => inc.reported_by).filter(Boolean)));
+    return reporters.sort();
+  }, [incidents]);
 
   // Filter and sort incidents
   const filteredAndSortedIncidents = useMemo(() => {
@@ -161,6 +170,11 @@ export function IncidentLogTab({ onRisksUpdate }: IncidentLogTabProps = {}) {
     // Severity filter
     if (filterConfig.severity !== 'all') {
       filtered = filtered.filter(inc => inc.severity === filterConfig.severity);
+    }
+
+    // Reported By filter
+    if (filterConfig.reportedBy !== 'all') {
+      filtered = filtered.filter(inc => inc.reported_by === filterConfig.reportedBy);
     }
 
     // Linked risks filter
@@ -213,10 +227,11 @@ export function IncidentLogTab({ onRisksUpdate }: IncidentLogTabProps = {}) {
 
   // Export to CSV
   const handleExport = () => {
-    const headers = ['Code', 'Title', 'Date', 'Type', 'Severity', 'Status', 'Financial Impact', 'Linked Risks'];
+    const headers = ['Code', 'Title', 'Reported By', 'Date', 'Type', 'Severity', 'Status', 'Financial Impact', 'Linked Risks'];
     const rows = filteredAndSortedIncidents.map(inc => [
       inc.incident_code,
       inc.title,
+      inc.reported_by,
       formatDate(inc.incident_date),
       inc.incident_type,
       inc.severity.toString(),
@@ -394,6 +409,20 @@ export function IncidentLogTab({ onRisksUpdate }: IncidentLogTabProps = {}) {
                 <SelectItem value="1">Minimal (1)</SelectItem>
               </SelectContent>
             </Select>
+
+            <Select value={filterConfig.reportedBy} onValueChange={v => setFilterConfig({ ...filterConfig, reportedBy: v })}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Reported By" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Reporters</SelectItem>
+                {uniqueReporters.map(reporter => (
+                  <SelectItem key={reporter} value={reporter}>
+                    {reporter}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Results Summary */}
@@ -401,13 +430,13 @@ export function IncidentLogTab({ onRisksUpdate }: IncidentLogTabProps = {}) {
             <span>
               Showing {filteredAndSortedIncidents.length} of {incidents.length} incidents
             </span>
-            {(searchQuery || filterConfig.status !== 'all' || filterConfig.type !== 'all' || filterConfig.severity !== 'all') && (
+            {(searchQuery || filterConfig.status !== 'all' || filterConfig.type !== 'all' || filterConfig.severity !== 'all' || filterConfig.reportedBy !== 'all') && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
                   setSearchQuery('');
-                  setFilterConfig({ status: 'all', type: 'all', severity: 'all', hasLinkedRisks: 'all' });
+                  setFilterConfig({ status: 'all', type: 'all', severity: 'all', hasLinkedRisks: 'all', reportedBy: 'all' });
                 }}
               >
                 Clear Filters
@@ -423,6 +452,7 @@ export function IncidentLogTab({ onRisksUpdate }: IncidentLogTabProps = {}) {
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reported By</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Severity</th>
@@ -434,7 +464,7 @@ export function IncidentLogTab({ onRisksUpdate }: IncidentLogTabProps = {}) {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredAndSortedIncidents.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
                         {incidents.length === 0 ? (
                           <div className="space-y-2">
                             <AlertTriangle className="h-12 w-12 text-gray-300 mx-auto" />
@@ -461,6 +491,9 @@ export function IncidentLogTab({ onRisksUpdate }: IncidentLogTabProps = {}) {
                           {incident.department && (
                             <div className="text-xs text-gray-500">{incident.department}</div>
                           )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{incident.reported_by}</div>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                           {formatDate(incident.incident_date)}
@@ -512,6 +545,7 @@ export function IncidentLogTab({ onRisksUpdate }: IncidentLogTabProps = {}) {
           onClose={() => setSelectedIncident(null)}
           onUpdate={loadIncidentsData}
           onRisksUpdate={onRisksUpdate}
+          isAdmin={isAdmin}
         />
       )}
     </div>

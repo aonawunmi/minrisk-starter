@@ -813,7 +813,7 @@ export default function MinRiskLatest() {
             <TabsContent value="var_sandbox"><VarSandboxTab matrixSize={config.matrixSize} showToast={showToast} /></TabsContent>
             <TabsContent value="incidents">
                 <React.Suspense fallback={<div className="flex items-center justify-center p-8"><div className="h-8 w-8 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin" /></div>}>
-                    <IncidentLogTab onRisksUpdate={loadRisksFromDB} />
+                    <IncidentLogTab onRisksUpdate={loadRisksFromDB} isAdmin={isAdmin} />
                 </React.Suspense>
             </TabsContent>
             <TabsContent value="history"><RiskHistoryTab config={config} showToast={showToast} isAdmin={isAdmin} /></TabsContent>

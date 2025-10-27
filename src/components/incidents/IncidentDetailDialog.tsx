@@ -25,8 +25,9 @@ import {
   Search,
   Loader2,
   Plus,
+  Trash2,
 } from 'lucide-react';
-import { type Incident, linkIncidentToRisks, unlinkIncidentFromRisk } from '@/lib/incidents';
+import { type Incident, linkIncidentToRisks, unlinkIncidentFromRisk, deleteIncident } from '@/lib/incidents';
 import { loadRisks } from '@/lib/database';
 import { type RiskRow } from '@/App';
 import { suggestRisksForIncident, type IncidentRiskSuggestion, assessControlAdequacy, type ControlAdequacyAssessment } from '@/lib/ai';
@@ -42,6 +43,7 @@ type IncidentDetailDialogProps = {
   onClose: () => void;
   onUpdate: () => void;
   onRisksUpdate?: () => void;
+  isAdmin?: boolean;
 };
 
 // =====================================================
@@ -92,9 +94,11 @@ const formatDate = (dateString: string): string => {
 // MAIN COMPONENT
 // =====================================================
 
-export function IncidentDetailDialog({ incident, open, onClose, onUpdate, onRisksUpdate }: IncidentDetailDialogProps) {
+export function IncidentDetailDialog({ incident, open, onClose, onUpdate, onRisksUpdate, isAdmin = false }: IncidentDetailDialogProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('details');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Risk linking state
   const [allRisks, setAllRisks] = useState<RiskRow[]>([]);
@@ -129,6 +133,24 @@ export function IncidentDetailDialog({ incident, open, onClose, onUpdate, onRisk
     const risks = await loadRisks();
     if (risks && risks.length > 0) {
       setAllRisks(risks);
+    }
+  };
+
+  // Handle delete incident
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    const { success, error } = await deleteIncident(incident.id);
+    if (success) {
+      onClose();
+      onUpdate();
+      if (onRisksUpdate) {
+        onRisksUpdate(); // Refresh Risk Register to update incident counts
+      }
+    } else {
+      alert('Failed to delete incident. Please try again.');
+      console.error(error);
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -324,10 +346,46 @@ export function IncidentDetailDialog({ incident, open, onClose, onUpdate, onRisk
               </div>
               <p className="text-sm text-gray-500">Incident Code: {incident.incident_code}</p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+              {isAdmin && !showDeleteConfirm && (
+                <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(true)} className="text-red-600 hover:bg-red-50 hover:text-red-700">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              )}
+              {isAdmin && showDeleteConfirm && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-red-600 font-medium">Confirm delete?</span>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      'Yes, Delete'
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    disabled={isDeleting}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </DialogHeader>
 
