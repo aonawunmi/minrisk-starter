@@ -337,7 +337,7 @@ async function analyzeEventRelevance(event, risks, claudeApiKey) {
       return { relevant: false };
     }
 
-    const prompt = `You are a risk management expert. Analyze if this news event is relevant to any of the listed risks.
+    const prompt = `You are a risk management expert for a financial services organization. Analyze if this external news event is relevant to any of the organization's risks.
 
 EVENT:
 Title: ${event.title}
@@ -345,32 +345,36 @@ Description: ${event.description}
 Category: ${event.category}
 Source: ${event.source_name}
 
-RISKS:
+ORGANIZATIONAL RISKS:
 ${risksToAnalyze.map(r => `[${r.risk_code}] ${r.risk_title} - ${r.risk_description}`).join('\n')}
 
-Analyze if this event:
-1. Could increase the likelihood of any risk occurring
-2. Could increase the impact of any risk
-3. Suggests new controls are needed
-4. Indicates emerging risk trends
+ANALYSIS GUIDELINES:
+Look for connections between the external event and organizational risks. Consider:
+1. Direct impact: Does this event describe something that could directly affect this organization?
+2. Industry trends: Does this event indicate a broader trend that increases risk?
+3. Precedent: Does this event show a risk materializing at another organization?
+4. Early warning: Could this event be a precursor to similar issues?
 
-If relevant, provide:
-- Risk codes (array of relevant risk codes)
-- Confidence score (0.0 to 1.0)
-- Suggested likelihood change (-2 to +2, where 0 = no change)
-- Reasoning (brief explanation)
-- Suggested controls (if applicable)
+Be pragmatic - even indirect connections are valuable for risk awareness. For example:
+- Ransomware attacks elsewhere → cybersecurity risks here
+- Regulatory changes announced → compliance risks here
+- Market volatility reported → financial/market risks here
+- Technology failures at peers → operational technology risks here
+
+IMPORTANT: Strategic/external risks are about monitoring the environment, not just direct hits to this organization.
 
 Return ONLY valid JSON in this exact format:
 {
   "relevant": true/false,
   "risk_codes": ["RISK-001"],
-  "confidence": 0.85,
+  "confidence": 0.65,
   "likelihood_change": 1,
-  "reasoning": "Brief explanation",
+  "reasoning": "Brief explanation of connection",
   "impact_assessment": "How this affects the risk",
-  "suggested_controls": ["Control suggestion 1"]
-}`;
+  "suggested_controls": ["Control suggestion if applicable"]
+}
+
+If no meaningful connection exists, return: {"relevant": false}`;
 
     const response = await fetch(
       'https://api.anthropic.com/v1/messages',
@@ -401,10 +405,15 @@ Return ONLY valid JSON in this exact format:
     const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : text;
 
     const analysis = JSON.parse(jsonStr);
+
+    // DETAILED LOGGING - Log full Claude response for debugging
+    console.log(`   🔍 Claude AI Response:`, JSON.stringify(analysis, null, 2));
+
     return analysis;
 
   } catch (error) {
     console.error('Error in AI analysis:', error);
+    console.error('   Raw API response:', JSON.stringify(result, null, 2));
     return { relevant: false };
   }
 }
@@ -428,7 +437,7 @@ async function createRiskAlerts(storedEvents, risks, claudeApiKey) {
         reasoning: analysis.reasoning?.substring(0, 100)
       }));
 
-      if (analysis.relevant && analysis.confidence >= 0.4 && analysis.risk_codes?.length > 0) {  // Lowered from 0.6 to 0.4 to catch more potential matches
+      if (analysis.relevant && analysis.confidence >= 0.3 && analysis.risk_codes?.length > 0) {  // Lowered threshold to catch more potential matches
         console.log(`   ✅ Alert criteria met! Creating alerts for: ${analysis.risk_codes.join(', ')}`);
         for (const riskCode of analysis.risk_codes) {
           const alert = {
