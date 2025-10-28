@@ -246,10 +246,12 @@ async function storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId
         source_name: feedData.source.name,
         source_url: item.link,
         published_date: new Date(item.pubDate),
-        event_category: category,  // FIXED: was 'category', should be 'event_category'
+        event_category: category,
         keywords,
         country: feedData.source.country,
-        organization_id: parsedFeeds.organizationId, // Link event to organization
+        organization_id: parsedFeeds.organizationId,
+        relevance_score: 0.5,  // Default relevance score, will be updated by analysis
+        affected_risk_categories: [],  // Will be populated during analysis
       };
 
       // DEBUG: Log before insert
