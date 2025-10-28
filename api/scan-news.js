@@ -233,6 +233,7 @@ async function storeEvents(parsedFeeds, maxAgeDays = 7, riskKeywords) {
         category,
         keywords,
         country: feedData.source.country,
+        organization_id: parsedFeeds.organizationId, // Link event to organization
       };
 
       // Insert the event
