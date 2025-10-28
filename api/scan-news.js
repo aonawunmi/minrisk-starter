@@ -164,7 +164,7 @@ function categorizeEvent(title, description) {
 /**
  * Store events in database and return detailed results
  */
-async function storeEvents(parsedFeeds, maxAgeDays = 120, riskKeywords) {
+async function storeEvents(parsedFeeds, maxAgeDays = 7, riskKeywords) {
   let stored = 0;
   const storedEvents = [];
   const allItems = []; // Track all items with their status
@@ -571,7 +571,7 @@ export default async function handler(req, res) {
     }
 
     // Get parameters from request body (if provided)
-    const maxAgeDays = req.body?.maxAgeDays || 120; // Default to 120 days (some feeds update infrequently)
+    const maxAgeDays = req.body?.maxAgeDays || 7; // Default to 7 days for daily scanning
 
     // Load custom sources and keywords from database
     console.log('📊 Loading configuration from database...');
