@@ -221,6 +221,14 @@ async function storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId
         .or(`title.eq.${item.title.substring(0, 500)},source_url.eq.${item.link}`)
         .limit(1);
 
+      if (checkError) {
+        console.error(`❌ Duplicate check failed for "${item.title.substring(0, 50)}...":`, checkError);
+        itemDetail.status = 'error';
+        itemDetail.reason = `Duplicate check failed: ${checkError.message}`;
+        allItems.push(itemDetail);
+        continue;
+      }
+
       if (existingEvent && existingEvent.length > 0) {
         // Duplicate found
         itemDetail.status = 'duplicate';
