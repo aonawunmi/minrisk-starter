@@ -327,11 +327,10 @@ async function loadRisks(organizationId) {
  */
 async function analyzeEventRelevance(event, risks, claudeApiKey) {
   try {
-    // Analyze ALL risks (removed category pre-filtering for better matches)
-    // Limit to 50 risks to avoid token limits (increased from 20 to include strategic risks which come later alphabetically)
-    const risksToAnalyze = risks.slice(0, 50);
+    // Analyze ALL risks - completeness is critical for risk management
+    const risksToAnalyze = risks;
 
-    console.log(`   🎯 Analyzing against ${risksToAnalyze.length} risks (${risks.length} total available)`);
+    console.log(`   🎯 Analyzing against ${risksToAnalyze.length} risks`);
 
     if (risksToAnalyze.length === 0) {
       console.log(`   ⚠️  No risks available for analysis!`);
