@@ -342,8 +342,10 @@ async function analyzeEventRelevance(event, risks, claudeApiKey) {
 EVENT:
 Title: ${event.title}
 Description: ${event.description}
-Category: ${event.category}
+Category: ${event.event_category}
 Source: ${event.source_name}
+
+⚠️ IMPORTANT: The TITLE is the most reliable indicator. If the title contains keywords related to a risk category (e.g., "ransomware", "phishing", "cyber", "regulatory", "market"), treat it as relevant even if the description is short.
 
 ORGANIZATIONAL RISKS:
 ${risksToAnalyze.map(r => `[${r.risk_code}] ${r.risk_title} - ${r.risk_description}`).join('\n')}
@@ -383,6 +385,10 @@ Return ONLY valid JSON:
 }
 
 If absolutely zero thematic overlap, return: {"relevant": false}`;
+
+    //  CRITICAL DEBUG: Log first 1000 chars of prompt to see what Claude is receiving
+    console.log(`   📝 Prompt preview (first 1000 chars):`, prompt.substring(0, 1000));
+    console.log(`   📊 Total risks in prompt: ${risksToAnalyze.length}`);
 
     const response = await fetch(
       'https://api.anthropic.com/v1/messages',
