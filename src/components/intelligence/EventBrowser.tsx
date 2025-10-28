@@ -138,9 +138,21 @@ export function EventBrowser() {
     setClearMessage('Clearing unanalyzed events...');
 
     try {
+      // Get auth session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setClearMessage('❌ Not authenticated. Please log in.');
+        setTimeout(() => setClearMessage(''), 5000);
+        setClearing(false);
+        return;
+      }
+
       const response = await fetch('/api/scan-news', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           action: 'clearUnanalyzed',
         }),
@@ -177,9 +189,21 @@ export function EventBrowser() {
     setClearMessage('Clearing all events...');
 
     try {
+      // Get auth session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setClearMessage('❌ Not authenticated. Please log in.');
+        setTimeout(() => setClearMessage(''), 5000);
+        setClearing(false);
+        return;
+      }
+
       const response = await fetch('/api/scan-news', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           action: 'clearAll',
         }),

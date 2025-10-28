@@ -47,11 +47,12 @@ const DEFAULT_RISK_KEYWORDS = [
 /**
  * Load active news sources from database
  */
-async function loadNewsSources() {
+async function loadNewsSources(organizationId) {
   try {
     const { data, error } = await supabase
       .from('news_sources')
       .select('name, url, category, country')
+      .eq('organization_id', organizationId)
       .eq('is_active', true)
       .order('name');
 
@@ -82,11 +83,12 @@ async function loadNewsSources() {
 /**
  * Load active risk keywords from database
  */
-async function loadRiskKeywords() {
+async function loadRiskKeywords(organizationId) {
   try {
     const { data, error } = await supabase
       .from('risk_keywords')
       .select('keyword')
+      .eq('organization_id', organizationId)
       .eq('is_active', true);
 
     if (error) throw error;
@@ -164,7 +166,10 @@ function categorizeEvent(title, description) {
 /**
  * Store events in database and return detailed results
  */
-async function storeEvents(parsedFeeds, maxAgeDays = 7, riskKeywords) {
+async function storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId) {
+  // Attach organizationId to parsedFeeds for event storage
+  parsedFeeds.organizationId = organizationId;
+
   let stored = 0;
   const storedEvents = [];
   const allItems = []; // Track all items with their status
@@ -268,10 +273,11 @@ async function storeEvents(parsedFeeds, maxAgeDays = 7, riskKeywords) {
 /**
  * Load risks from database for AI analysis
  */
-async function loadRisks() {
+async function loadRisks(organizationId) {
   const { data, error } = await supabase
     .from('risks')
     .select('risk_code, risk_title, risk_description, category, likelihood_inherent, impact_inherent')
+    .eq('organization_id', organizationId)
     .order('risk_code');
 
   if (error) {
@@ -541,17 +547,18 @@ export default async function handler(req, res) {
         });
       }
 
-      // Load unanalyzed events
+      // Load unanalyzed events for this organization
       const { data: events, error: eventsError } = await supabase
         .from('external_events')
         .select('*')
+        .eq('organization_id', organizationId)
         .is('analyzed_at', null)
         .order('published_date', { ascending: false })
         .limit(50); // Analyze up to 50 events at a time
 
       if (eventsError) throw eventsError;
 
-      console.log(`📊 Found ${events?.length || 0} unanalyzed events`);
+      console.log(`📊 Found ${events?.length || 0} unanalyzed events for organization ${organizationId}`);
 
       if (!events || events.length === 0) {
         return res.status(200).json({
@@ -562,9 +569,9 @@ export default async function handler(req, res) {
         });
       }
 
-      // Load risks
-      const risks = await loadRisks();
-      console.log(`📊 Loaded ${risks.length} risks`);
+      // Load risks for this organization
+      const risks = await loadRisks(organizationId);
+      console.log(`📊 Loaded ${risks.length} risks for organization ${organizationId}`);
 
       if (risks.length === 0) {
         return res.status(200).json({
@@ -605,6 +612,7 @@ export default async function handler(req, res) {
       const { count: beforeCount, error: countError } = await supabase
         .from('external_events')
         .select('*', { count: 'exact', head: true })
+        .eq('organization_id', organizationId)
         .is('analyzed_at', null);
 
       if (countError) throw countError;
@@ -613,6 +621,7 @@ export default async function handler(req, res) {
       const { error: deleteError } = await supabase
         .from('external_events')
         .delete()
+        .eq('organization_id', organizationId)
         .is('analyzed_at', null);
 
       if (deleteError) throw deleteError;
@@ -642,7 +651,8 @@ export default async function handler(req, res) {
       // Count all events before deletion
       const { count: beforeCount, error: countError } = await supabase
         .from('external_events')
-        .select('*', { count: 'exact', head: true });
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', organizationId);
 
       if (countError) throw countError;
 
@@ -650,6 +660,7 @@ export default async function handler(req, res) {
       const { error: deleteError } = await supabase
         .from('external_events')
         .delete()
+        .eq('organization_id', organizationId)
         .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all by using a condition that matches everything
 
       if (deleteError) throw deleteError;
@@ -680,6 +691,7 @@ export default async function handler(req, res) {
       const { count: beforeCount, error: countError } = await supabase
         .from('external_events')
         .select('*', { count: 'exact', head: true })
+        .eq('organization_id', organizationId)
         .not('analyzed_at', 'is', null);
 
       if (countError) throw countError;
@@ -688,6 +700,7 @@ export default async function handler(req, res) {
       const { error: updateError } = await supabase
         .from('external_events')
         .update({ analyzed_at: null })
+        .eq('organization_id', organizationId)
         .not('analyzed_at', 'is', null);
 
       if (updateError) throw updateError;
@@ -724,8 +737,8 @@ export default async function handler(req, res) {
 
     // Load custom sources and keywords from database
     console.log('📊 Loading configuration from database...');
-    const sourcesToScan = await loadNewsSources();
-    const riskKeywords = await loadRiskKeywords();
+    const sourcesToScan = await loadNewsSources(organizationId);
+    const riskKeywords = await loadRiskKeywords(organizationId);
 
     console.log(`📅 Filtering news from last ${maxAgeDays} days`);
     console.log(`📡 Scanning ${sourcesToScan.length} sources`);
@@ -749,11 +762,11 @@ export default async function handler(req, res) {
     console.log(`📊 Total items found: ${parsedFeeds.totalItems}`);
 
     // Store events in database with date filtering
-    const storeResults = await storeEvents(parsedFeeds, maxAgeDays, riskKeywords);
+    const storeResults = await storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId);
 
     // Load risks for AI analysis
     console.log('📊 Loading risks from database...');
-    const risks = await loadRisks();
+    const risks = await loadRisks(organizationId);
     console.log(`📊 Loaded ${risks.length} risks`);
 
     // Run AI analysis and create alerts
