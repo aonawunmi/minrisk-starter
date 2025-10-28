@@ -225,73 +225,20 @@ async function storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId
         continue; // Skip non-risk-related events
       }
 
-      // DEBUG: Log before duplicate check
-      console.log(`🔎 Checking duplicates for "${item.title.substring(0, 50)}..." with org_id: ${parsedFeeds.organizationId}`);
+      // Check for duplicates by URL (more reliable)
+      const { data: existingByUrl } = await supabase
+        .from('external_events')
+        .select('id')
+        .eq('organization_id', parsedFeeds.organizationId)
+        .eq('source_url', item.link)
+        .limit(1);
 
-      // TEMPORARILY DISABLE DUPLICATE CHECK TO ISOLATE THE ISSUE
-      console.log(`⚠️  DUPLICATE CHECK TEMPORARILY DISABLED FOR DEBUGGING`);
-
-      // Check for duplicates by URL first (more reliable), then by title (within this organization)
-      // const { data: existingByUrl, error: urlCheckError } = await supabase
-      //   .from('external_events')
-      //   .select('id')
-      //   .eq('organization_id', parsedFeeds.organizationId)
-      //   .eq('source_url', item.link)
-      //   .limit(1);
-
-      // // DEBUG: Log duplicate check result
-      // console.log(`📋 URL check result:`, {
-      //   title: item.title.substring(0, 50),
-      //   url_matches: existingByUrl?.length || 0,
-      //   has_error: !!urlCheckError,
-      //   error_details: urlCheckError ? { code: urlCheckError.code, message: urlCheckError.message } : null
-      // });
-
-      // if (urlCheckError) {
-      //   console.error(`❌ URL duplicate check failed for "${item.title.substring(0, 50)}...":`, urlCheckError);
-      //   itemDetail.status = 'error';
-      //   itemDetail.reason = `Duplicate check failed: ${urlCheckError.message}`;
-      //   allItems.push(itemDetail);
-      //   continue;
-      // }
-
-      // if (existingByUrl && existingByUrl.length > 0) {
-      //   itemDetail.status = 'duplicate';
-      //   itemDetail.reason = 'Event URL already exists in database';
-      //   allItems.push(itemDetail);
-      //   continue;
-      // }
-
-      // // Also check by title (some feeds may not have unique URLs)
-      // const { data: existingByTitle, error: titleCheckError } = await supabase
-      //   .from('external_events')
-      //   .select('id')
-      //   .eq('organization_id', parsedFeeds.organizationId)
-      //   .eq('title', item.title.substring(0, 500))
-      //   .limit(1);
-
-      // // DEBUG: Log title check result
-      // console.log(`📋 Title check result:`, {
-      //   title: item.title.substring(0, 50),
-      //   title_matches: existingByTitle?.length || 0,
-      //   has_error: !!titleCheckError,
-      //   error_details: titleCheckError ? { code: titleCheckError.code, message: titleCheckError.message } : null
-      // });
-
-      // if (titleCheckError) {
-      //   console.error(`❌ Title duplicate check failed for "${item.title.substring(0, 50)}...":`, titleCheckError);
-      //   itemDetail.status = 'error';
-      //   itemDetail.reason = `Duplicate check failed: ${titleCheckError.message}`;
-      //   allItems.push(itemDetail);
-      //   continue;
-      // }
-
-      // if (existingByTitle && existingByTitle.length > 0) {
-      //   itemDetail.status = 'duplicate';
-      //   itemDetail.reason = 'Event title already exists in database';
-      //   allItems.push(itemDetail);
-      //   continue;
-      // }
+      if (existingByUrl && existingByUrl.length > 0) {
+        itemDetail.status = 'duplicate';
+        itemDetail.reason = 'Event URL already exists in database';
+        allItems.push(itemDetail);
+        continue;
+      }
 
       const event = {
         title: item.title.substring(0, 500),
@@ -299,7 +246,7 @@ async function storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId
         source_name: feedData.source.name,
         source_url: item.link,
         published_date: new Date(item.pubDate),
-        category,
+        event_category: category,  // FIXED: was 'category', should be 'event_category'
         keywords,
         country: feedData.source.country,
         organization_id: parsedFeeds.organizationId, // Link event to organization
