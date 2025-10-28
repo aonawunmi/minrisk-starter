@@ -278,17 +278,27 @@ async function storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId
       console.log(`🔍 Attempting INSERT for "${item.title.substring(0, 50)}..." with organization_id: ${parsedFeeds.organizationId}`);
 
       // Insert the event
-      const { data, error } = await supabase
+      const { data, error, status, statusText, count } = await supabase
         .from('external_events')
         .insert(event)
-        .select()
-        .single();
+        .select();
 
-      if (!error && data) {
+      // DEBUG: Log full response
+      console.log(`📝 INSERT response:`, {
+        data_length: data?.length,
+        has_error: !!error,
+        status,
+        statusText,
+        count,
+        error_code: error?.code,
+        error_message: error?.message
+      });
+
+      if (!error && data && data.length > 0) {
         stored++;
-        storedEvents.push(data);
+        storedEvents.push(data[0]);
         itemDetail.status = 'stored';
-        itemDetail.eventId = data.id;
+        itemDetail.eventId = data[0].id;
       } else if (error?.code === '23505') {
         // Duplicate caught by database constraint
         itemDetail.status = 'duplicate';
@@ -299,7 +309,8 @@ async function storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId
           code: error?.code,
           message: error?.message,
           details: error?.details,
-          hint: error?.hint
+          hint: error?.hint,
+          full_error: JSON.stringify(error)
         });
         itemDetail.status = 'error';
         itemDetail.reason = error?.message || 'Unknown error';
