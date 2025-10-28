@@ -447,35 +447,143 @@ async function createRiskAlerts(storedEvents, risks, claudeApiKey) {
       // FALLBACK MECHANISM: Force match for obvious keywords if Claude missed them
       if (!analysis.relevant || !analysis.risk_codes || analysis.risk_codes.length === 0) {
         const titleLower = event.title.toLowerCase();
+        const descriptionLower = (event.description || '').toLowerCase();
         const categoryLower = (event.event_category || '').toLowerCase();
-        const combinedText = titleLower + ' ' + categoryLower;
+        const combinedText = `${titleLower} ${descriptionLower} ${categoryLower}`;
 
-        // Find matching risk codes based on keywords
+        // Find matching risk codes based on comprehensive keywords
         const fallbackRiskCodes = [];
+        const matchedKeywords = [];
 
-        // Cybersecurity keywords → CYB risks
-        if (/cyber|hack|breach|ransomware|malware|phishing|vulnerability|exploit|attack|trojan|botnet|ddos/i.test(combinedText)) {
-          fallbackRiskCodes.push(...risks.filter(r => r.risk_code.includes('CYB')).map(r => r.risk_code));
+        // ========== CYBERSECURITY RISKS ==========
+        const cyberKeywords = [
+          // Malware & Attacks
+          'cyber', 'hack', 'hacker', 'breach', 'ransomware', 'malware', 'spyware', 'trojan',
+          'worm', 'virus', 'rootkit', 'keylogger', 'botnet', 'backdoor', 'exploit',
+          // Attack Types
+          'phishing', 'smishing', 'vishing', 'ddos', 'dos attack', 'injection', 'xss',
+          'sql injection', 'zero-day', 'brute force', 'mitm', 'man-in-the-middle',
+          // Security Issues
+          'vulnerability', 'cve-', 'security flaw', 'patch', 'exploit', 'payload',
+          'credential', 'password leak', 'data breach', 'stolen data', 'exfiltration',
+          // Threat Actors
+          'apt', 'threat actor', 'hacking group', 'cybercrime', 'cyber attack',
+          // Security Tools/Concepts
+          'firewall', 'antivirus', 'endpoint', 'intrusion', 'ids', 'ips', 'siem',
+          'penetration test', 'security audit', 'incident response'
+        ];
+
+        for (const keyword of cyberKeywords) {
+          if (combinedText.includes(keyword)) {
+            fallbackRiskCodes.push(...risks.filter(r => r.risk_code.includes('CYB')).map(r => r.risk_code));
+            matchedKeywords.push(keyword);
+            break; // Only need one match
+          }
         }
 
-        // Regulatory keywords → REG risks
-        if (/regulatory|compliance|regulation|sec\b|finra|rule|mandate|law|legal/i.test(combinedText)) {
-          fallbackRiskCodes.push(...risks.filter(r => r.risk_code.includes('REG')).map(r => r.risk_code));
+        // ========== REGULATORY & COMPLIANCE RISKS ==========
+        const regulatoryKeywords = [
+          // General Regulatory
+          'regulatory', 'regulation', 'compliance', 'mandate', 'directive', 'policy',
+          'law', 'legislation', 'statute', 'ordinance', 'ruling', 'decree',
+          // Regulators & Bodies
+          'sec', 'finra', 'cbn', 'central bank', 'securities commission', 'financial regulator',
+          'fed', 'federal reserve', 'fca', 'fsb', 'basel', 'mifid', 'gdpr', 'ccpa',
+          // Compliance Actions
+          'fine', 'penalty', 'sanction', 'enforcement action', 'consent order',
+          'investigation', 'audit', 'examination', 'supervisory', 'regulatory action',
+          // Requirements
+          'requirement', 'standard', 'guideline', 'framework', 'code of conduct',
+          'reporting obligation', 'disclosure', 'filing', 'submission'
+        ];
+
+        for (const keyword of regulatoryKeywords) {
+          if (combinedText.includes(keyword)) {
+            fallbackRiskCodes.push(...risks.filter(r => r.risk_code.includes('REG')).map(r => r.risk_code));
+            matchedKeywords.push(keyword);
+            break;
+          }
         }
 
-        // Market keywords → MKT or FIN risks
-        if (/market|economic|financial|volatility|recession|inflation|rate|trading/i.test(combinedText)) {
-          fallbackRiskCodes.push(...risks.filter(r => r.risk_code.includes('MKT') || r.risk_code.includes('FIN')).map(r => r.risk_code));
+        // ========== MARKET & FINANCIAL RISKS ==========
+        const marketKeywords = [
+          // Market Conditions
+          'market', 'volatility', 'fluctuation', 'turbulence', 'downturn', 'crash',
+          'correction', 'rally', 'bubble', 'bear market', 'bull market',
+          // Economic Indicators
+          'economic', 'economy', 'gdp', 'inflation', 'deflation', 'stagflation',
+          'recession', 'depression', 'slowdown', 'contraction', 'expansion',
+          // Financial Metrics
+          'interest rate', 'yield', 'spread', 'liquidity', 'credit', 'debt',
+          'currency', 'exchange rate', 'forex', 'fx', 'commodity', 'oil price',
+          // Financial Events
+          'default', 'bankruptcy', 'insolvency', 'bailout', 'crisis',
+          'financial stress', 'systemic risk', 'contagion', 'counterparty risk',
+          // Trading & Markets
+          'trading', 'stock', 'equity', 'bond', 'derivative', 'option', 'future',
+          'portfolio', 'asset', 'securities', 'investment'
+        ];
+
+        for (const keyword of marketKeywords) {
+          if (combinedText.includes(keyword)) {
+            fallbackRiskCodes.push(...risks.filter(r => r.risk_code.includes('MKT') || r.risk_code.includes('FIN')).map(r => r.risk_code));
+            matchedKeywords.push(keyword);
+            break;
+          }
         }
 
+        // ========== OPERATIONAL RISKS ==========
+        const operationalKeywords = [
+          // Systems & Technology
+          'outage', 'downtime', 'system failure', 'service disruption', 'unavailable',
+          'crashed', 'offline', 'blackout', 'power failure', 'infrastructure failure',
+          // Processes
+          'error', 'mistake', 'miscalculation', 'processing error', 'settlement failure',
+          'reconciliation', 'mismatch', 'discrepancy', 'delay',
+          // People
+          'fraud', 'misconduct', 'rogue trader', 'unauthorized', 'employee',
+          'insider threat', 'human error', 'training', 'competence'
+        ];
+
+        for (const keyword of operationalKeywords) {
+          if (combinedText.includes(keyword)) {
+            fallbackRiskCodes.push(...risks.filter(r => r.risk_code.includes('OPE')).map(r => r.risk_code));
+            matchedKeywords.push(keyword);
+            break;
+          }
+        }
+
+        // ========== STRATEGIC RISKS ==========
+        const strategicKeywords = [
+          // Competition
+          'competitor', 'competition', 'rival', 'market share', 'disruptor',
+          'new entrant', 'substitution', 'alternative',
+          // Business Model
+          'strategy', 'strategic', 'business model', 'disruption', 'innovation',
+          'transformation', 'pivot', 'diversification', 'merger', 'acquisition',
+          // Reputation
+          'reputation', 'brand', 'public perception', 'trust', 'confidence',
+          'scandal', 'controversy', 'backlash', 'boycott'
+        ];
+
+        for (const keyword of strategicKeywords) {
+          if (combinedText.includes(keyword)) {
+            fallbackRiskCodes.push(...risks.filter(r => r.risk_code.includes('STR')).map(r => r.risk_code));
+            matchedKeywords.push(keyword);
+            break;
+          }
+        }
+
+        // Apply fallback if any matches found
         if (fallbackRiskCodes.length > 0) {
-          console.log(`   🎯 FALLBACK MATCH: Keywords detected, forcing match to: ${fallbackRiskCodes.join(', ')}`);
+          const uniqueRiskCodes = [...new Set(fallbackRiskCodes)];
+          console.log(`   🎯 FALLBACK MATCH: Keywords detected [${matchedKeywords.join(', ')}], forcing match to: ${uniqueRiskCodes.join(', ')}`);
           analysis.relevant = true;
           analysis.confidence = 0.5;
-          analysis.risk_codes = [...new Set(fallbackRiskCodes)]; // Remove duplicates
-          analysis.reasoning = `Automated keyword match: Event contains relevant keywords matching ${analysis.risk_codes.length} risk(s)`;
-          analysis.impact_assessment = 'Industry precedent - external event showing environmental risk changes';
-          analysis.suggested_controls = ['Monitor for similar incidents', 'Review related controls'];
+          analysis.risk_codes = uniqueRiskCodes;
+          analysis.reasoning = `Keyword-based match: Event contains ${matchedKeywords.length} relevant keyword(s) [${matchedKeywords.slice(0, 3).join(', ')}] indicating potential relevance to ${uniqueRiskCodes.length} organizational risk(s)`;
+          analysis.impact_assessment = 'External event demonstrates industry/environmental trend that may affect organizational risk landscape';
+          analysis.suggested_controls = ['Monitor for similar incidents', 'Review affected risk controls', 'Assess potential impact'];
           analysis.likelihood_change = 1;
         }
       }
@@ -483,10 +591,15 @@ async function createRiskAlerts(storedEvents, risks, claudeApiKey) {
       if (analysis.relevant && analysis.confidence >= 0.3 && analysis.risk_codes?.length > 0) {  // Lowered threshold to catch more potential matches
         console.log(`   ✅ Alert criteria met! Creating alerts for: ${analysis.risk_codes.join(', ')}`);
         for (const riskCode of analysis.risk_codes) {
+          // Find the risk details to include in alert
+          const riskDetails = risks.find(r => r.risk_code === riskCode);
+
           const alert = {
             organization_id: event.organization_id,  // CRITICAL: Required for FK constraint
             event_id: event.id,
             risk_code: riskCode,
+            risk_title: riskDetails?.risk_title || '',  // NEW: Capture risk title
+            risk_description: riskDetails?.risk_description || '',  // NEW: Capture risk description
             suggested_likelihood_change: analysis.likelihood_change || 0,
             reasoning: analysis.reasoning || 'No reasoning provided',  // FIXED: Was 'ai_reasoning', should be 'reasoning'
             confidence_score: analysis.confidence,

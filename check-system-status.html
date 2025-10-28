@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MinRisk Intelligence System Status</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 1200px;
+      margin: 40px auto;
+      padding: 0 20px;
+      background: #f5f7fa;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #1e293b;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #64748b;
+      margin-bottom: 30px;
+    }
+    .section {
+      margin: 30px 0;
+      padding: 20px;
+      background: #f8fafc;
+      border-radius: 8px;
+      border-left: 4px solid #3b82f6;
+    }
+    .section h2 {
+      margin-top: 0;
+      color: #1e293b;
+      font-size: 1.3em;
+    }
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin: 20px 0;
+    }
+    .stat-card {
+      background: white;
+      padding: 15px;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+    }
+    .stat-label {
+      color: #64748b;
+      font-size: 0.9em;
+      margin-bottom: 5px;
+    }
+    .stat-value {
+      font-size: 2em;
+      font-weight: bold;
+      color: #1e293b;
+    }
+    .alert-box {
+      padding: 15px;
+      border-radius: 6px;
+      margin: 15px 0;
+    }
+    .alert-info {
+      background: #dbeafe;
+      border-left: 4px solid #3b82f6;
+      color: #1e3a8a;
+    }
+    .alert-warning {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      color: #92400e;
+    }
+    .alert-success {
+      background: #d1fae5;
+      border-left: 4px solid #10b981;
+      color: #065f46;
+    }
+    .code-block {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 0.9em;
+      margin: 15px 0;
+    }
+    pre {
+      margin: 0;
+    }
+    .btn {
+      display: inline-block;
+      padding: 10px 20px;
+      background: #3b82f6;
+      color: white;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 500;
+      margin: 10px 10px 10px 0;
+      cursor: pointer;
+      border: none;
+      font-size: 1em;
+    }
+    .btn:hover {
+      background: #2563eb;
+    }
+    .btn-secondary {
+      background: #64748b;
+    }
+    .btn-secondary:hover {
+      background: #475569;
+    }
+    .checklist {
+      list-style: none;
+      padding: 0;
+    }
+    .checklist li {
+      padding: 10px 0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .checklist li:before {
+      content: "□ ";
+      font-size: 1.2em;
+      color: #3b82f6;
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 MinRisk Intelligence System Diagnostic</h1>
+    <p class="subtitle">Current Status and Troubleshooting Guide</p>
+
+    <div class="section">
+      <h2>📊 System Status</h2>
+      <div id="status-loading" class="alert-box alert-info">
+        Loading system status...
+      </div>
+      <div id="status-results" style="display:none;"></div>
+    </div>
+
+    <div class="section">
+      <h2>🎯 Recent Fixes Applied</h2>
+      <div class="alert-box alert-success">
+        <strong>✅ Title-Focused Matching Implemented</strong><br>
+        The Claude AI prompt has been updated to prioritize event TITLES over descriptions, since RSS feeds provide excellent titles but truncated descriptions (200-400 chars).
+      </div>
+      <div class="alert-box alert-success">
+        <strong>✅ All Risks Analyzed</strong><br>
+        System now analyzes ALL 123 risks (including strategic risks) instead of just the first 20.
+      </div>
+      <div class="alert-box alert-success">
+        <strong>✅ Lowered Confidence Threshold</strong><br>
+        Alert threshold reduced to 0.3 to catch more potential matches.
+      </div>
+      <div class="alert-box alert-success">
+        <strong>✅ Detailed Logging Added</strong><br>
+        Full Claude AI responses are now logged for debugging.
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>🔧 Diagnostic Steps</h2>
+      <ol class="checklist">
+        <li>Check if events exist and are unanalyzed (analyzed_at IS NULL)</li>
+        <li>Verify strategic risks exist in the database</li>
+        <li>Check Vercel deployment logs for Claude AI responses</li>
+        <li>Run test analysis on a sample event</li>
+        <li>Verify alert creation permissions and database schema</li>
+      </ol>
+    </div>
+
+    <div class="section">
+      <h2>📋 SQL Diagnostic Query</h2>
+      <p>Run this in Supabase SQL Editor to check system status:</p>
+      <div class="code-block">
+<pre>-- Quick system status check
+WITH org AS (
+  SELECT organization_id
+  FROM user_profiles
+  WHERE id = (SELECT id FROM auth.users WHERE email = 'ayodele.onawunmi@213.capital' LIMIT 1)
+)
+SELECT
+  'EVENTS' as metric,
+  COUNT(*) as total,
+  COUNT(*) FILTER (WHERE analyzed_at IS NULL) as unanalyzed,
+  COUNT(*) FILTER (WHERE analyzed_at IS NOT NULL) as analyzed
+FROM external_events
+WHERE organization_id = (SELECT organization_id FROM org)
+UNION ALL
+SELECT
+  'RISKS',
+  COUNT(*),
+  COUNT(*) FILTER (WHERE risk_code LIKE 'STR-%'),
+  COUNT(*) FILTER (WHERE risk_code NOT LIKE 'STR-%')
+FROM risks
+WHERE organization_id = (SELECT organization_id FROM org)
+UNION ALL
+SELECT
+  'ALERTS',
+  COUNT(*),
+  COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 hour'),
+  COUNT(*) FILTER (WHERE status = 'pending')
+FROM risk_intelligence_alerts
+WHERE organization_id = (SELECT organization_id FROM org);</pre>
+      </div>
+      <button class="btn" onclick="copySQL()">📋 Copy Query</button>
+      <a href="https://supabase.com/dashboard/project/cnywkjfkhnwptceluvzs/sql/new" target="_blank" class="btn btn-secondary">
+        🗄️ Open Supabase SQL Editor
+      </a>
+    </div>
+
+    <div class="section">
+      <h2>🚀 Testing Procedure</h2>
+      <div class="alert-box alert-warning">
+        <strong>⚠️ Important:</strong> Before testing, verify events are still unanalyzed. If all events show analyzed_at timestamps, you'll need to reset them first.
+      </div>
+      <p><strong>To test the new title-focused matching:</strong></p>
+      <ol>
+        <li>Go to <a href="https://minrisk-starter.vercel.app" target="_blank">https://minrisk-starter.vercel.app</a></li>
+        <li>Navigate to Intelligence → Event Monitoring</li>
+        <li>Click <strong>"Reset Analysis"</strong> to clear analyzed_at timestamps</li>
+        <li>Click <strong>"Analyze Events"</strong> to run Claude AI with the new prompt</li>
+        <li>Check the browser console and Vercel logs for Claude's JSON responses</li>
+        <li>Verify alerts are created in the Alerts tab</li>
+      </ol>
+    </div>
+
+    <div class="section">
+      <h2>📊 Sample Events in Database</h2>
+      <p>Your database contains excellent cybersecurity event titles like:</p>
+      <ul>
+        <li>"Smishing Triad Linked to 194,000 Malicious Domains in Global Phishing Operation" (79 chars)</li>
+        <li>"Qilin Ransomware Combines Linux Payload With BYOVD Exploit in Hybrid Attack" (75 chars)</li>
+        <li>"ChatGPT Atlas Browser Can Be Tricked Into Sharing Sensitive Info" (64 chars)</li>
+      </ul>
+      <p>These should DEFINITELY match strategic cybersecurity risks (STR-CYB-001, STR-CYB-002, etc.)</p>
+    </div>
+
+    <div class="section">
+      <h2>🎛️ View Logs</h2>
+      <button class="btn" onclick="window.open('https://vercel.com/team_Zfl7unYQq6jscSMpTVQpoQnY/minrisk-starter', '_blank')">
+        📈 Open Vercel Dashboard
+      </button>
+      <button class="btn btn-secondary" onclick="window.open('https://supabase.com/dashboard/project/cnywkjfkhnwptceluvzs', '_blank')">
+        🗄️ Open Supabase Dashboard
+      </button>
+    </div>
+
+    <div class="section">
+      <h2>🔬 Expected Claude AI Response</h2>
+      <p>For an event titled "Qilin Ransomware Combines Linux Payload...", Claude should return:</p>
+      <div class="code-block">
+<pre>{
+  "relevant": true,
+  "risk_codes": ["STR-CYB-001", "STR-CYB-002"],
+  "confidence": 0.6,
+  "likelihood_change": 1,
+  "reasoning": "Ransomware attacks demonstrate escalating cyber threat landscape relevant to organizational cybersecurity posture",
+  "impact_assessment": "Industry-wide increase in sophisticated ransomware attacks",
+  "suggested_controls": ["Monitor threat intel", "Review backup procedures", "Assess ransomware defenses"]
+}</pre>
+      </div>
+      <p><strong>If you're seeing <code>{"relevant": false}</code> instead, check the Vercel logs to understand why Claude is not matching.</strong></p>
+    </div>
+
+  </div>
+
+  <script>
+    function copySQL() {
+      const sqlQuery = `-- Quick system status check
+WITH org AS (
+  SELECT organization_id
+  FROM user_profiles
+  WHERE id = (SELECT id FROM auth.users WHERE email = 'ayodele.onawunmi@213.capital' LIMIT 1)
+)
+SELECT
+  'EVENTS' as metric,
+  COUNT(*) as total,
+  COUNT(*) FILTER (WHERE analyzed_at IS NULL) as unanalyzed,
+  COUNT(*) FILTER (WHERE analyzed_at IS NOT NULL) as analyzed
+FROM external_events
+WHERE organization_id = (SELECT organization_id FROM org)
+UNION ALL
+SELECT
+  'RISKS',
+  COUNT(*),
+  COUNT(*) FILTER (WHERE risk_code LIKE 'STR-%'),
+  COUNT(*) FILTER (WHERE risk_code NOT LIKE 'STR-%')
+FROM risks
+WHERE organization_id = (SELECT organization_id FROM org)
+UNION ALL
+SELECT
+  'ALERTS',
+  COUNT(*),
+  COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 hour'),
+  COUNT(*) FILTER (WHERE status = 'pending')
+FROM risk_intelligence_alerts
+WHERE organization_id = (SELECT organization_id FROM org);`;
+
+      navigator.clipboard.writeText(sqlQuery).then(() => {
+        alert('✅ SQL query copied to clipboard!');
+      });
+    }
+
+    // Try to load status via API (will only work if authenticated)
+    async function loadStatus() {
+      try {
+        // This would need to be implemented as an API endpoint
+        document.getElementById('status-loading').innerHTML =
+          '<div class="alert-box alert-info">ℹ️ Status check requires authentication. Please run the SQL query above in Supabase to get current system status.</div>';
+        document.getElementById('status-results').style.display = 'none';
+      } catch (error) {
+        console.error('Error loading status:', error);
+      }
+    }
+
+    loadStatus();
+  </script>
+</body>
+</html>
