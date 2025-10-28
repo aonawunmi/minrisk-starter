@@ -225,6 +225,9 @@ async function storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId
         continue; // Skip non-risk-related events
       }
 
+      // DEBUG: Log before duplicate check
+      console.log(`🔎 Checking duplicates for "${item.title.substring(0, 50)}..." with org_id: ${parsedFeeds.organizationId}`);
+
       // Check for duplicates by URL first (more reliable), then by title (within this organization)
       const { data: existingByUrl, error: urlCheckError } = await supabase
         .from('external_events')
@@ -232,6 +235,14 @@ async function storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId
         .eq('organization_id', parsedFeeds.organizationId)
         .eq('source_url', item.link)
         .limit(1);
+
+      // DEBUG: Log duplicate check result
+      console.log(`📋 URL check result:`, {
+        title: item.title.substring(0, 50),
+        url_matches: existingByUrl?.length || 0,
+        has_error: !!urlCheckError,
+        error_details: urlCheckError ? { code: urlCheckError.code, message: urlCheckError.message } : null
+      });
 
       if (urlCheckError) {
         console.error(`❌ URL duplicate check failed for "${item.title.substring(0, 50)}...":`, urlCheckError);
@@ -255,6 +266,14 @@ async function storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId
         .eq('organization_id', parsedFeeds.organizationId)
         .eq('title', item.title.substring(0, 500))
         .limit(1);
+
+      // DEBUG: Log title check result
+      console.log(`📋 Title check result:`, {
+        title: item.title.substring(0, 50),
+        title_matches: existingByTitle?.length || 0,
+        has_error: !!titleCheckError,
+        error_details: titleCheckError ? { code: titleCheckError.code, message: titleCheckError.message } : null
+      });
 
       if (titleCheckError) {
         console.error(`❌ Title duplicate check failed for "${item.title.substring(0, 50)}...":`, titleCheckError);
