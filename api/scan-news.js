@@ -91,8 +91,18 @@ async function loadNewsSources(organizationId) {
 
 /**
  * Load active risk keywords from database
+ * @param {string} organizationId - The organization ID
+ * @param {string[]} selectedKeywords - Optional array of selected keywords to use instead of loading all
  */
-async function loadRiskKeywords(organizationId) {
+async function loadRiskKeywords(organizationId, selectedKeywords = null) {
+  // If selectedKeywords are provided, use them directly
+  if (selectedKeywords && Array.isArray(selectedKeywords) && selectedKeywords.length > 0) {
+    console.log(`📊 Using ${selectedKeywords.length} user-selected keywords`);
+    console.log(`📊 Selected keywords: ${selectedKeywords.slice(0, 5).join(', ')}${selectedKeywords.length > 5 ? '...' : ''}`);
+    return selectedKeywords;
+  }
+
+  // Otherwise, load all active keywords from database
   try {
     const { data, error } = await supabase
       .from('risk_keywords')
@@ -1036,11 +1046,12 @@ export default async function handler(req, res) {
 
     // Get parameters from request body (if provided)
     const maxAgeDays = req.body?.maxAgeDays || 7; // Default to 7 days for daily scanning
+    const selectedKeywords = req.body?.selectedKeywords; // Optional: user-selected keywords
 
     // Load custom sources and keywords from database
     console.log('📊 Loading configuration from database...');
     const sourcesToScan = await loadNewsSources(organizationId);
-    const riskKeywords = await loadRiskKeywords(organizationId);
+    const riskKeywords = await loadRiskKeywords(organizationId, selectedKeywords);
 
     console.log(`📅 Filtering news from last ${maxAgeDays} days`);
     console.log(`📡 Scanning ${sourcesToScan.length} sources`);

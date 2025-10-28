@@ -6,6 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
 import {
   Brain,
   AlertTriangle,
@@ -68,6 +71,10 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
     rejected: 0,
     high_confidence: 0,
   });
+  const [showKeywordDialog, setShowKeywordDialog] = useState(false);
+  const [availableKeywords, setAvailableKeywords] = useState<Array<{ id: string; keyword: string; category: string }>>([]);
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
+  const [loadingKeywords, setLoadingKeywords] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -115,7 +122,48 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
     loadStats();
   };
 
-  const handleScanNews = async () => {
+  const loadAvailableKeywords = async () => {
+    setLoadingKeywords(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get user's organization_id
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('organization_id')
+        .eq('id', user.id)
+        .single();
+
+      if (!profile) return;
+
+      // Load active keywords for this organization
+      const { data: keywords, error } = await supabase
+        .from('risk_keywords')
+        .select('id, keyword, category')
+        .eq('organization_id', profile.organization_id)
+        .eq('is_active', true)
+        .order('category', { ascending: true })
+        .order('keyword', { ascending: true });
+
+      if (!error && keywords) {
+        setAvailableKeywords(keywords);
+        // Select all keywords by default
+        setSelectedKeywords(keywords.map(k => k.keyword));
+      }
+    } catch (error) {
+      console.error('Error loading keywords:', error);
+    } finally {
+      setLoadingKeywords(false);
+    }
+  };
+
+  const handleOpenKeywordDialog = () => {
+    loadAvailableKeywords();
+    setShowKeywordDialog(true);
+  };
+
+  const handleScanNews = async (keywordsToUse?: string[]) => {
     setScanning(true);
     setScanMessage('Scanning news feeds...');
 
@@ -135,6 +183,9 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
         },
+        body: JSON.stringify({
+          selectedKeywords: keywordsToUse,
+        }),
       });
 
       const result = await response.json();
@@ -386,7 +437,7 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
               <Button
                 variant="default"
                 size="sm"
-                onClick={handleScanNews}
+                onClick={handleOpenKeywordDialog}
                 disabled={scanning}
               >
                 {scanning ? (
@@ -634,6 +685,116 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
           onRetain={handleRetainEvent}
         />
       )}
+
+      {/* Keyword Selection Dialog */}
+      <Dialog open={showKeywordDialog} onOpenChange={setShowKeywordDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Select Risk Keywords for Scanning</DialogTitle>
+            <DialogDescription>
+              Choose which keywords to use when scanning news feeds. By default, all active keywords are selected.
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingKeywords ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-gray-400 mr-2" />
+              <span className="text-sm text-gray-500">Loading keywords...</span>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Select All / Deselect All */}
+              <div className="flex items-center gap-4 pb-3 border-b">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedKeywords(availableKeywords.map(k => k.keyword))}
+                >
+                  Select All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedKeywords([])}
+                >
+                  Deselect All
+                </Button>
+                <span className="text-sm text-gray-500 ml-auto">
+                  {selectedKeywords.length} of {availableKeywords.length} selected
+                </span>
+              </div>
+
+              {/* Keywords grouped by category */}
+              {availableKeywords.length === 0 ? (
+                <div className="text-center py-8 text-sm text-gray-500">
+                  No active keywords found. Please add keywords in the Keywords Manager.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {Object.entries(
+                    availableKeywords.reduce((acc, kw) => {
+                      if (!acc[kw.category]) acc[kw.category] = [];
+                      acc[kw.category].push(kw);
+                      return acc;
+                    }, {} as Record<string, typeof availableKeywords>)
+                  ).map(([category, keywords]) => (
+                    <div key={category} className="space-y-2">
+                      <h4 className="font-semibold text-sm text-gray-700 capitalize">
+                        {category}
+                      </h4>
+                      <div className="space-y-2 pl-2">
+                        {keywords.map((kw) => (
+                          <div key={kw.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`kw-${kw.id}`}
+                              checked={selectedKeywords.includes(kw.keyword)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedKeywords([...selectedKeywords, kw.keyword]);
+                                } else {
+                                  setSelectedKeywords(selectedKeywords.filter(k => k !== kw.keyword));
+                                }
+                              }}
+                            />
+                            <Label
+                              htmlFor={`kw-${kw.id}`}
+                              className="text-sm cursor-pointer"
+                            >
+                              {kw.keyword}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowKeywordDialog(false);
+                setSelectedKeywords([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setShowKeywordDialog(false);
+                handleScanNews(selectedKeywords.length > 0 ? selectedKeywords : undefined);
+              }}
+              disabled={selectedKeywords.length === 0}
+            >
+              <Rss className="h-4 w-4 mr-2" />
+              Scan with {selectedKeywords.length} Keyword{selectedKeywords.length !== 1 ? 's' : ''}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
