@@ -6,9 +6,10 @@ import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client
 // Serverless functions need non-VITE_ prefixed env vars
+// Use SERVICE_ROLE key to bypass RLS and access all organization data
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // News sources configuration
 const NEWS_SOURCES = [
