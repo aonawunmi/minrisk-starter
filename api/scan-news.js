@@ -433,10 +433,11 @@ async function createRiskAlerts(storedEvents, risks, claudeApiKey) {
         console.log(`   ✅ Alert criteria met! Creating alerts for: ${analysis.risk_codes.join(', ')}`);
         for (const riskCode of analysis.risk_codes) {
           const alert = {
+            organization_id: event.organization_id,  // CRITICAL: Required for FK constraint
             event_id: event.id,
             risk_code: riskCode,
             suggested_likelihood_change: analysis.likelihood_change || 0,
-            ai_reasoning: analysis.reasoning || 'No reasoning provided',
+            reasoning: analysis.reasoning || 'No reasoning provided',  // FIXED: Was 'ai_reasoning', should be 'reasoning'
             confidence_score: analysis.confidence,
             suggested_controls: analysis.suggested_controls || [],
             impact_assessment: analysis.impact_assessment || '',
