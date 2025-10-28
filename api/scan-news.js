@@ -213,15 +213,15 @@ async function storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId
         continue; // Skip non-risk-related events
       }
 
-      // Check for duplicates by title or URL before inserting
+      // Check for duplicates by title or URL before inserting (within this organization)
       const { data: existingEvent, error: checkError } = await supabase
         .from('external_events')
         .select('id')
+        .eq('organization_id', parsedFeeds.organizationId)
         .or(`title.eq.${item.title.substring(0, 500)},source_url.eq.${item.link}`)
-        .limit(1)
-        .single();
+        .limit(1);
 
-      if (existingEvent) {
+      if (existingEvent && existingEvent.length > 0) {
         // Duplicate found
         itemDetail.status = 'duplicate';
         itemDetail.reason = 'Event already exists in database';
