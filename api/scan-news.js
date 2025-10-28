@@ -429,7 +429,7 @@ async function createRiskAlerts(storedEvents, risks, claudeApiKey) {
         reasoning: analysis.reasoning?.substring(0, 100)
       }));
 
-      if (analysis.relevant && analysis.confidence >= 0.6 && analysis.risk_codes?.length > 0) {
+      if (analysis.relevant && analysis.confidence >= 0.4 && analysis.risk_codes?.length > 0) {  // Lowered from 0.6 to 0.4 to catch more potential matches
         console.log(`   ✅ Alert criteria met! Creating alerts for: ${analysis.risk_codes.join(', ')}`);
         for (const riskCode of analysis.risk_codes) {
           const alert = {
