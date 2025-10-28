@@ -444,6 +444,42 @@ async function createRiskAlerts(storedEvents, risks, claudeApiKey) {
         reasoning: analysis.reasoning?.substring(0, 100)
       }));
 
+      // FALLBACK MECHANISM: Force match for obvious keywords if Claude missed them
+      if (!analysis.relevant || !analysis.risk_codes || analysis.risk_codes.length === 0) {
+        const titleLower = event.title.toLowerCase();
+        const categoryLower = (event.event_category || '').toLowerCase();
+        const combinedText = titleLower + ' ' + categoryLower;
+
+        // Find matching risk codes based on keywords
+        const fallbackRiskCodes = [];
+
+        // Cybersecurity keywords → CYB risks
+        if (/cyber|hack|breach|ransomware|malware|phishing|vulnerability|exploit|attack|trojan|botnet|ddos/i.test(combinedText)) {
+          fallbackRiskCodes.push(...risks.filter(r => r.risk_code.includes('CYB')).map(r => r.risk_code));
+        }
+
+        // Regulatory keywords → REG risks
+        if (/regulatory|compliance|regulation|sec\b|finra|rule|mandate|law|legal/i.test(combinedText)) {
+          fallbackRiskCodes.push(...risks.filter(r => r.risk_code.includes('REG')).map(r => r.risk_code));
+        }
+
+        // Market keywords → MKT or FIN risks
+        if (/market|economic|financial|volatility|recession|inflation|rate|trading/i.test(combinedText)) {
+          fallbackRiskCodes.push(...risks.filter(r => r.risk_code.includes('MKT') || r.risk_code.includes('FIN')).map(r => r.risk_code));
+        }
+
+        if (fallbackRiskCodes.length > 0) {
+          console.log(`   🎯 FALLBACK MATCH: Keywords detected, forcing match to: ${fallbackRiskCodes.join(', ')}`);
+          analysis.relevant = true;
+          analysis.confidence = 0.5;
+          analysis.risk_codes = [...new Set(fallbackRiskCodes)]; // Remove duplicates
+          analysis.reasoning = `Automated keyword match: Event contains relevant keywords matching ${analysis.risk_codes.length} risk(s)`;
+          analysis.impact_assessment = 'Industry precedent - external event showing environmental risk changes';
+          analysis.suggested_controls = ['Monitor for similar incidents', 'Review related controls'];
+          analysis.likelihood_change = 1;
+        }
+      }
+
       if (analysis.relevant && analysis.confidence >= 0.3 && analysis.risk_codes?.length > 0) {  // Lowered threshold to catch more potential matches
         console.log(`   ✅ Alert criteria met! Creating alerts for: ${analysis.risk_codes.join(', ')}`);
         for (const riskCode of analysis.risk_codes) {
