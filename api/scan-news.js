@@ -540,8 +540,24 @@ export default async function handler(req, res) {
       const { data: { user }, error } = await supabase.auth.getUser(token);
       if (error) throw error;
       if (user) {
-        organizationId = user.id;
-        console.log(`✅ Authenticated as organization: ${organizationId}`);
+        // CRITICAL FIX: Look up the user's organization_id from user_profiles
+        // user.id is auth.users.id, but we need organizations.id
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('organization_id')
+          .eq('id', user.id)
+          .single();
+
+        if (profileError || !profile) {
+          console.error('Failed to load user profile:', profileError);
+          return res.status(401).json({
+            success: false,
+            error: 'User profile not found. Please contact support.'
+          });
+        }
+
+        organizationId = profile.organization_id;
+        console.log(`✅ Authenticated as user: ${user.id}, organization: ${organizationId}`);
       }
     } catch (error) {
       console.error('Auth verification failed:', error);
