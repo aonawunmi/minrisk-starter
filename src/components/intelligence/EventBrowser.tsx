@@ -167,6 +167,45 @@ export function EventBrowser() {
     }
   };
 
+  const handleClearAll = async () => {
+    if (!confirm(
+      '⚠️ WARNING: This will delete ALL stored events, including analyzed ones. ' +
+      'This action cannot be undone. Continue?'
+    )) return;
+
+    setClearing(true);
+    setClearMessage('Clearing all events...');
+
+    try {
+      const response = await fetch('/api/scan-news', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'clearAll',
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setClearMessage(`✅ Cleared ${result.events_cleared} events`);
+        setTimeout(() => {
+          loadEvents();
+          setClearMessage('');
+        }, 2000);
+      } else {
+        setClearMessage(`❌ Failed: ${result.error}`);
+        setTimeout(() => setClearMessage(''), 5000);
+      }
+    } catch (error) {
+      console.error('Error clearing all events:', error);
+      setClearMessage('❌ Error clearing events. Check console for details.');
+      setTimeout(() => setClearMessage(''), 5000);
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const uniqueSources = [...new Set(events.map((e) => e.source_name))].sort();
   const categories = ['all', 'cybersecurity', 'regulatory', 'market', 'environmental', 'operational', 'other'];
 
@@ -216,6 +255,25 @@ export function EventBrowser() {
                   <>
                     <Trash2 className="h-4 w-4 mr-2" />
                     Clear Unanalyzed
+                  </>
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handleClearAll}
+                disabled={clearing}
+                title="Delete ALL events (complete reset)"
+              >
+                {clearing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Clearing...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Clear All
                   </>
                 )}
               </Button>

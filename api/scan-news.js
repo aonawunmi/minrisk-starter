@@ -588,6 +588,43 @@ export default async function handler(req, res) {
     }
   }
 
+  // Handle clearing ALL events (complete reset)
+  if (req.method === 'POST' && req.body?.action === 'clearAll') {
+    try {
+      console.log('🗑️ Clearing ALL events...');
+
+      // Count all events before deletion
+      const { count: beforeCount, error: countError } = await supabase
+        .from('external_events')
+        .select('*', { count: 'exact', head: true });
+
+      if (countError) throw countError;
+
+      // Delete ALL events (including analyzed ones)
+      const { error: deleteError } = await supabase
+        .from('external_events')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all by using a condition that matches everything
+
+      if (deleteError) throw deleteError;
+
+      console.log(`✅ Cleared ${beforeCount || 0} events`);
+
+      return res.status(200).json({
+        success: true,
+        message: `Cleared ${beforeCount || 0} events`,
+        events_cleared: beforeCount || 0
+      });
+
+    } catch (error) {
+      console.error('Error clearing all events:', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
   try {
     console.log('🚀 Starting news scanner...');
 
