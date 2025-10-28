@@ -479,7 +479,7 @@ export default async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -487,6 +487,34 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Extract and verify user auth token
+  let organizationId = null;
+  const authHeader = req.headers.authorization;
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      if (error) throw error;
+      if (user) {
+        organizationId = user.id;
+        console.log(`✅ Authenticated as organization: ${organizationId}`);
+      }
+    } catch (error) {
+      console.error('Auth verification failed:', error);
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication failed. Please log in again.'
+      });
+    }
+  } else {
+    console.warn('⚠️  No auth token provided');
+    return res.status(401).json({
+      success: false,
+      error: 'Authentication required. Please log in.'
+    });
   }
 
   // Handle manual event retention

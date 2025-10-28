@@ -32,6 +32,7 @@ import { ScanResultsDialog } from './ScanResultsDialog';
 import { EventBrowser } from './EventBrowser';
 import { NewsSourcesManager } from './NewsSourcesManager';
 import { RiskKeywordsManager } from './RiskKeywordsManager';
+import { supabase } from '../../lib/supabase';
 
 type IntelligenceDashboardProps = {
   riskCode?: string; // Optional: filter by specific risk
@@ -115,11 +116,20 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
     setScanMessage('Scanning news feeds...');
 
     try {
+      // Get user session for auth
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setScanMessage('❌ Not authenticated. Please log in.');
+        setScanning(false);
+        return;
+      }
+
       // Call backend API endpoint instead of running scanner in browser
       const response = await fetch('/api/scan-news', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
       });
 
@@ -196,9 +206,20 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
     setAnalyzeMessage('Analyzing existing events...');
 
     try {
+      // Get user session for auth
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setAnalyzeMessage('❌ Not authenticated. Please log in.');
+        setAnalyzing(false);
+        return;
+      }
+
       const response = await fetch('/api/scan-news', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           action: 'analyzeExisting',
         }),
@@ -241,9 +262,20 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
     setResetMessage('Resetting analysis timestamps...');
 
     try {
+      // Get user session for auth
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setResetMessage('❌ Not authenticated. Please log in.');
+        setResetting(false);
+        return;
+      }
+
       const response = await fetch('/api/scan-news', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           action: 'resetAnalysis',
         }),
