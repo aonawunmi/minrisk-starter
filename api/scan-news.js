@@ -213,26 +213,48 @@ async function storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId
         continue; // Skip non-risk-related events
       }
 
-      // Check for duplicates by title or URL before inserting (within this organization)
-      const { data: existingEvent, error: checkError } = await supabase
+      // Check for duplicates by URL first (more reliable), then by title (within this organization)
+      const { data: existingByUrl, error: urlCheckError } = await supabase
         .from('external_events')
         .select('id')
         .eq('organization_id', parsedFeeds.organizationId)
-        .or(`title.eq.${item.title.substring(0, 500)},source_url.eq.${item.link}`)
+        .eq('source_url', item.link)
         .limit(1);
 
-      if (checkError) {
-        console.error(`❌ Duplicate check failed for "${item.title.substring(0, 50)}...":`, checkError);
+      if (urlCheckError) {
+        console.error(`❌ URL duplicate check failed for "${item.title.substring(0, 50)}...":`, urlCheckError);
         itemDetail.status = 'error';
-        itemDetail.reason = `Duplicate check failed: ${checkError.message}`;
+        itemDetail.reason = `Duplicate check failed: ${urlCheckError.message}`;
         allItems.push(itemDetail);
         continue;
       }
 
-      if (existingEvent && existingEvent.length > 0) {
-        // Duplicate found
+      if (existingByUrl && existingByUrl.length > 0) {
         itemDetail.status = 'duplicate';
-        itemDetail.reason = 'Event already exists in database';
+        itemDetail.reason = 'Event URL already exists in database';
+        allItems.push(itemDetail);
+        continue;
+      }
+
+      // Also check by title (some feeds may not have unique URLs)
+      const { data: existingByTitle, error: titleCheckError } = await supabase
+        .from('external_events')
+        .select('id')
+        .eq('organization_id', parsedFeeds.organizationId)
+        .eq('title', item.title.substring(0, 500))
+        .limit(1);
+
+      if (titleCheckError) {
+        console.error(`❌ Title duplicate check failed for "${item.title.substring(0, 50)}...":`, titleCheckError);
+        itemDetail.status = 'error';
+        itemDetail.reason = `Duplicate check failed: ${titleCheckError.message}`;
+        allItems.push(itemDetail);
+        continue;
+      }
+
+      if (existingByTitle && existingByTitle.length > 0) {
+        itemDetail.status = 'duplicate';
+        itemDetail.reason = 'Event title already exists in database';
         allItems.push(itemDetail);
         continue;
       }
