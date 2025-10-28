@@ -84,9 +84,17 @@ async function loadRiskKeywords() {
     if (error) throw error;
 
     const keywords = data.map(k => k.keyword);
-    return keywords.length > 0 ? keywords : DEFAULT_RISK_KEYWORDS;
+    console.log(`📊 Loaded ${keywords.length} active keywords from database`);
+    if (keywords.length > 0) {
+      console.log(`📊 Sample keywords: ${keywords.slice(0, 5).join(', ')}`);
+      return keywords;
+    } else {
+      console.log(`⚠️ No keywords in database, using ${DEFAULT_RISK_KEYWORDS.length} default keywords`);
+      return DEFAULT_RISK_KEYWORDS;
+    }
   } catch (error) {
     console.error('Error loading risk keywords from database:', error);
+    console.log(`⚠️ Falling back to ${DEFAULT_RISK_KEYWORDS.length} default keywords`);
     // Return default keywords as fallback
     return DEFAULT_RISK_KEYWORDS;
   }
