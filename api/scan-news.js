@@ -410,11 +410,22 @@ async function createRiskAlerts(storedEvents, risks, claudeApiKey) {
         }
       }
 
+      // Mark event as analyzed
+      await supabase
+        .from('external_events')
+        .update({ analyzed_at: new Date().toISOString() })
+        .eq('id', event.id);
+
       // Small delay to avoid rate limiting
       await new Promise(resolve => setTimeout(resolve, 1000));
 
     } catch (error) {
       console.error(`Error creating alert for event ${event.id}:`, error);
+      // Still mark as analyzed even if there was an error, to avoid re-processing
+      await supabase
+        .from('external_events')
+        .update({ analyzed_at: new Date().toISOString() })
+        .eq('id', event.id);
     }
   }
 
@@ -478,6 +489,74 @@ export default async function handler(req, res) {
       return res.status(result.success ? 200 : 400).json(result);
     } catch (error) {
       return res.status(500).json({ success: false, error: error.message });
+    }
+  }
+
+  // Handle analyzing existing unanalyzed events
+  if (req.method === 'POST' && req.body?.action === 'analyzeExisting') {
+    try {
+      console.log('🔍 Starting analysis of existing unanalyzed events...');
+
+      const claudeApiKey = process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY;
+      if (!claudeApiKey) {
+        return res.status(500).json({
+          success: false,
+          error: 'Claude API key not configured'
+        });
+      }
+
+      // Load unanalyzed events
+      const { data: events, error: eventsError } = await supabase
+        .from('external_events')
+        .select('*')
+        .is('analyzed_at', null)
+        .order('published_date', { ascending: false })
+        .limit(50); // Analyze up to 50 events at a time
+
+      if (eventsError) throw eventsError;
+
+      console.log(`📊 Found ${events?.length || 0} unanalyzed events`);
+
+      if (!events || events.length === 0) {
+        return res.status(200).json({
+          success: true,
+          message: 'No unanalyzed events found',
+          events_analyzed: 0,
+          alerts_created: 0
+        });
+      }
+
+      // Load risks
+      const risks = await loadRisks();
+      console.log(`📊 Loaded ${risks.length} risks`);
+
+      if (risks.length === 0) {
+        return res.status(200).json({
+          success: true,
+          message: 'No risks found in database',
+          events_analyzed: 0,
+          alerts_created: 0
+        });
+      }
+
+      // Analyze events and create alerts
+      const alertsCreated = await createRiskAlerts(events, risks, claudeApiKey);
+
+      console.log(`✅ Analysis complete: ${events.length} events analyzed, ${alertsCreated} alerts created`);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Analysis complete',
+        events_analyzed: events.length,
+        alerts_created: alertsCreated
+      });
+
+    } catch (error) {
+      console.error('Error analyzing existing events:', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message
+      });
     }
   }
 

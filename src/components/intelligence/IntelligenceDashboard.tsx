@@ -52,6 +52,8 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
   const [showEventBrowser, setShowEventBrowser] = useState(false);
   const [showSourcesManager, setShowSourcesManager] = useState(false);
   const [showKeywordsManager, setShowKeywordsManager] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeMessage, setAnalyzeMessage] = useState('');
   const [statistics, setStatistics] = useState({
     total: 0,
     pending: 0,
@@ -187,6 +189,46 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
     }
   };
 
+  const handleAnalyzeExisting = async () => {
+    setAnalyzing(true);
+    setAnalyzeMessage('Analyzing existing events...');
+
+    try {
+      const response = await fetch('/api/scan-news', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'analyzeExisting',
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setAnalyzeMessage(
+          `✅ Analysis complete! Analyzed ${result.events_analyzed} events, ` +
+          `created ${result.alerts_created} alerts.`
+        );
+
+        // Reload data after a short delay
+        setTimeout(() => {
+          loadData();
+          loadStats();
+          setAnalyzeMessage('');
+        }, 3000);
+      } else {
+        setAnalyzeMessage(`❌ Analysis failed: ${result.error || 'Unknown error'}`);
+        setTimeout(() => setAnalyzeMessage(''), 5000);
+      }
+    } catch (error) {
+      console.error('Error analyzing events:', error);
+      setAnalyzeMessage('❌ Error analyzing events. Check console for details.');
+      setTimeout(() => setAnalyzeMessage(''), 5000);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -258,6 +300,25 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
                   </>
                 )}
               </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleAnalyzeExisting}
+                disabled={analyzing}
+                title="Analyze existing unanalyzed events for risk alerts"
+              >
+                {analyzing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Brain className="h-4 w-4 mr-2" />
+                    Analyze Events
+                  </>
+                )}
+              </Button>
               <Button variant="outline" size="sm" onClick={handleUpdate}>
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
@@ -303,6 +364,11 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
           {scanMessage && (
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-900">
               {scanMessage}
+            </div>
+          )}
+          {analyzeMessage && (
+            <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-900">
+              {analyzeMessage}
             </div>
           )}
         </CardContent>
