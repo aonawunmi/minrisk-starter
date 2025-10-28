@@ -601,6 +601,93 @@ export default async function handler(req, res) {
     }
   }
 
+  // TEST MODE: Create a dummy alert to verify alert creation works
+  if (req.method === 'POST' && req.body?.action === 'testAlert') {
+    try {
+      console.log('🧪 TEST MODE: Creating dummy alert to verify system...');
+
+      // Get first unanalyzed event
+      const { data: events, error: eventsError } = await supabase
+        .from('external_events')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .is('analyzed_at', null)
+        .limit(1);
+
+      if (eventsError || !events || events.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'No unanalyzed events found'
+        });
+      }
+
+      const event = events[0];
+
+      // Get first strategic risk
+      const { data: risks, error: risksError } = await supabase
+        .from('risks')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .ilike('risk_code', 'STR-%')
+        .limit(1);
+
+      if (risksError || !risks || risks.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'No strategic risks found'
+        });
+      }
+
+      const risk = risks[0];
+
+      // Manually create alert
+      console.log(`   Creating test alert for event "${event.title}" → risk ${risk.risk_code}`);
+
+      const alert = {
+        organization_id: organizationId,
+        event_id: event.id,
+        risk_code: risk.risk_code,
+        confidence: 0.9,
+        likelihood_change: 2,
+        reasoning: 'TEST ALERT: Manually created to verify alert system works',
+        impact_assessment: 'This is a test alert created to diagnose the system',
+        suggested_controls: ['Verify alert appears in dashboard'],
+        status: 'pending'
+      };
+
+      const { data: alertData, error: alertError } = await supabase
+        .from('risk_intelligence_alerts')
+        .insert(alert)
+        .select()
+        .single();
+
+      if (alertError) {
+        console.error('❌ Failed to create test alert:', alertError);
+        return res.status(500).json({
+          success: false,
+          error: alertError.message
+        });
+      }
+
+      console.log('✅ Test alert created successfully!');
+
+      return res.status(200).json({
+        success: true,
+        message: 'Test alert created successfully',
+        alert: alertData,
+        event: { title: event.title, id: event.id },
+        risk: { code: risk.risk_code, title: risk.risk_title }
+      });
+
+    } catch (error) {
+      console.error('Error creating test alert:', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
   // Handle analyzing existing unanalyzed events
   if (req.method === 'POST' && req.body?.action === 'analyzeExisting') {
     try {
