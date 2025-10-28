@@ -337,7 +337,7 @@ async function analyzeEventRelevance(event, risks, claudeApiKey) {
       return { relevant: false };
     }
 
-    const prompt = `You are a risk management expert for a financial services organization. Analyze if this external news event is relevant to any of the organization's risks.
+    const prompt = `You are a risk intelligence analyst. Your job is to find ANY thematic connections between external events and organizational risks for early warning purposes.
 
 EVENT:
 Title: ${event.title}
@@ -348,33 +348,41 @@ Source: ${event.source_name}
 ORGANIZATIONAL RISKS:
 ${risksToAnalyze.map(r => `[${r.risk_code}] ${r.risk_title} - ${r.risk_description}`).join('\n')}
 
-ANALYSIS GUIDELINES:
-Look for connections between the external event and organizational risks. Consider:
-1. Direct impact: Does this event describe something that could directly affect this organization?
-2. Industry trends: Does this event indicate a broader trend that increases risk?
-3. Precedent: Does this event show a risk materializing at another organization?
-4. Early warning: Could this event be a precursor to similar issues?
+YOUR TASK:
+Find ALL risks that have even a REMOTE thematic connection to this event. Be GENEROUS - we want early warnings.
 
-Be pragmatic - even indirect connections are valuable for risk awareness. For example:
-- Ransomware attacks elsewhere → cybersecurity risks here
-- Regulatory changes announced → compliance risks here
-- Market volatility reported → financial/market risks here
-- Technology failures at peers → operational technology risks here
+MATCHING CRITERIA (match if ANY apply):
+✓ Same topic area (cyber event → cyber risks, regulatory → compliance risks, market → market risks)
+✓ Same industry (financial services event → ANY financial risk)
+✓ Precedent value (happened elsewhere → could happen here)
+✓ Environmental indicator (shows landscape changing → strategic/external risks)
 
-IMPORTANT: Strategic/external risks are about monitoring the environment, not just direct hits to this organization.
+CONCRETE EXAMPLES:
+- "Ransomware attack on Bank X" → MATCH: All cybersecurity risks (STR-CYB-001, STR-CYB-002, etc.) with confidence 0.5-0.7
+- "SEC announces new rule" → MATCH: All regulatory risks (STR-REG-001, STR-REG-002) with confidence 0.4-0.6
+- "Market volatility reported" → MATCH: Market risks (STR-MKT-001, STR-MKT-002) with confidence 0.4-0.6
+- "Tech outage at competitor" → MATCH: Technology risks (STR-OPE-001, STR-CYB-002) with confidence 0.4-0.6
 
-Return ONLY valid JSON in this exact format:
+CONFIDENCE SCALE:
+- 0.7-1.0: Direct relevance to this organization
+- 0.4-0.6: Thematic match, industry precedent, environmental indicator
+- 0.3-0.4: Weak but notable connection
+- below 0.3: No meaningful connection
+
+IMPORTANT: If event matches the general theme/category of a risk, mark relevant with confidence 0.4+
+
+Return ONLY valid JSON:
 {
-  "relevant": true/false,
-  "risk_codes": ["RISK-001"],
-  "confidence": 0.65,
+  "relevant": true,
+  "risk_codes": ["STR-CYB-001", "STR-CYB-002"],
+  "confidence": 0.5,
   "likelihood_change": 1,
-  "reasoning": "Brief explanation of connection",
-  "impact_assessment": "How this affects the risk",
-  "suggested_controls": ["Control suggestion if applicable"]
+  "reasoning": "Ransomware attacks show escalating cyber threat landscape",
+  "impact_assessment": "Industry-wide increase in sophisticated attacks",
+  "suggested_controls": ["Monitor threat intel", "Review defenses"]
 }
 
-If no meaningful connection exists, return: {"relevant": false}`;
+If absolutely zero thematic overlap, return: {"relevant": false}`;
 
     const response = await fetch(
       'https://api.anthropic.com/v1/messages',
