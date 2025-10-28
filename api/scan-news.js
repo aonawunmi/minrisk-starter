@@ -286,21 +286,11 @@ async function loadRisks() {
  */
 async function analyzeEventRelevance(event, risks, claudeApiKey) {
   try {
-    // Filter risks by similar category for efficiency
-    const categoryMap = {
-      'cybersecurity': ['Technology', 'Operational', 'Cyber'],
-      'regulatory': ['Legal/Compliance', 'Regulatory', 'Compliance'],
-      'market': ['Market', 'Financial', 'Strategic'],
-      'environmental': ['ESG', 'Environmental', 'Climate'],
-      'operational': ['Operational', 'Technology', 'Process'],
-    };
+    // Analyze ALL risks (removed category pre-filtering for better matches)
+    // Limit to 20 risks to avoid token limits
+    const risksToAnalyze = risks.slice(0, 20);
 
-    const relevantCategories = categoryMap[event.category] || [];
-    const filteredRisks = risks.filter(r =>
-      relevantCategories.some(cat => r.category?.includes(cat))
-    ).slice(0, 10); // Limit to 10 most relevant risks
-
-    if (filteredRisks.length === 0) {
+    if (risksToAnalyze.length === 0) {
       return { relevant: false };
     }
 
@@ -313,7 +303,7 @@ Category: ${event.category}
 Source: ${event.source_name}
 
 RISKS:
-${filteredRisks.map(r => `[${r.risk_code}] ${r.risk_title} - ${r.risk_description}`).join('\n')}
+${risksToAnalyze.map(r => `[${r.risk_code}] ${r.risk_title} - ${r.risk_description}`).join('\n')}
 
 Analyze if this event:
 1. Could increase the likelihood of any risk occurring
