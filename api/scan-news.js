@@ -337,54 +337,36 @@ async function analyzeEventRelevance(event, risks, claudeApiKey) {
       return { relevant: false };
     }
 
-    const prompt = `You are a risk intelligence analyst. Your job is to find ANY thematic connections between external events and organizational risks for early warning purposes.
+    // Extract risk categories to show Claude what we have
+    const riskCategories = [...new Set(risksToAnalyze.map(r => r.risk_code.split('-')[1]).filter(Boolean))];
 
-EVENT:
-Title: ${event.title}
-Description: ${event.description}
-Category: ${event.event_category}
-Source: ${event.source_name}
+    const prompt = `TASK: Match this external event to relevant organizational risks for early warning monitoring.
 
-⚠️ IMPORTANT: The TITLE is the most reliable indicator. If the title contains keywords related to a risk category (e.g., "ransomware", "phishing", "cyber", "regulatory", "market"), treat it as relevant even if the description is short.
+EVENT TITLE: "${event.title}"
+EVENT CATEGORY: ${event.event_category || 'Unknown'}
+EVENT DESCRIPTION: ${event.description || 'N/A'}
 
-ORGANIZATIONAL RISKS:
-${risksToAnalyze.map(r => `[${r.risk_code}] ${r.risk_title} - ${r.risk_description}`).join('\n')}
+AVAILABLE RISK CATEGORIES: ${riskCategories.join(', ')}
 
-YOUR TASK:
-Find ALL risks that have even a REMOTE thematic connection to this event. Be GENEROUS - we want early warnings.
+ORGANIZATIONAL RISKS TO CONSIDER:
+${risksToAnalyze.map(r => `${r.risk_code}: ${r.risk_title}`).join('\n')}
 
-MATCHING CRITERIA (match if ANY apply):
-✓ Same topic area (cyber event → cyber risks, regulatory → compliance risks, market → market risks)
-✓ Same industry (financial services event → ANY financial risk)
-✓ Precedent value (happened elsewhere → could happen here)
-✓ Environmental indicator (shows landscape changing → strategic/external risks)
+MATCHING RULES - Apply these automatically:
+1. IF event title/category contains "cyber", "hack", "breach", "ransomware", "malware", "phishing" → MATCH ALL "CYB" risks with confidence 0.5
+2. IF event title/category contains "regulatory", "compliance", "SEC", "rule", "regulation" → MATCH ALL "REG" risks with confidence 0.5
+3. IF event title/category contains "market", "volatility", "economic", "financial" → MATCH ALL "MKT" or "FIN" risks with confidence 0.5
+4. IF event is about an incident at ANY organization → Consider as industry precedent, match similar risk types with confidence 0.4
 
-CONCRETE EXAMPLES:
-- "Ransomware attack on Bank X" → MATCH: All cybersecurity risks (STR-CYB-001, STR-CYB-002, etc.) with confidence 0.5-0.7
-- "SEC announces new rule" → MATCH: All regulatory risks (STR-REG-001, STR-REG-002) with confidence 0.4-0.6
-- "Market volatility reported" → MATCH: Market risks (STR-MKT-001, STR-MKT-002) with confidence 0.4-0.6
-- "Tech outage at competitor" → MATCH: Technology risks (STR-OPE-001, STR-CYB-002) with confidence 0.4-0.6
+IMPORTANT:
+- This is for EARLY WARNING - err on the side of creating alerts
+- Industry incidents = precedents for our organization
+- External events show environmental changes that affect our risk landscape
 
-CONFIDENCE SCALE:
-- 0.7-1.0: Direct relevance to this organization
-- 0.4-0.6: Thematic match, industry precedent, environmental indicator
-- 0.3-0.4: Weak but notable connection
-- below 0.3: No meaningful connection
+Return ONLY this JSON format (no markdown, no explanations):
+{"relevant": true, "risk_codes": ["STR-CYB-001"], "confidence": 0.5, "likelihood_change": 1, "reasoning": "Brief reason", "impact_assessment": "Brief impact", "suggested_controls": ["Control 1"]}
 
-IMPORTANT: If event matches the general theme/category of a risk, mark relevant with confidence 0.4+
-
-Return ONLY valid JSON:
-{
-  "relevant": true,
-  "risk_codes": ["STR-CYB-001", "STR-CYB-002"],
-  "confidence": 0.5,
-  "likelihood_change": 1,
-  "reasoning": "Ransomware attacks show escalating cyber threat landscape",
-  "impact_assessment": "Industry-wide increase in sophisticated attacks",
-  "suggested_controls": ["Monitor threat intel", "Review defenses"]
-}
-
-If absolutely zero thematic overlap, return: {"relevant": false}`;
+OR if truly no connection:
+{"relevant": false}`;
 
     //  CRITICAL DEBUG: Log first 1000 chars of prompt to see what Claude is receiving
     console.log(`   📝 Prompt preview (first 1000 chars):`, prompt.substring(0, 1000));
@@ -411,7 +393,18 @@ If absolutely zero thematic overlap, return: {"relevant": false}`;
       }
     );
 
+    if (!response.ok) {
+      console.error(`   ❌ Claude API error: ${response.status} ${response.statusText}`);
+      const errorBody = await response.text();
+      console.error(`   ❌ Error body:`, errorBody.substring(0, 500));
+      return { relevant: false };
+    }
+
     const result = await response.json();
+
+    // Log raw response for debugging
+    console.log(`   📄 Raw Claude response:`, JSON.stringify(result, null, 2).substring(0, 500));
+
     const text = result.content?.[0]?.text || '{}';
 
     // Extract JSON from markdown code blocks if present
@@ -421,13 +414,13 @@ If absolutely zero thematic overlap, return: {"relevant": false}`;
     const analysis = JSON.parse(jsonStr);
 
     // DETAILED LOGGING - Log full Claude response for debugging
-    console.log(`   🔍 Claude AI Response:`, JSON.stringify(analysis, null, 2));
+    console.log(`   🔍 Claude AI Analysis:`, JSON.stringify(analysis, null, 2));
 
     return analysis;
 
   } catch (error) {
-    console.error('Error in AI analysis:', error);
-    console.error('   Raw API response:', JSON.stringify(result, null, 2));
+    console.error('   ❌ Error in AI analysis:', error.message);
+    console.error('   ❌ Error details:', error);
     return { relevant: false };
   }
 }
