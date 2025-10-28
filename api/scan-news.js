@@ -170,6 +170,9 @@ async function storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId
   // Attach organizationId to parsedFeeds for event storage
   parsedFeeds.organizationId = organizationId;
 
+  // DEBUG: Log what we're starting with
+  console.log(`🔍 storeEvents called with organizationId: ${organizationId}, maxAgeDays: ${maxAgeDays}, riskKeywords: ${riskKeywords.length}`);
+
   let stored = 0;
   const storedEvents = [];
   const allItems = []; // Track all items with their status
@@ -270,6 +273,9 @@ async function storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId
         country: feedData.source.country,
         organization_id: parsedFeeds.organizationId, // Link event to organization
       };
+
+      // DEBUG: Log before insert
+      console.log(`🔍 Attempting INSERT for "${item.title.substring(0, 50)}..." with organization_id: ${parsedFeeds.organizationId}`);
 
       // Insert the event
       const { data, error } = await supabase
