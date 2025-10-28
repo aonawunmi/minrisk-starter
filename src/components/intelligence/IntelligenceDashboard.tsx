@@ -19,12 +19,14 @@ import {
   Database,
   Settings,
   Tag,
+  Trash2,
 } from 'lucide-react';
 import {
   type RiskAlertWithEvent,
   type AlertStatus,
   loadRiskAlerts,
   getAlertsStatistics,
+  bulkDeletePendingAlerts,
 } from '../../lib/riskIntelligence';
 import { IntelligenceAlertCard } from './IntelligenceAlertCard';
 import { AlertReviewDialog } from './AlertReviewDialog';
@@ -57,6 +59,8 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
   const [analyzeMessage, setAnalyzeMessage] = useState('');
   const [resetting, setResetting] = useState(false);
   const [resetMessage, setResetMessage] = useState('');
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeleteMessage, setBulkDeleteMessage] = useState('');
   const [statistics, setStatistics] = useState({
     total: 0,
     pending: 0,
@@ -301,6 +305,31 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
     }
   };
 
+  const handleBulkDeletePending = async () => {
+    if (!confirm(
+      'This will delete ALL pending alerts. This action cannot be undone. Continue?'
+    )) return;
+
+    setBulkDeleting(true);
+    setBulkDeleteMessage('Deleting pending alerts...');
+
+    const { success, count, error } = await bulkDeletePendingAlerts();
+
+    if (success) {
+      setBulkDeleteMessage(`✅ Deleted ${count} pending alerts`);
+      setTimeout(() => {
+        setBulkDeleteMessage('');
+        loadData();
+        loadStats();
+      }, 2000);
+    } else {
+      setBulkDeleteMessage(`❌ Failed to delete alerts: ${error}`);
+      setTimeout(() => setBulkDeleteMessage(''), 5000);
+    }
+
+    setBulkDeleting(false);
+  };
+
   if (loading) {
     return (
       <Card>
@@ -414,6 +443,27 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
               </Button>
+              {statistics.pending > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBulkDeletePending}
+                  disabled={bulkDeleting}
+                  title="Delete all pending alerts"
+                >
+                  {bulkDeleting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete All Pending
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -465,6 +515,11 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
           {resetMessage && (
             <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-900">
               {resetMessage}
+            </div>
+          )}
+          {bulkDeleteMessage && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-900">
+              {bulkDeleteMessage}
             </div>
           )}
         </CardContent>

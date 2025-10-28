@@ -39,18 +39,16 @@ type AlertReviewDialogProps = {
 
 export function AlertReviewDialog({ alert, open, onClose, onUpdate }: AlertReviewDialogProps) {
   const [reviewNotes, setReviewNotes] = useState('');
-  const [applyToRisk, setApplyToRisk] = useState(true);
   const [processing, setProcessing] = useState(false);
 
   if (!alert) return null;
 
   const handleAccept = async () => {
     setProcessing(true);
-    const { success, error } = await updateAlertStatus(
+    const { success, error} = await updateAlertStatus(
       alert.id,
       'accepted',
-      reviewNotes || 'Alert accepted',
-      applyToRisk
+      reviewNotes || 'Alert accepted'
     );
 
     if (success) {
@@ -71,7 +69,7 @@ export function AlertReviewDialog({ alert, open, onClose, onUpdate }: AlertRevie
     }
 
     setProcessing(true);
-    const { success, error } = await updateAlertStatus(alert.id, 'rejected', reviewNotes, false);
+    const { success, error } = await updateAlertStatus(alert.id, 'rejected', reviewNotes);
 
     if (success) {
       onUpdate();
@@ -107,7 +105,7 @@ export function AlertReviewDialog({ alert, open, onClose, onUpdate }: AlertRevie
         <DialogHeader>
           <DialogTitle>Review Risk Intelligence Alert</DialogTitle>
           <DialogDescription>
-            Evaluate whether this event affects the risk's likelihood
+            Accept alerts to add them to your treatment log for manual application to risks
           </DialogDescription>
         </DialogHeader>
 
@@ -267,25 +265,14 @@ export function AlertReviewDialog({ alert, open, onClose, onUpdate }: AlertRevie
                 </div>
 
                 {alert.suggested_likelihood_change !== 0 && (
-                  <div className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                    <Checkbox
-                      id="apply-to-risk"
-                      checked={applyToRisk}
-                      onCheckedChange={(checked) => setApplyToRisk(checked as boolean)}
-                    />
-                    <div className="flex-1">
-                      <label
-                        htmlFor="apply-to-risk"
-                        className="text-sm font-medium text-gray-900 cursor-pointer"
-                      >
-                        Apply likelihood change to risk
-                      </label>
-                      <p className="text-xs text-gray-600 mt-1">
-                        If accepted, this will automatically update the risk's inherent likelihood by{' '}
-                        {alert.suggested_likelihood_change > 0 ? '+' : ''}
-                        {alert.suggested_likelihood_change}
-                      </p>
-                    </div>
+                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-sm font-medium text-blue-900">
+                      Suggested Likelihood Change: {alert.suggested_likelihood_change > 0 ? '+' : ''}
+                      {alert.suggested_likelihood_change}
+                    </p>
+                    <p className="text-xs text-blue-700 mt-1">
+                      Accepted alerts will be added to your treatment log. You can manually apply them to the risk register from the "Accepted" tab.
+                    </p>
                   </div>
                 )}
 

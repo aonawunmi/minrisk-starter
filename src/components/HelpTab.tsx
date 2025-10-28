@@ -123,9 +123,9 @@ export default function HelpTab() {
       {/* Version Info */}
       <Card>
         <CardContent className="pt-6 text-center text-sm text-gray-500">
-          <p>MinRisk User Manual - Version 4.0</p>
-          <p>Last Updated: October 26, 2025</p>
-          <p className="mt-2 text-xs">✨ Now with Incidents, Analytics & Enhanced AI</p>
+          <p>MinRisk User Manual - Version 4.1</p>
+          <p>Last Updated: October 28, 2025</p>
+          <p className="mt-2 text-xs">✨ Now with Incidents, Analytics, Intelligence Monitor & Enhanced AI</p>
         </CardContent>
       </Card>
     </div>
@@ -551,6 +551,144 @@ const sections = [
       </ul>
 
       <p><strong>⚠️ Important:</strong> All AI suggestions should be reviewed by qualified risk management professionals before implementation.</p>
+    `,
+  },
+  {
+    id: 'intelligence-monitor',
+    title: 'Risk Intelligence Monitor ✨ NEW',
+    icon: '🎯',
+    content: `
+      <h3>About Intelligence Monitor</h3>
+      <p>Automatically monitors external events and generates AI-powered risk intelligence alerts linked to your risk register.</p>
+
+      <h3>Alert Treatment Workflow</h3>
+      <p>Accepting an alert adds it to a <strong>Treatment Log</strong> where you can review and manually apply changes. This gives you control over when and how alerts affect your risk register.</p>
+
+      <h4>Step 1: Review Alert</h4>
+      <ol>
+        <li>Go to <strong>Intelligence</strong> tab → <strong>Pending</strong> alerts</li>
+        <li>Click <strong>"Review"</strong> on any alert</li>
+        <li>You'll see:
+          <ul>
+            <li>Risk code and description</li>
+            <li>Event details</li>
+            <li>AI reasoning</li>
+            <li>Suggested likelihood change</li>
+          </ul>
+        </li>
+      </ol>
+
+      <h4>Step 2: Accept or Reject</h4>
+      <ul>
+        <li><strong>Accept:</strong> Adds alert to treatment log for manual application</li>
+        <li><strong>Reject:</strong> Dismisses the alert with a reason</li>
+      </ul>
+
+      <h4>Step 3: Apply Treatment (for accepted alerts)</h4>
+      <ol>
+        <li>Go to <strong>"Accepted"</strong> tab</li>
+        <li>Review accepted alerts</li>
+        <li>For each alert:
+          <ul>
+            <li>Review the suggested change</li>
+            <li>Add treatment notes (optional but recommended)</li>
+            <li>Click <strong>"Apply to Risk Register"</strong></li>
+            <li>Risk likelihood is updated</li>
+            <li>Alert marked as "Applied"</li>
+          </ul>
+        </li>
+      </ol>
+
+      <h3>Treatment Notes Best Practices</h3>
+      <p>When applying an alert, document:</p>
+      <ul>
+        <li>Why you're accepting the suggested change</li>
+        <li>Any additional analysis you did</li>
+        <li>Related controls you're implementing</li>
+        <li>Date you expect to see improvement</li>
+      </ul>
+      <p><strong>Example:</strong> "Accepted +1 likelihood increase for STR-CYB-001. Industry trend shows ransomware attacks increasing 40% in financial sector. Initiated emergency security audit and MFA rollout. Will reassess in 30 days after controls are active."</p>
+
+      <h3>Bulk Delete Pending Alerts</h3>
+      <p>Delete ALL pending alerts at once. Useful when:</p>
+      <ul>
+        <li>You have many outdated alerts</li>
+        <li>Starting fresh after system changes</li>
+        <li>Clearing test data</li>
+      </ul>
+
+      <h4>How to Use:</h4>
+      <ol>
+        <li>Go to <strong>Intelligence</strong> tab</li>
+        <li>Check the pending alerts count</li>
+        <li>Click <strong>"Delete All Pending"</strong> button (red, top right)</li>
+        <li>Confirm deletion</li>
+        <li>All pending alerts are permanently removed</li>
+      </ol>
+      <p><strong>⚠️ Warning:</strong> This cannot be undone! Accepted/rejected alerts are NOT deleted.</p>
+
+      <h3>Risk Descriptions in Alerts</h3>
+      <p>Alert cards and review dialogs now show:</p>
+      <ul>
+        <li>Risk Code (e.g., "STR-CYB-001")</li>
+        <li>Risk Title (e.g., "Increased Cyber Threat Landscape")</li>
+        <li>Risk Description (full risk details)</li>
+      </ul>
+      <p>This helps you understand the risk without switching screens for better context and faster decision-making.</p>
+
+      <h3>Workflow Comparison</h3>
+      <h4>Old Workflow (Automatic):</h4>
+      <ol>
+        <li>Alert Created</li>
+        <li>Review Alert</li>
+        <li>Accept (checkbox: "Apply to Risk")</li>
+        <li>Risk Likelihood AUTOMATICALLY Updated ⚠️</li>
+      </ol>
+
+      <h4>New Workflow (Manual):</h4>
+      <ol>
+        <li>Alert Created</li>
+        <li>Review Alert</li>
+        <li>Accept → Goes to Treatment Log</li>
+        <li>Review Treatment Log</li>
+        <li>Add Treatment Notes</li>
+        <li>MANUALLY Apply to Risk Register ✓</li>
+        <li>Risk Likelihood Updated</li>
+      </ol>
+
+      <h3>Frequently Asked Questions</h3>
+      <p><strong>Q: What happens to existing accepted alerts?</strong><br>
+      A: They're grandfathered in. New accepted alerts will use the new workflow.</p>
+
+      <p><strong>Q: Can I still auto-apply alerts?</strong><br>
+      A: No, manual application is now required for all new alerts. This ensures proper documentation and review.</p>
+
+      <p><strong>Q: Where do I see applied alerts?</strong><br>
+      A: In the "Accepted" tab, alerts show:<br>
+      ✓ Applied (green) - Already in risk register<br>
+      Pending Application (yellow) - Need to apply</p>
+
+      <p><strong>Q: Do I have to add treatment notes?</strong><br>
+      A: No, treatment notes are optional but highly recommended for audit purposes.</p>
+
+      <p><strong>Q: Can I bulk apply alerts?</strong><br>
+      A: Not currently. Each alert must be individually reviewed and applied to ensure proper consideration.</p>
+
+      <p><strong>Q: What if I accept an alert by mistake?</strong><br>
+      A: Simply don't apply it from the treatment log. It won't affect your risk register until you manually apply it.</p>
+
+      <p><strong>Q: Can I delete accepted alerts?</strong><br>
+      A: No. Once accepted, alerts become part of your audit trail. You can only delete pending alerts.</p>
+
+      <h3>Tips & Best Practices</h3>
+      <ul>
+        <li><strong>Review Daily:</strong> Check pending alerts daily to stay current</li>
+        <li><strong>Use Treatment Notes:</strong> Always document your reasoning when applying alerts</li>
+        <li><strong>Batch Review:</strong> Review multiple alerts, then apply them together during your weekly risk review</li>
+        <li><strong>Monitor Trends:</strong> Look for patterns in alerts affecting the same risks</li>
+        <li><strong>Cleanup Regularly:</strong> Use bulk delete to clear irrelevant pending alerts</li>
+        <li><strong>Trust the AI... But Verify:</strong> AI suggestions are good starting points, but you make the final call</li>
+      </ul>
     `,
   },
   {

@@ -32,6 +32,8 @@ export type RiskIntelligenceAlert = {
   id: string;
   organization_id: string;
   risk_code: string;
+  risk_title?: string;
+  risk_description?: string;
   event_id: string;
   suggested_likelihood_change: number;
   reasoning: string;
@@ -42,6 +44,10 @@ export type RiskIntelligenceAlert = {
   reviewed_by?: string;
   reviewed_at?: string;
   review_notes?: string;
+  applied_to_risk?: boolean;
+  applied_at?: string;
+  applied_by?: string;
+  treatment_notes?: string;
   created_at: string;
   expires_at: string;
 };
@@ -260,12 +266,24 @@ export async function loadRiskAlerts(
   risk_code?: string
 ): Promise<{ data: RiskAlertWithEvent[] | null; error: any }> {
   try {
+    // Get current user's organization_id
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('organization_id')
+      .eq('id', (await supabase.auth.getUser()).data.user?.id)
+      .single();
+
+    if (!profile) {
+      return { data: null, error: 'User profile not found' };
+    }
+
     let query = supabase
       .from('risk_intelligence_alerts')
       .select(`
         *,
         event:external_events(*)
       `)
+      .eq('organization_id', profile.organization_id)
       .order('created_at', { ascending: false });
 
     if (status) {
@@ -293,12 +311,13 @@ export async function loadRiskAlerts(
 
 /**
  * Update risk alert status (accept/reject)
+ * Note: Accepted alerts are NOT automatically applied to risks.
+ * User must manually apply them using applyAlertTreatment()
  */
 export async function updateAlertStatus(
   alert_id: string,
   status: AlertStatus,
-  review_notes?: string,
-  applyToRisk: boolean = true
+  review_notes?: string
 ): Promise<{ success: boolean; error: any }> {
   try {
     const user = (await supabase.auth.getUser()).data.user;
@@ -306,18 +325,19 @@ export async function updateAlertStatus(
       return { success: false, error: 'User not authenticated' };
     }
 
-    // Load the alert
-    const { data: alerts } = await supabase
-      .from('risk_intelligence_alerts')
-      .select('*')
-      .eq('id', alert_id)
+    // Get user's organization_id
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('organization_id')
+      .eq('id', user.id)
       .single();
 
-    if (!alerts) {
-      return { success: false, error: 'Alert not found' };
+    if (!profile) {
+      return { success: false, error: 'User profile not found' };
     }
 
-    // Update alert status
+    // Update alert status (NO automatic risk update)
+    // Only update if alert belongs to user's organization
     const { error: updateError } = await supabase
       .from('risk_intelligence_alerts')
       .update({
@@ -326,40 +346,152 @@ export async function updateAlertStatus(
         reviewed_at: new Date().toISOString(),
         review_notes,
       })
-      .eq('id', alert_id);
+      .eq('id', alert_id)
+      .eq('organization_id', profile.organization_id);
 
     if (updateError) {
       return { success: false, error: updateError };
-    }
-
-    // If accepted and applyToRisk is true, update the risk's likelihood
-    if (status === 'accepted' && applyToRisk) {
-      const { data: risk } = await supabase
-        .from('risks')
-        .select('likelihood_inherent')
-        .eq('risk_code', alerts.risk_code)
-        .single();
-
-      if (risk) {
-        const newLikelihood = Math.max(
-          1,
-          Math.min(5, risk.likelihood_inherent + alerts.suggested_likelihood_change)
-        );
-
-        await supabase
-          .from('risks')
-          .update({
-            likelihood_inherent: newLikelihood,
-            last_intelligence_check: new Date().toISOString(),
-          })
-          .eq('risk_code', alerts.risk_code);
-      }
     }
 
     return { success: true, error: null };
   } catch (error) {
     console.error('Error updating alert status:', error);
     return { success: false, error };
+  }
+}
+
+/**
+ * Apply accepted alert treatment to risk register
+ * This manually updates the risk's likelihood based on the alert
+ */
+export async function applyAlertTreatment(
+  alert_id: string,
+  treatment_notes?: string
+): Promise<{ success: boolean; error: any }> {
+  try {
+    const user = (await supabase.auth.getUser()).data.user;
+    if (!user) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    // Get user's organization_id
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('organization_id')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile) {
+      return { success: false, error: 'User profile not found' };
+    }
+
+    // Load the alert (with organization verification)
+    const { data: alert } = await supabase
+      .from('risk_intelligence_alerts')
+      .select('*')
+      .eq('id', alert_id)
+      .eq('organization_id', profile.organization_id)
+      .single();
+
+    if (!alert) {
+      return { success: false, error: 'Alert not found' };
+    }
+
+    if (alert.status !== 'accepted') {
+      return { success: false, error: 'Only accepted alerts can be applied' };
+    }
+
+    if (alert.applied_to_risk) {
+      return { success: false, error: 'Alert already applied to risk' };
+    }
+
+    // Update the risk's likelihood
+    const { data: risk } = await supabase
+      .from('risks')
+      .select('likelihood_inherent')
+      .eq('risk_code', alert.risk_code)
+      .single();
+
+    if (!risk) {
+      return { success: false, error: 'Risk not found' };
+    }
+
+    const newLikelihood = Math.max(
+      1,
+      Math.min(5, risk.likelihood_inherent + alert.suggested_likelihood_change)
+    );
+
+    const { error: riskUpdateError } = await supabase
+      .from('risks')
+      .update({
+        likelihood_inherent: newLikelihood,
+        last_intelligence_check: new Date().toISOString(),
+      })
+      .eq('risk_code', alert.risk_code);
+
+    if (riskUpdateError) {
+      return { success: false, error: riskUpdateError };
+    }
+
+    // Mark alert as applied
+    const { error: alertUpdateError } = await supabase
+      .from('risk_intelligence_alerts')
+      .update({
+        applied_to_risk: true,
+        applied_at: new Date().toISOString(),
+        applied_by: user.id,
+        treatment_notes,
+      })
+      .eq('id', alert_id);
+
+    if (alertUpdateError) {
+      return { success: false, error: alertUpdateError };
+    }
+
+    return { success: true, error: null };
+  } catch (error) {
+    console.error('Error applying alert treatment:', error);
+    return { success: false, error };
+  }
+}
+
+/**
+ * Bulk delete pending alerts
+ */
+export async function bulkDeletePendingAlerts(): Promise<{ success: boolean; count: number; error: any }> {
+  try {
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('organization_id')
+      .eq('id', (await supabase.auth.getUser()).data.user?.id)
+      .single();
+
+    if (!profile) {
+      return { success: false, count: 0, error: 'User profile not found' };
+    }
+
+    // Count pending alerts before deletion
+    const { count } = await supabase
+      .from('risk_intelligence_alerts')
+      .select('*', { count: 'exact', head: true })
+      .eq('organization_id', profile.organization_id)
+      .eq('status', 'pending');
+
+    // Delete all pending alerts
+    const { error } = await supabase
+      .from('risk_intelligence_alerts')
+      .delete()
+      .eq('organization_id', profile.organization_id)
+      .eq('status', 'pending');
+
+    if (error) {
+      return { success: false, count: 0, error };
+    }
+
+    return { success: true, count: count || 0, error: null };
+  } catch (error) {
+    console.error('Error bulk deleting pending alerts:', error);
+    return { success: false, count: 0, error };
   }
 }
 
@@ -395,9 +527,21 @@ export async function getAlertsStatistics(): Promise<{
   error: any;
 }> {
   try {
+    // Get current user's organization_id
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('organization_id')
+      .eq('id', (await supabase.auth.getUser()).data.user?.id)
+      .single();
+
+    if (!profile) {
+      return { data: null, error: 'User profile not found' };
+    }
+
     const { data: alerts, error } = await supabase
       .from('risk_intelligence_alerts')
-      .select('status, confidence_score');
+      .select('status, confidence_score')
+      .eq('organization_id', profile.organization_id);
 
     if (error) {
       return { data: null, error };

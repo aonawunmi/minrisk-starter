@@ -115,12 +115,20 @@ export function IntelligenceAlertCard({ alert, onReview }: IntelligenceAlertCard
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle className="h-4 w-4 text-orange-500 flex-shrink-0" />
-              <h4 className="font-medium text-sm text-gray-900 truncate">
-                {alert.risk_code}
-              </h4>
-              {getStatusBadge()}
+            <div className="space-y-1 mb-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-orange-500 flex-shrink-0" />
+                <h4 className="font-medium text-sm text-gray-900">
+                  {alert.risk_code}
+                </h4>
+                {getStatusBadge()}
+              </div>
+              {alert.risk_title && (
+                <p className="text-xs font-medium text-gray-700 ml-6">{alert.risk_title}</p>
+              )}
+              {alert.risk_description && (
+                <p className="text-xs text-gray-600 ml-6 line-clamp-1">{alert.risk_description}</p>
+              )}
             </div>
 
             {/* Event Title */}
