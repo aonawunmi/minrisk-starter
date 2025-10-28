@@ -290,7 +290,10 @@ async function analyzeEventRelevance(event, risks, claudeApiKey) {
     // Limit to 20 risks to avoid token limits
     const risksToAnalyze = risks.slice(0, 20);
 
+    console.log(`   🎯 Analyzing against ${risksToAnalyze.length} risks (${risks.length} total available)`);
+
     if (risksToAnalyze.length === 0) {
+      console.log(`   ⚠️  No risks available for analysis!`);
       return { relevant: false };
     }
 
@@ -374,9 +377,19 @@ async function createRiskAlerts(storedEvents, risks, claudeApiKey) {
 
   for (const event of storedEvents) {
     try {
+      console.log(`\n🔍 Analyzing event: ${event.title.substring(0, 60)}...`);
       const analysis = await analyzeEventRelevance(event, risks, claudeApiKey);
 
+      // Detailed logging of Claude's response
+      console.log(`   📊 Analysis result:`, JSON.stringify({
+        relevant: analysis.relevant,
+        confidence: analysis.confidence,
+        risk_codes: analysis.risk_codes,
+        reasoning: analysis.reasoning?.substring(0, 100)
+      }));
+
       if (analysis.relevant && analysis.confidence >= 0.6 && analysis.risk_codes?.length > 0) {
+        console.log(`   ✅ Alert criteria met! Creating alerts for: ${analysis.risk_codes.join(', ')}`);
         for (const riskCode of analysis.risk_codes) {
           const alert = {
             event_id: event.id,
@@ -395,9 +408,13 @@ async function createRiskAlerts(storedEvents, risks, claudeApiKey) {
 
           if (!error) {
             alertsCreated++;
-            console.log(`✅ Created alert for ${riskCode}`);
+            console.log(`   ✅ Created alert for ${riskCode}`);
+          } else {
+            console.log(`   ❌ Failed to insert alert: ${error.message}`);
           }
         }
+      } else {
+        console.log(`   ⏭️  Skipped: relevant=${analysis.relevant}, confidence=${analysis.confidence}, risk_codes=${analysis.risk_codes?.length || 0}`);
       }
 
       // Mark event as analyzed
@@ -410,7 +427,7 @@ async function createRiskAlerts(storedEvents, risks, claudeApiKey) {
       await new Promise(resolve => setTimeout(resolve, 1000));
 
     } catch (error) {
-      console.error(`Error creating alert for event ${event.id}:`, error);
+      console.error(`❌ Error creating alert for event ${event.id}:`, error);
       // Still mark as analyzed even if there was an error, to avoid re-processing
       await supabase
         .from('external_events')
