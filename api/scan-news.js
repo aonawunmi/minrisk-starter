@@ -9,6 +9,15 @@ import { createClient } from '@supabase/supabase-js';
 // Use SERVICE_ROLE key to bypass RLS and access all organization data
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// DEBUG: Check if SERVICE_ROLE key is configured
+console.log('🔑 Supabase configuration:', {
+  url_present: !!supabaseUrl,
+  service_key_present: !!supabaseServiceKey,
+  service_key_length: supabaseServiceKey?.length,
+  service_key_prefix: supabaseServiceKey?.substring(0, 20)
+});
+
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // News sources configuration
