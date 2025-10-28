@@ -59,9 +59,23 @@ export function EventBrowser() {
   const loadEvents = async () => {
     setLoading(true);
     try {
+      // Get current user's organization_id
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('organization_id')
+        .eq('id', (await supabase.auth.getUser()).data.user?.id)
+        .single();
+
+      if (!profile) {
+        console.error('User profile not found');
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('external_events')
         .select('*')
+        .eq('organization_id', profile.organization_id) // CRITICAL: Filter by organization
         .order('published_date', { ascending: false })
         .limit(100);
 
@@ -106,10 +120,24 @@ export function EventBrowser() {
 
     setDeleting(eventId);
     try {
+      // Get current user's organization_id
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('organization_id')
+        .eq('id', (await supabase.auth.getUser()).data.user?.id)
+        .single();
+
+      if (!profile) {
+        alert('User profile not found');
+        setDeleting(null);
+        return;
+      }
+
       const { error } = await supabase
         .from('external_events')
         .delete()
-        .eq('id', eventId);
+        .eq('id', eventId)
+        .eq('organization_id', profile.organization_id); // CRITICAL: Only delete from own org
 
       if (error) throw error;
 

@@ -192,9 +192,21 @@ export async function loadExternalEvents(
   category?: EventCategory
 ): Promise<{ data: ExternalEvent[] | null; error: any }> {
   try {
+    // Get current user's organization_id
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('organization_id')
+      .eq('id', (await supabase.auth.getUser()).data.user?.id)
+      .single();
+
+    if (!profile) {
+      return { data: null, error: 'User profile not found' };
+    }
+
     let query = supabase
       .from('external_events')
       .select('*')
+      .eq('organization_id', profile.organization_id) // CRITICAL: Filter by organization
       .order('published_date', { ascending: false })
       .limit(limit);
 
