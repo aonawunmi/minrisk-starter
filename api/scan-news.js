@@ -258,6 +258,13 @@ async function storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId
         itemDetail.status = 'duplicate';
         itemDetail.reason = 'Already exists in database';
       } else {
+        // Log the actual error for debugging
+        console.error(`❌ Insert failed for "${item.title.substring(0, 50)}...":`, {
+          code: error?.code,
+          message: error?.message,
+          details: error?.details,
+          hint: error?.hint
+        });
         itemDetail.status = 'error';
         itemDetail.reason = error?.message || 'Unknown error';
       }
