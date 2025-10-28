@@ -560,6 +560,44 @@ export default async function handler(req, res) {
     }
   }
 
+  // Handle clearing unanalyzed events
+  if (req.method === 'POST' && req.body?.action === 'clearUnanalyzed') {
+    try {
+      console.log('🗑️ Clearing unanalyzed events...');
+
+      // Count unanalyzed events before deletion
+      const { count: beforeCount, error: countError } = await supabase
+        .from('external_events')
+        .select('*', { count: 'exact', head: true })
+        .is('analyzed_at', null);
+
+      if (countError) throw countError;
+
+      // Delete only events that haven't been analyzed
+      const { error: deleteError } = await supabase
+        .from('external_events')
+        .delete()
+        .is('analyzed_at', null);
+
+      if (deleteError) throw deleteError;
+
+      console.log(`✅ Cleared ${beforeCount || 0} unanalyzed events`);
+
+      return res.status(200).json({
+        success: true,
+        message: `Cleared ${beforeCount || 0} unanalyzed events`,
+        events_cleared: beforeCount || 0
+      });
+
+    } catch (error) {
+      console.error('Error clearing unanalyzed events:', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
   try {
     console.log('🚀 Starting news scanner...');
 

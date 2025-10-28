@@ -45,6 +45,8 @@ export function EventBrowser() {
   const [selectedEvent, setSelectedEvent] = useState<ExternalEvent | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
+  const [clearMessage, setClearMessage] = useState('');
 
   useEffect(() => {
     loadEvents();
@@ -126,6 +128,45 @@ export function EventBrowser() {
     setShowDetailDialog(true);
   };
 
+  const handleClearUnanalyzed = async () => {
+    if (!confirm(
+      'This will delete all events that haven\'t been analyzed yet. ' +
+      'Events that have been analyzed and created alerts will NOT be deleted. Continue?'
+    )) return;
+
+    setClearing(true);
+    setClearMessage('Clearing unanalyzed events...');
+
+    try {
+      const response = await fetch('/api/scan-news', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'clearUnanalyzed',
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setClearMessage(`✅ Cleared ${result.events_cleared} unanalyzed events`);
+        setTimeout(() => {
+          loadEvents();
+          setClearMessage('');
+        }, 2000);
+      } else {
+        setClearMessage(`❌ Failed: ${result.error}`);
+        setTimeout(() => setClearMessage(''), 5000);
+      }
+    } catch (error) {
+      console.error('Error clearing events:', error);
+      setClearMessage('❌ Error clearing events. Check console for details.');
+      setTimeout(() => setClearMessage(''), 5000);
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const uniqueSources = [...new Set(events.map((e) => e.source_name))].sort();
   const categories = ['all', 'cybersecurity', 'regulatory', 'market', 'environmental', 'operational', 'other'];
 
@@ -158,14 +199,40 @@ export function EventBrowser() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Event Browser</CardTitle>
-            <Button size="sm" variant="outline" onClick={loadEvents}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleClearUnanalyzed}
+                disabled={clearing}
+                title="Delete all unanalyzed events (keeps analyzed events)"
+              >
+                {clearing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Clearing...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Clear Unanalyzed
+                  </>
+                )}
+              </Button>
+              <Button size="sm" variant="outline" onClick={loadEvents}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+            </div>
           </div>
           <p className="text-sm text-gray-500 mt-2">
             Browse and manage stored news events ({filteredEvents.length} of {events.length})
           </p>
+          {clearMessage && (
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-900">
+              {clearMessage}
+            </div>
+          )}
         </CardHeader>
 
         <CardContent>
