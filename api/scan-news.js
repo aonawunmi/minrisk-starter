@@ -208,6 +208,22 @@ async function storeEvents(parsedFeeds, maxAgeDays = 120, riskKeywords) {
         continue; // Skip non-risk-related events
       }
 
+      // Check for duplicates by title or URL before inserting
+      const { data: existingEvent, error: checkError } = await supabase
+        .from('external_events')
+        .select('id')
+        .or(`title.eq.${item.title.substring(0, 500)},source_url.eq.${item.link}`)
+        .limit(1)
+        .single();
+
+      if (existingEvent) {
+        // Duplicate found
+        itemDetail.status = 'duplicate';
+        itemDetail.reason = 'Event already exists in database';
+        allItems.push(itemDetail);
+        continue;
+      }
+
       const event = {
         title: item.title.substring(0, 500),
         description: item.description.substring(0, 2000),
@@ -219,7 +235,7 @@ async function storeEvents(parsedFeeds, maxAgeDays = 120, riskKeywords) {
         country: feedData.source.country,
       };
 
-      // Insert one at a time to avoid duplicates
+      // Insert the event
       const { data, error } = await supabase
         .from('external_events')
         .insert(event)
@@ -232,7 +248,7 @@ async function storeEvents(parsedFeeds, maxAgeDays = 120, riskKeywords) {
         itemDetail.status = 'stored';
         itemDetail.eventId = data.id;
       } else if (error?.code === '23505') {
-        // Duplicate
+        // Duplicate caught by database constraint
         itemDetail.status = 'duplicate';
         itemDetail.reason = 'Already exists in database';
       } else {
