@@ -642,6 +642,44 @@ export default async function handler(req, res) {
     }
   }
 
+  // Handle resetting analysis timestamps
+  if (req.method === 'POST' && req.body?.action === 'resetAnalysis') {
+    try {
+      console.log('🔄 Resetting analysis timestamps...');
+
+      // Count analyzed events before reset
+      const { count: beforeCount, error: countError } = await supabase
+        .from('external_events')
+        .select('*', { count: 'exact', head: true })
+        .not('analyzed_at', 'is', null);
+
+      if (countError) throw countError;
+
+      // Reset analyzed_at to NULL so events can be re-analyzed
+      const { error: updateError } = await supabase
+        .from('external_events')
+        .update({ analyzed_at: null })
+        .not('analyzed_at', 'is', null);
+
+      if (updateError) throw updateError;
+
+      console.log(`✅ Reset ${beforeCount || 0} analyzed events`);
+
+      return res.status(200).json({
+        success: true,
+        message: `Reset ${beforeCount || 0} events for re-analysis`,
+        events_reset: beforeCount || 0
+      });
+
+    } catch (error) {
+      console.error('Error resetting analysis:', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
   try {
     console.log('🚀 Starting news scanner...');
 

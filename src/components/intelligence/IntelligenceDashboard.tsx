@@ -54,6 +54,8 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
   const [showKeywordsManager, setShowKeywordsManager] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeMessage, setAnalyzeMessage] = useState('');
+  const [resetting, setResetting] = useState(false);
+  const [resetMessage, setResetMessage] = useState('');
   const [statistics, setStatistics] = useState({
     total: 0,
     pending: 0,
@@ -229,6 +231,44 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
     }
   };
 
+  const handleResetAnalysis = async () => {
+    if (!confirm(
+      'This will reset all analyzed events so they can be re-analyzed. ' +
+      'Use this if you\'ve added new risks and want to re-match existing events. Continue?'
+    )) return;
+
+    setResetting(true);
+    setResetMessage('Resetting analysis timestamps...');
+
+    try {
+      const response = await fetch('/api/scan-news', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'resetAnalysis',
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setResetMessage(`✅ Reset ${result.events_reset} events. Click "Analyze Events" to re-analyze.`);
+        setTimeout(() => {
+          setResetMessage('');
+        }, 5000);
+      } else {
+        setResetMessage(`❌ Reset failed: ${result.error || 'Unknown error'}`);
+        setTimeout(() => setResetMessage(''), 5000);
+      }
+    } catch (error) {
+      console.error('Error resetting analysis:', error);
+      setResetMessage('❌ Error resetting analysis. Check console for details.');
+      setTimeout(() => setResetMessage(''), 5000);
+    } finally {
+      setResetting(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -319,6 +359,25 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
                   </>
                 )}
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetAnalysis}
+                disabled={resetting}
+                title="Reset analyzed events to re-analyze them (useful after adding new risks)"
+              >
+                {resetting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Resetting...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Reset Analysis
+                  </>
+                )}
+              </Button>
               <Button variant="outline" size="sm" onClick={handleUpdate}>
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
@@ -369,6 +428,11 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
           {analyzeMessage && (
             <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-900">
               {analyzeMessage}
+            </div>
+          )}
+          {resetMessage && (
+            <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-900">
+              {resetMessage}
             </div>
           )}
         </CardContent>
