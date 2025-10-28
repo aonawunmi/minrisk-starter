@@ -57,15 +57,23 @@ async function loadNewsSources() {
 
     if (error) throw error;
 
-    // Convert to scanner format
-    return data.map(source => ({
-      name: source.name,
-      url: source.url,
-      category: source.category,
-      country: source.country
-    }));
+    console.log(`📊 Loaded ${data.length} active sources from database`);
+    if (data.length > 0) {
+      console.log(`📊 Sample sources: ${data.slice(0, 3).map(s => s.name).join(', ')}`);
+      // Convert to scanner format
+      return data.map(source => ({
+        name: source.name,
+        url: source.url,
+        category: source.category,
+        country: source.country
+      }));
+    } else {
+      console.log(`⚠️ No sources in database, using ${NEWS_SOURCES.length} default sources`);
+      return NEWS_SOURCES;
+    }
   } catch (error) {
     console.error('Error loading news sources from database:', error);
+    console.log(`⚠️ Falling back to ${NEWS_SOURCES.length} default sources`);
     // Return default sources as fallback
     return NEWS_SOURCES;
   }
