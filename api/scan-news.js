@@ -917,6 +917,23 @@ export default async function handler(req, res) {
     try {
       console.log('🔍 Starting analysis of existing unanalyzed events...');
 
+      // Get user ID from auth token
+      let userId = null;
+      const authToken = req.headers.authorization?.substring(7);
+      if (authToken) {
+        const { data, error } = await supabase.auth.getUser(authToken);
+        if (!error && data?.user) {
+          userId = data.user.id;
+        }
+      }
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'User ID not found'
+        });
+      }
+
       const claudeApiKey = process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY;
       if (!claudeApiKey) {
         return res.status(500).json({
@@ -951,8 +968,8 @@ export default async function handler(req, res) {
       const scannerConfig = await loadScannerConfig(organizationId);
 
       // Load risks for this user (USER-LEVEL FILTERING)
-      const risks = await loadRisks(user.id);
-      console.log(`📊 Loaded ${risks.length} risks for user ${user.id}`);
+      const risks = await loadRisks(userId);
+      console.log(`📊 Loaded ${risks.length} risks for user ${userId}`);
 
       if (risks.length === 0) {
         return res.status(200).json({
@@ -1109,6 +1126,33 @@ export default async function handler(req, res) {
     }
   }
 
+  // Get authenticated user from the auth check that already happened above
+  // We already have organizationId from lines 774-816
+  let userId = null;
+  const authHeader2 = req.headers.authorization;
+  if (authHeader2 && authHeader2.startsWith('Bearer ')) {
+    const token = authHeader2.substring(7);
+    try {
+      const { data, error } = await supabase.auth.getUser(token);
+      if (!error && data?.user) {
+        userId = data.user.id;
+      }
+    } catch (error) {
+      console.error('Failed to get user for risk loading:', error);
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication failed'
+      });
+    }
+  }
+
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      error: 'User ID not found'
+    });
+  }
+
   try {
     console.log('🚀 Starting news scanner...');
 
@@ -1155,9 +1199,8 @@ export default async function handler(req, res) {
 
     // Load risks for AI analysis (USER-LEVEL FILTERING)
     console.log('📊 Loading risks from database...');
-    const { data: { user } } = await supabase.auth.getUser(req.headers.authorization?.substring(7));
-    const risks = await loadRisks(user.id);
-    console.log(`📊 Loaded ${risks.length} risks for user ${user.id}`);
+    const risks = await loadRisks(userId);
+    console.log(`📊 Loaded ${risks.length} risks for user ${userId}`);
 
     // Run AI analysis and create alerts
     let alertsCreated = 0;
@@ -1171,6 +1214,8 @@ export default async function handler(req, res) {
         scannerConfig.scanner_mode
       );
       console.log(`📊 Created ${alertsCreated} alerts`);
+    } else if (risks.length === 0) {
+      console.log(`⚠️ Skipping analysis: No risks found in database for user ${userId}`);
     }
 
     const stats = {
@@ -1186,10 +1231,10 @@ export default async function handler(req, res) {
 
     console.log('✅ News scanner completed successfully');
 
+    // Return stats without scanResults to avoid response size issues
     return res.status(200).json({
       success: true,
       stats,
-      scanResults: storeResults.allItems || [],
       message: 'News scan completed successfully',
     });
 
