@@ -186,24 +186,35 @@ export async function storeExternalEvent(
 
 /**
  * Load recent external events
- * USER-LEVEL FILTERING: Only loads events for the current user
+ * Organization-level: Events are organization-wide (news affects everyone)
  */
 export async function loadExternalEvents(
   limit: number = 50,
   category?: EventCategory
 ): Promise<{ data: ExternalEvent[] | null; error: any }> {
   try {
-    // Get current user (USER-LEVEL FILTERING)
+    // Get current user and their organization
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
       return { data: null, error: 'User not authenticated' };
     }
 
+    // Get user's organization_id
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('organization_id')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile) {
+      return { data: null, error: 'User profile not found' };
+    }
+
     let query = supabase
       .from('external_events')
       .select('*')
-      .eq('user_id', user.id) // CHANGED: Filter by user_id for user-level isolation
+      .eq('organization_id', profile.organization_id) // Filter by organization
       .order('published_date', { ascending: false })
       .limit(limit);
 
@@ -276,20 +287,57 @@ export async function loadRiskAlerts(
   risk_code?: string
 ): Promise<{ data: RiskAlertWithEvent[] | null; error: any }> {
   try {
-    // Get current user (USER-LEVEL FILTERING)
+    // Get current user
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
       return { data: null, error: 'User not authenticated' };
     }
 
+    // Get user's organization and role
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('organization_id, role')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile) {
+      return { data: null, error: 'User profile not found' };
+    }
+
+    // Get risk codes for user's risks (or all org risks if admin)
+    let riskCodesQuery = supabase
+      .from('risks')
+      .select('risk_code')
+      .eq('organization_id', profile.organization_id);
+
+    // Regular users: only their own risks
+    // Admin users: all org risks
+    if (profile.role !== 'admin') {
+      riskCodesQuery = riskCodesQuery.eq('user_id', user.id);
+    }
+
+    const { data: userRisks, error: risksError } = await riskCodesQuery;
+
+    if (risksError) {
+      return { data: null, error: risksError };
+    }
+
+    // If user has no risks, return empty array
+    if (!userRisks || userRisks.length === 0) {
+      return { data: [], error: null };
+    }
+
+    const riskCodes = userRisks.map(r => r.risk_code);
+
+    // Load alerts for these risk codes
     let query = supabase
       .from('risk_intelligence_alerts')
       .select(`
         *,
         event:external_events(*)
       `)
-      .eq('user_id', user.id) // CHANGED: Filter by user_id for user-level isolation
+      .in('risk_code', riskCodes)
       .order('created_at', { ascending: false });
 
     if (status) {
