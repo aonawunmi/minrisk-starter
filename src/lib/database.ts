@@ -318,11 +318,12 @@ export async function loadRisks(): Promise<RiskRow[]> {
     return [];
   }
 
-  // Fetch risks
-  console.log('📡 Fetching risks from Supabase...');
+  // Fetch risks (USER-LEVEL FILTERING: Only load risks for current user)
+  console.log(`📡 Fetching risks from Supabase for user ${user.id}...`);
   const { data: risks, error: risksError } = await supabase
     .from('risks')
     .select('*')
+    .eq('user_id', user.id)  // CHANGED: Filter by user_id for user-level isolation
     .order('created_at', { ascending: false });
 
   if (risksError) {

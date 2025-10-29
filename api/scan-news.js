@@ -345,12 +345,13 @@ async function loadScannerConfig(organizationId) {
 
 /**
  * Load risks from database for AI analysis
+ * USER-LEVEL FILTERING: Only loads risks owned by the specific user
  */
-async function loadRisks(organizationId) {
+async function loadRisks(userId) {
   const { data, error } = await supabase
     .from('risks')
     .select('risk_code, risk_title, risk_description, category, likelihood_inherent, impact_inherent')
-    .eq('organization_id', organizationId)
+    .eq('user_id', userId)  // CHANGED: Filter by user_id for user-level isolation
     .order('risk_code');
 
   if (error) {
@@ -358,6 +359,7 @@ async function loadRisks(organizationId) {
     return [];
   }
 
+  console.log(`📊 Loaded ${data?.length || 0} risks for user ${userId}`);
   return data || [];
 }
 
@@ -818,11 +820,11 @@ export default async function handler(req, res) {
 
       const event = events[0];
 
-      // Get first strategic risk
+      // Get first strategic risk (USER-LEVEL FILTERING)
       const { data: risks, error: risksError } = await supabase
         .from('risks')
         .select('*')
-        .eq('organization_id', organizationId)
+        .eq('user_id', user.id)  // CHANGED: Filter by user_id
         .ilike('risk_code', 'STR-%')
         .limit(1);
 
@@ -921,9 +923,9 @@ export default async function handler(req, res) {
       // Load scanner configuration
       const scannerConfig = await loadScannerConfig(organizationId);
 
-      // Load risks for this organization
-      const risks = await loadRisks(organizationId);
-      console.log(`📊 Loaded ${risks.length} risks for organization ${organizationId}`);
+      // Load risks for this user (USER-LEVEL FILTERING)
+      const risks = await loadRisks(user.id);
+      console.log(`📊 Loaded ${risks.length} risks for user ${user.id}`);
 
       if (risks.length === 0) {
         return res.status(200).json({
@@ -1124,10 +1126,11 @@ export default async function handler(req, res) {
     // Store events in database with date filtering
     const storeResults = await storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId);
 
-    // Load risks for AI analysis
+    // Load risks for AI analysis (USER-LEVEL FILTERING)
     console.log('📊 Loading risks from database...');
-    const risks = await loadRisks(organizationId);
-    console.log(`📊 Loaded ${risks.length} risks`);
+    const { data: { user } } = await supabase.auth.getUser(req.headers.authorization?.substring(7));
+    const risks = await loadRisks(user.id);
+    console.log(`📊 Loaded ${risks.length} risks for user ${user.id}`);
 
     // Run AI analysis and create alerts
     let alertsCreated = 0;

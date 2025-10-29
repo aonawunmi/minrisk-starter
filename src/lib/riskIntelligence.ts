@@ -186,27 +186,24 @@ export async function storeExternalEvent(
 
 /**
  * Load recent external events
+ * USER-LEVEL FILTERING: Only loads events for the current user
  */
 export async function loadExternalEvents(
   limit: number = 50,
   category?: EventCategory
 ): Promise<{ data: ExternalEvent[] | null; error: any }> {
   try {
-    // Get current user's organization_id
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('organization_id')
-      .eq('id', (await supabase.auth.getUser()).data.user?.id)
-      .single();
+    // Get current user (USER-LEVEL FILTERING)
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!profile) {
-      return { data: null, error: 'User profile not found' };
+    if (!user) {
+      return { data: null, error: 'User not authenticated' };
     }
 
     let query = supabase
       .from('external_events')
       .select('*')
-      .eq('organization_id', profile.organization_id) // CRITICAL: Filter by organization
+      .eq('user_id', user.id) // CHANGED: Filter by user_id for user-level isolation
       .order('published_date', { ascending: false })
       .limit(limit);
 
@@ -272,21 +269,18 @@ export async function createRiskAlert(
 
 /**
  * Load risk intelligence alerts
+ * USER-LEVEL FILTERING: Only loads alerts for the current user's risks
  */
 export async function loadRiskAlerts(
   status?: AlertStatus,
   risk_code?: string
 ): Promise<{ data: RiskAlertWithEvent[] | null; error: any }> {
   try {
-    // Get current user's organization_id
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('organization_id')
-      .eq('id', (await supabase.auth.getUser()).data.user?.id)
-      .single();
+    // Get current user (USER-LEVEL FILTERING)
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!profile) {
-      return { data: null, error: 'User profile not found' };
+    if (!user) {
+      return { data: null, error: 'User not authenticated' };
     }
 
     let query = supabase
@@ -295,7 +289,7 @@ export async function loadRiskAlerts(
         *,
         event:external_events(*)
       `)
-      .eq('organization_id', profile.organization_id)
+      .eq('user_id', user.id) // CHANGED: Filter by user_id for user-level isolation
       .order('created_at', { ascending: false });
 
     if (status) {
