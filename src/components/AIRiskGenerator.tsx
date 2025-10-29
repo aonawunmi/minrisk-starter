@@ -104,15 +104,20 @@ export function AIRiskGenerator({ onRisksGenerated }: AIRiskGeneratorProps) {
 
         const existingCodes = new Set(existingRisks?.map(r => r.risk_code) || []);
 
-        // Find the highest AI risk number
+        // Find the highest AI risk number for sequential prefix
         const aiRiskNumbers = existingRisks
           ?.map(r => {
-            const match = r.risk_code.match(/^AI-(\d+)$/);
+            const match = r.risk_code.match(/^AI-(\d+)/);
             return match ? parseInt(match[1]) : 0;
           })
           .filter(n => n > 0) || [];
 
         let nextAiNumber = aiRiskNumbers.length > 0 ? Math.max(...aiRiskNumbers) + 1 : 1;
+
+        // Generate a unique suffix to prevent collisions in concurrent operations
+        const timestamp = Date.now().toString().slice(-6); // Last 6 digits of timestamp
+        const random = Math.floor(Math.random() * 100).toString().padStart(2, '0'); // 2-digit random
+        const uniqueSuffix = `${timestamp}${random}`;
 
         // Map severity to likelihood/impact (1-5 scale)
         const severityMap: Record<string, { likelihood: number; impact: number }> = {
@@ -124,17 +129,13 @@ export function AIRiskGenerator({ onRisksGenerated }: AIRiskGeneratorProps) {
         };
 
         // Prepare risks with unique codes
-        const risksToSave = Array.from(selectedRisks).map((idx) => {
+        const risksToSave = Array.from(selectedRisks).map((idx, index) => {
           const risk = generatedRisks[idx];
 
-          // Generate unique sequential risk code (AI-001, AI-002, etc.)
-          let riskCode = `AI-${String(nextAiNumber).padStart(3, '0')}`;
-          while (existingCodes.has(riskCode)) {
-            nextAiNumber++;
-            riskCode = `AI-${String(nextAiNumber).padStart(3, '0')}`;
-          }
+          // Generate truly unique risk code with timestamp and random suffix
+          // Format: AI-XXX-YYYYYYZZ where XXX is sequential, YYYYYY is timestamp, ZZ is random
+          const riskCode = `AI-${String(nextAiNumber + index).padStart(3, '0')}-${uniqueSuffix}`;
           existingCodes.add(riskCode);
-          nextAiNumber++;
 
           const scores = severityMap[risk.severity] || { likelihood: 3, impact: 3 };
 
