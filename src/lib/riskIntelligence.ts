@@ -417,15 +417,16 @@ export async function applyAlertTreatment(
       return { success: false, error: 'Alert already applied to risk' };
     }
 
-    // Update the risk's likelihood
+    // Update the risk's likelihood (with organization filtering to prevent cross-org updates)
     const { data: risk } = await supabase
       .from('risks')
-      .select('likelihood_inherent')
+      .select('likelihood_inherent, organization_id')
       .eq('risk_code', alert.risk_code)
+      .eq('organization_id', profile.organization_id)
       .single();
 
     if (!risk) {
-      return { success: false, error: 'Risk not found' };
+      return { success: false, error: 'Risk not found or does not belong to your organization' };
     }
 
     const newLikelihood = Math.max(
@@ -439,7 +440,8 @@ export async function applyAlertTreatment(
         likelihood_inherent: newLikelihood,
         last_intelligence_check: new Date().toISOString(),
       })
-      .eq('risk_code', alert.risk_code);
+      .eq('risk_code', alert.risk_code)
+      .eq('organization_id', profile.organization_id);
 
     if (riskUpdateError) {
       return { success: false, error: riskUpdateError };

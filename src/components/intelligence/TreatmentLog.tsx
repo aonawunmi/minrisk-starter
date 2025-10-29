@@ -22,6 +22,176 @@ import {
 import {  type RiskAlertWithEvent, loadRiskAlerts, applyAlertTreatment } from '../../lib/riskIntelligence';
 import { format } from 'date-fns';
 
+// Helper function for likelihood change indicator
+const getLikelihoodChangeIndicator = (change: number) => {
+  if (change > 0) {
+    return (
+      <div className="flex items-center gap-1 text-red-600">
+        <TrendingUp className="h-4 w-4" />
+        <span className="text-sm font-medium">+{change}</span>
+      </div>
+    );
+  } else if (change < 0) {
+    return (
+      <div className="flex items-center gap-1 text-green-600">
+        <TrendingDown className="h-4 w-4" />
+        <span className="text-sm font-medium">{change}</span>
+      </div>
+    );
+  }
+  return null;
+};
+
+// Treatment Card component - Moved outside to prevent re-creation on every render
+type TreatmentCardProps = {
+  alert: RiskAlertWithEvent;
+  isPending: boolean;
+  treatmentNotes: Record<string, string>;
+  setTreatmentNotes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  handleApplyTreatment: (alertId: string) => Promise<void>;
+  applyingId: string | null;
+};
+
+const TreatmentCard = ({
+  alert,
+  isPending,
+  treatmentNotes,
+  setTreatmentNotes,
+  handleApplyTreatment,
+  applyingId
+}: TreatmentCardProps) => (
+  <Card key={alert.id} className="hover:shadow-md transition-shadow">
+    <CardHeader className="pb-3">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="font-mono text-xs">
+              {alert.risk_code}
+            </Badge>
+            {getLikelihoodChangeIndicator(alert.suggested_likelihood_change)}
+            {!isPending && (
+              <Badge className="bg-green-600">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Applied
+              </Badge>
+            )}
+            {isPending && (
+              <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-300">
+                <Clock className="h-3 w-3 mr-1" />
+                Pending Application
+              </Badge>
+            )}
+          </div>
+          <h3 className="font-semibold text-sm">
+            {alert.risk_title || alert.risk_code}
+          </h3>
+          {alert.risk_description && (
+            <p className="text-xs text-gray-600 line-clamp-2">
+              {alert.risk_description}
+            </p>
+          )}
+        </div>
+      </div>
+    </CardHeader>
+
+    <CardContent className="space-y-4">
+      {/* Event Information */}
+      <div className="space-y-2">
+        <h4 className="text-xs font-medium text-gray-500 uppercase">Triggering Event</h4>
+        <p className="text-sm font-medium">{alert.event.title}</p>
+        <p className="text-xs text-gray-600 line-clamp-2">{alert.event.description}</p>
+      </div>
+
+      {/* AI Reasoning */}
+      <div className="space-y-2">
+        <h4 className="text-xs font-medium text-gray-500 uppercase">AI Analysis</h4>
+        <p className="text-sm text-gray-700">{alert.reasoning}</p>
+      </div>
+
+      {/* Impact Assessment */}
+      <div className="space-y-2">
+        <h4 className="text-xs font-medium text-gray-500 uppercase">Impact Assessment</h4>
+        <p className="text-sm text-gray-700">{alert.impact_assessment}</p>
+      </div>
+
+      {/* Suggested Controls */}
+      {alert.suggested_controls && alert.suggested_controls.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-xs font-medium text-gray-500 uppercase">Suggested Controls</h4>
+          <ul className="text-sm space-y-1">
+            {alert.suggested_controls.map((control, idx) => (
+              <li key={idx} className="flex items-start gap-2">
+                <span className="text-blue-600 mt-0.5">•</span>
+                <span className="text-gray-700">{control}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Applied Information */}
+      {!isPending && (
+        <div className="pt-4 border-t space-y-2">
+          <div className="flex items-center gap-2 text-xs text-gray-600">
+            <Calendar className="h-3 w-3" />
+            <span>Applied: {alert.applied_at ? format(new Date(alert.applied_at), 'PPp') : 'Unknown'}</span>
+          </div>
+          {alert.treatment_notes && (
+            <div className="space-y-1">
+              <h4 className="text-xs font-medium text-gray-500 uppercase">Treatment Notes</h4>
+              <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded border">{alert.treatment_notes}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Treatment Form (Pending only) */}
+      {isPending && (
+        <div className="pt-4 border-t space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor={`notes-${alert.id}`} className="text-sm font-medium">
+              Treatment Notes (Optional)
+            </Label>
+            <Textarea
+              id={`notes-${alert.id}`}
+              placeholder="Document how you applied this alert to the risk register (e.g., updated likelihood, added controls, notified stakeholders...)"
+              value={treatmentNotes[alert.id] || ''}
+              onChange={(e) => setTreatmentNotes(prev => ({ ...prev, [alert.id]: e.target.value }))}
+              rows={4}
+              className="text-sm resize-none"
+            />
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-xs text-blue-900">
+              <strong>Note:</strong> This will update the risk's likelihood by <strong>{alert.suggested_likelihood_change > 0 ? '+' : ''}{alert.suggested_likelihood_change}</strong> and mark the alert as applied. If multiple events affect the same risk, each likelihood change will be applied independently when you apply each alert.
+            </p>
+          </div>
+
+          <Button
+            onClick={() => handleApplyTreatment(alert.id)}
+            disabled={applyingId === alert.id}
+            className="w-full"
+            size="sm"
+          >
+            {applyingId === alert.id ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Applying...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Apply to Risk Register
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+    </CardContent>
+  </Card>
+);
+
 export function TreatmentLog() {
   const [pendingAlerts, setPendingAlerts] = useState<RiskAlertWithEvent[]>([]);
   const [appliedAlerts, setAppliedAlerts] = useState<RiskAlertWithEvent[]>([]);
@@ -82,158 +252,6 @@ export function TreatmentLog() {
       setApplyingId(null);
     }
   };
-
-  const getLikelihoodChangeIndicator = (change: number) => {
-    if (change > 0) {
-      return (
-        <div className="flex items-center gap-1 text-red-600">
-          <TrendingUp className="h-4 w-4" />
-          <span className="text-sm font-medium">+{change}</span>
-        </div>
-      );
-    } else if (change < 0) {
-      return (
-        <div className="flex items-center gap-1 text-green-600">
-          <TrendingDown className="h-4 w-4" />
-          <span className="text-sm font-medium">{change}</span>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const TreatmentCard = ({ alert, isPending }: { alert: RiskAlertWithEvent; isPending: boolean }) => (
-    <Card key={alert.id} className="hover:shadow-md transition-shadow">
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="font-mono text-xs">
-                {alert.risk_code}
-              </Badge>
-              {getLikelihoodChangeIndicator(alert.suggested_likelihood_change)}
-              {!isPending && (
-                <Badge className="bg-green-600">
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                  Applied
-                </Badge>
-              )}
-              {isPending && (
-                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-300">
-                  <Clock className="h-3 w-3 mr-1" />
-                  Pending Application
-                </Badge>
-              )}
-            </div>
-            <h3 className="font-semibold text-sm">
-              {alert.risk_title || alert.risk_code}
-            </h3>
-            {alert.risk_description && (
-              <p className="text-xs text-gray-600 line-clamp-2">
-                {alert.risk_description}
-              </p>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-4">
-        {/* Event Information */}
-        <div className="space-y-2">
-          <h4 className="text-xs font-medium text-gray-500 uppercase">Triggering Event</h4>
-          <p className="text-sm font-medium">{alert.event.title}</p>
-          <p className="text-xs text-gray-600 line-clamp-2">{alert.event.description}</p>
-        </div>
-
-        {/* AI Reasoning */}
-        <div className="space-y-2">
-          <h4 className="text-xs font-medium text-gray-500 uppercase">AI Analysis</h4>
-          <p className="text-sm text-gray-700">{alert.reasoning}</p>
-        </div>
-
-        {/* Impact Assessment */}
-        <div className="space-y-2">
-          <h4 className="text-xs font-medium text-gray-500 uppercase">Impact Assessment</h4>
-          <p className="text-sm text-gray-700">{alert.impact_assessment}</p>
-        </div>
-
-        {/* Suggested Controls */}
-        {alert.suggested_controls && alert.suggested_controls.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-xs font-medium text-gray-500 uppercase">Suggested Controls</h4>
-            <ul className="text-sm space-y-1">
-              {alert.suggested_controls.map((control, idx) => (
-                <li key={idx} className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-0.5">•</span>
-                  <span className="text-gray-700">{control}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Applied Information */}
-        {!isPending && (
-          <div className="pt-4 border-t space-y-2">
-            <div className="flex items-center gap-2 text-xs text-gray-600">
-              <Calendar className="h-3 w-3" />
-              <span>Applied: {alert.applied_at ? format(new Date(alert.applied_at), 'PPp') : 'Unknown'}</span>
-            </div>
-            {alert.treatment_notes && (
-              <div className="space-y-1">
-                <h4 className="text-xs font-medium text-gray-500 uppercase">Treatment Notes</h4>
-                <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded border">{alert.treatment_notes}</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Treatment Form (Pending only) */}
-        {isPending && (
-          <div className="pt-4 border-t space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor={`notes-${alert.id}`} className="text-sm font-medium">
-                Treatment Notes (Optional)
-              </Label>
-              <Textarea
-                id={`notes-${alert.id}`}
-                placeholder="Document how you applied this alert to the risk register (e.g., updated likelihood, added controls, notified stakeholders...)"
-                value={treatmentNotes[alert.id] || ''}
-                onChange={(e) => setTreatmentNotes(prev => ({ ...prev, [alert.id]: e.target.value }))}
-                rows={4}
-                className="text-sm resize-none"
-              />
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-xs text-blue-900">
-                <strong>Note:</strong> This will update the risk's likelihood by <strong>{alert.suggested_likelihood_change > 0 ? '+' : ''}{alert.suggested_likelihood_change}</strong> and mark the alert as applied. If multiple events affect the same risk, each likelihood change will be applied independently when you apply each alert.
-              </p>
-            </div>
-
-            <Button
-              onClick={() => handleApplyTreatment(alert.id)}
-              disabled={applyingId === alert.id}
-              className="w-full"
-              size="sm"
-            >
-              {applyingId === alert.id ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Applying...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Apply to Risk Register
-                </>
-              )}
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
 
   return (
     <div className="space-y-4">
@@ -305,7 +323,15 @@ export function TreatmentLog() {
                 </div>
               </div>
               {pendingAlerts.map(alert => (
-                <TreatmentCard key={alert.id} alert={alert} isPending={true} />
+                <TreatmentCard
+                  key={alert.id}
+                  alert={alert}
+                  isPending={true}
+                  treatmentNotes={treatmentNotes}
+                  setTreatmentNotes={setTreatmentNotes}
+                  handleApplyTreatment={handleApplyTreatment}
+                  applyingId={applyingId}
+                />
               ))}
             </div>
           )}
@@ -331,7 +357,15 @@ export function TreatmentLog() {
           ) : (
             <div className="space-y-4">
               {appliedAlerts.map(alert => (
-                <TreatmentCard key={alert.id} alert={alert} isPending={false} />
+                <TreatmentCard
+                  key={alert.id}
+                  alert={alert}
+                  isPending={false}
+                  treatmentNotes={treatmentNotes}
+                  setTreatmentNotes={setTreatmentNotes}
+                  handleApplyTreatment={handleApplyTreatment}
+                  applyingId={applyingId}
+                />
               ))}
             </div>
           )}
