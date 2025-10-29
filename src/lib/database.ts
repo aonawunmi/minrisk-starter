@@ -318,13 +318,37 @@ export async function loadRisks(): Promise<RiskRow[]> {
     return [];
   }
 
-  // Fetch risks (USER-LEVEL FILTERING: Only load risks for current user)
-  console.log(`📡 Fetching risks from Supabase for user ${user.id}...`);
-  const { data: risks, error: risksError } = await supabase
+  // Get user profile to check role
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role, organization_id')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile) {
+    console.log('❌ No user profile found in loadRisks');
+    return [];
+  }
+
+  const isAdmin = profile.role === 'admin';
+
+  // ADMIN: Load ALL risks for organization (cross-user visibility)
+  // REGULAR USER: Load ONLY their own risks (user-level isolation)
+  console.log(`📡 Fetching risks from Supabase for user ${user.id} (${isAdmin ? 'ADMIN - org-wide' : 'USER - personal only'})...`);
+
+  let query = supabase
     .from('risks')
-    .select('*')
-    .eq('user_id', user.id)  // CHANGED: Filter by user_id for user-level isolation
-    .order('created_at', { ascending: false });
+    .select('*');
+
+  if (isAdmin) {
+    // Admin: Load all risks for the organization
+    query = query.eq('organization_id', profile.organization_id);
+  } else {
+    // Regular user: Load only their own risks
+    query = query.eq('user_id', user.id);
+  }
+
+  const { data: risks, error: risksError } = await query.order('created_at', { ascending: false });
 
   if (risksError) {
     console.error('❌ Error fetching risks:', risksError);
