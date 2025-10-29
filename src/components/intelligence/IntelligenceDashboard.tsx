@@ -25,6 +25,7 @@ import {
   Settings,
   Tag,
   Trash2,
+  FileCheck,
 } from 'lucide-react';
 import {
   type RiskAlertWithEvent,
@@ -85,6 +86,7 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
   const [confidenceThreshold, setConfidenceThreshold] = useState(0.6);
   const [savingConfig, setSavingConfig] = useState(false);
   const [configMessage, setConfigMessage] = useState('');
+  const [mainTab, setMainTab] = useState<'alerts' | 'treatment'>('alerts');
 
   useEffect(() => {
     loadData();
@@ -743,81 +745,104 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
         </CardContent>
       </Card>
 
-      {/* Alerts List with Filters */}
+      {/* Main Tabs - Alerts and Treatment Log */}
       <Card>
         <CardHeader className="pb-3">
-          <Tabs value={activeFilter} onValueChange={(v) => setActiveFilter(v as typeof activeFilter)}>
-            <TabsList>
-              <TabsTrigger value="all" className="relative">
-                All
-                {getFilterCount('all') > 0 && (
-                  <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
-                    {getFilterCount('all')}
+          <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as typeof mainTab)}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="alerts" className="gap-2">
+                <Brain className="h-4 w-4" />
+                Intelligence Alerts
+                {alerts.length > 0 && (
+                  <Badge variant="secondary" className="ml-1">
+                    {alerts.length}
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="pending" className="relative">
-                <Clock className="h-3 w-3 mr-1" />
-                Pending
-                {getFilterCount('pending') > 0 && (
-                  <Badge className="ml-2 h-5 px-1.5 text-xs bg-yellow-600">
-                    {getFilterCount('pending')}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="accepted">
-                <CheckCircle2 className="h-3 w-3 mr-1" />
-                Accepted
-                {getFilterCount('accepted') > 0 && (
-                  <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
-                    {getFilterCount('accepted')}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="rejected">
-                <XCircle className="h-3 w-3 mr-1" />
-                Rejected
-                {getFilterCount('rejected') > 0 && (
-                  <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
-                    {getFilterCount('rejected')}
-                  </Badge>
-                )}
+              <TabsTrigger value="treatment" className="gap-2">
+                <FileCheck className="h-4 w-4" />
+                Treatment Log
               </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="alerts" className="mt-4 space-y-4">
+              {/* Alert Filters */}
+              <Tabs value={activeFilter} onValueChange={(v) => setActiveFilter(v as typeof activeFilter)}>
+                <TabsList>
+                  <TabsTrigger value="all" className="relative">
+                    All
+                    {getFilterCount('all') > 0 && (
+                      <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                        {getFilterCount('all')}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="pending" className="relative">
+                    <Clock className="h-3 w-3 mr-1" />
+                    Pending
+                    {getFilterCount('pending') > 0 && (
+                      <Badge className="ml-2 h-5 px-1.5 text-xs bg-yellow-600">
+                        {getFilterCount('pending')}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="accepted">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    Accepted
+                    {getFilterCount('accepted') > 0 && (
+                      <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                        {getFilterCount('accepted')}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="rejected">
+                    <XCircle className="h-3 w-3 mr-1" />
+                    Rejected
+                    {getFilterCount('rejected') > 0 && (
+                      <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                        {getFilterCount('rejected')}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              {/* Alert List */}
+              <div className="mt-4">
+                {filteredAlerts.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
+                    <AlertTriangle className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm text-gray-500">
+                      {activeFilter === 'all'
+                        ? 'No intelligence alerts yet'
+                        : `No ${activeFilter} alerts`}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {activeFilter === 'pending'
+                        ? 'Alerts will appear here when events are detected'
+                        : 'Check back later for updates'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredAlerts.map(alert => (
+                      <IntelligenceAlertCard
+                        key={alert.id}
+                        alert={alert}
+                        onReview={handleReview}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="treatment" className="mt-4">
+              <TreatmentLog />
+            </TabsContent>
           </Tabs>
         </CardHeader>
-
-        <CardContent>
-          {filteredAlerts.length === 0 ? (
-            <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
-              <AlertTriangle className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-              <p className="text-sm text-gray-500">
-                {activeFilter === 'all'
-                  ? 'No intelligence alerts yet'
-                  : `No ${activeFilter} alerts`}
-              </p>
-              <p className="text-xs text-gray-400 mt-1">
-                {activeFilter === 'pending'
-                  ? 'Alerts will appear here when events are detected'
-                  : 'Check back later for updates'}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredAlerts.map(alert => (
-                <IntelligenceAlertCard
-                  key={alert.id}
-                  alert={alert}
-                  onReview={handleReview}
-                />
-              ))}
-            </div>
-          )}
-        </CardContent>
       </Card>
-
-      {/* Treatment Log - Track and apply accepted alerts */}
-      <TreatmentLog />
 
       {/* Event Browser */}
       {showEventBrowser && (

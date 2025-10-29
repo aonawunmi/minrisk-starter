@@ -200,9 +200,15 @@ export function TreatmentLog() {
                 placeholder="Document how you applied this alert to the risk register (e.g., updated likelihood, added controls, notified stakeholders...)"
                 value={treatmentNotes[alert.id] || ''}
                 onChange={(e) => setTreatmentNotes(prev => ({ ...prev, [alert.id]: e.target.value }))}
-                rows={3}
-                className="text-sm"
+                rows={4}
+                className="text-sm resize-none"
               />
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-xs text-blue-900">
+                <strong>Note:</strong> This will update the risk's likelihood by <strong>{alert.suggested_likelihood_change > 0 ? '+' : ''}{alert.suggested_likelihood_change}</strong> and mark the alert as applied. If multiple events affect the same risk, each likelihood change will be applied independently when you apply each alert.
+              </p>
             </div>
 
             <Button
@@ -223,9 +229,6 @@ export function TreatmentLog() {
                 </>
               )}
             </Button>
-            <p className="text-xs text-gray-500">
-              This will update the risk's likelihood by {alert.suggested_likelihood_change > 0 ? '+' : ''}{alert.suggested_likelihood_change} and mark the alert as applied.
-            </p>
           </div>
         )}
       </CardContent>
