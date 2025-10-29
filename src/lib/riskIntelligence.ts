@@ -320,15 +320,20 @@ export async function loadRiskAlerts(
     const { data: userRisks, error: risksError } = await riskCodesQuery;
 
     if (risksError) {
+      console.error('❌ Error loading risks for alerts:', risksError);
       return { data: null, error: risksError };
     }
 
+    console.log(`📊 loadRiskAlerts: Found ${userRisks?.length || 0} risks for ${profile.role === 'admin' ? 'ADMIN' : 'USER'} ${user.id}`);
+
     // If user has no risks, return empty array
     if (!userRisks || userRisks.length === 0) {
+      console.warn(`⚠️ No risks found for ${profile.role === 'admin' ? 'ADMIN' : 'USER'} ${user.id} in org ${profile.organization_id}`);
       return { data: [], error: null };
     }
 
     const riskCodes = userRisks.map(r => r.risk_code);
+    console.log(`📊 Loading alerts for ${riskCodes.length} risk codes:`, riskCodes.slice(0, 5));
 
     // Load alerts for these risk codes
     let query = supabase
@@ -349,6 +354,12 @@ export async function loadRiskAlerts(
     }
 
     const { data, error } = await query;
+
+    if (error) {
+      console.error('❌ Error loading alerts:', error);
+    } else {
+      console.log(`📊 Loaded ${data?.length || 0} alerts from database`);
+    }
 
     // Transform to include event object
     const transformedData = data?.map(alert => ({
