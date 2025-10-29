@@ -88,33 +88,48 @@ export type IncidentFormData = Omit<Incident, 'id' | 'organization_id' | 'user_i
 // =====================================================
 
 /**
- * Generate incident code (INC-001, INC-002, etc.)
+ * Generate incident code with timestamp-based uniqueness (INC-XXX-YYYYYYZZ)
+ * Format: INC-XXX-YYYYYYZZ where:
+ * - XXX: Sequential number (001, 002, etc.)
+ * - YYYYYY: Last 6 digits of timestamp (microsecond precision)
+ * - ZZ: 2-digit random number
+ * This prevents duplicate key errors during concurrent incident creation.
  */
 async function generateIncidentCode(orgId: string): Promise<string> {
   const { data, error } = await supabase
     .from('incidents')
     .select('incident_code')
-    .eq('organization_id', orgId)
-    .order('created_at', { ascending: false })
-    .limit(1);
+    .eq('organization_id', orgId);
 
   if (error) {
-    console.error('Error fetching last incident code:', error);
-    return 'INC-001';
+    console.error('Error fetching incident codes:', error);
+    return 'INC-001-' + generateUniqueSuffix();
   }
 
-  if (!data || data.length === 0) {
-    return 'INC-001';
-  }
+  // Find the highest INC number for sequential prefix
+  const incNumbers = data
+    ?.map(r => {
+      const match = r.incident_code.match(/^INC-(\d+)/);
+      return match ? parseInt(match[1]) : 0;
+    })
+    .filter(n => n > 0) || [];
 
-  const lastCode = data[0].incident_code;
-  const match = lastCode.match(/INC-(\d+)/);
-  if (match) {
-    const nextNum = parseInt(match[1]) + 1;
-    return `INC-${String(nextNum).padStart(3, '0')}`;
-  }
+  const nextIncNumber = incNumbers.length > 0 ? Math.max(...incNumbers) + 1 : 1;
 
-  return 'INC-001';
+  // Generate unique suffix to prevent collisions in concurrent operations
+  const uniqueSuffix = generateUniqueSuffix();
+
+  return `INC-${String(nextIncNumber).padStart(3, '0')}-${uniqueSuffix}`;
+}
+
+/**
+ * Generate a unique suffix using timestamp + random number
+ * Returns format: YYYYYYZZ (8 characters)
+ */
+function generateUniqueSuffix(): string {
+  const timestamp = Date.now().toString().slice(-6); // Last 6 digits of timestamp
+  const random = Math.floor(Math.random() * 100).toString().padStart(2, '0'); // 2-digit random
+  return `${timestamp}${random}`;
 }
 
 // =====================================================
