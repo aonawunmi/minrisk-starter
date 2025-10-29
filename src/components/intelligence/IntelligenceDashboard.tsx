@@ -39,6 +39,7 @@ import { ScanResultsDialog } from './ScanResultsDialog';
 import { EventBrowser } from './EventBrowser';
 import { NewsSourcesManager } from './NewsSourcesManager';
 import { RiskKeywordsManager } from './RiskKeywordsManager';
+import { TreatmentLog } from './TreatmentLog';
 import { supabase } from '../../lib/supabase';
 import { loadConfig, saveConfig } from '../../lib/database';
 
@@ -814,6 +815,9 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
           )}
         </CardContent>
       </Card>
+
+      {/* Treatment Log - Track and apply accepted alerts */}
+      <TreatmentLog />
 
       {/* Event Browser */}
       {showEventBrowser && (
