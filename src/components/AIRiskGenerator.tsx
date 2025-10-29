@@ -78,47 +78,41 @@ export function AIRiskGenerator({ onRisksGenerated }: AIRiskGeneratorProps) {
 
     setIsLoading(true);
 
-    try {
-      // Get organization ID and user profile
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('organization_id, full_name')
-        .eq('id', user.id)
-        .single();
+    // Retry logic for handling concurrent inserts
+    const maxRetries = 3;
+    let attempt = 0;
+    let lastError: any = null;
 
-      if (!profile?.organization_id) {
-        throw new Error('No organization found for user');
-      }
+    while (attempt < maxRetries) {
+      try {
+        // Get organization ID and user profile
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('organization_id, full_name')
+          .eq('id', user.id)
+          .single();
 
-      // Get existing risks to generate unique codes
-      const { data: existingRisks } = await supabase
-        .from('risks')
-        .select('risk_code')
-        .eq('organization_id', profile.organization_id);
-
-      const existingCodes = new Set(existingRisks?.map(r => r.risk_code) || []);
-
-      // Find the highest AI risk number
-      const aiRiskNumbers = existingRisks
-        ?.map(r => {
-          const match = r.risk_code.match(/^AI-(\d+)$/);
-          return match ? parseInt(match[1]) : 0;
-        })
-        .filter(n => n > 0) || [];
-
-      let nextAiNumber = aiRiskNumbers.length > 0 ? Math.max(...aiRiskNumbers) + 1 : 1;
-
-      const risksToSave = Array.from(selectedRisks).map((idx) => {
-        const risk = generatedRisks[idx];
-
-        // Generate unique sequential risk code (AI-001, AI-002, etc.)
-        let riskCode = `AI-${String(nextAiNumber).padStart(3, '0')}`;
-        while (existingCodes.has(riskCode)) {
-          nextAiNumber++;
-          riskCode = `AI-${String(nextAiNumber).padStart(3, '0')}`;
+        if (!profile?.organization_id) {
+          throw new Error('No organization found for user');
         }
-        existingCodes.add(riskCode);
-        nextAiNumber++;
+
+        // Get existing risks to generate unique codes (fresh query each attempt)
+        const { data: existingRisks } = await supabase
+          .from('risks')
+          .select('risk_code')
+          .eq('organization_id', profile.organization_id);
+
+        const existingCodes = new Set(existingRisks?.map(r => r.risk_code) || []);
+
+        // Find the highest AI risk number
+        const aiRiskNumbers = existingRisks
+          ?.map(r => {
+            const match = r.risk_code.match(/^AI-(\d+)$/);
+            return match ? parseInt(match[1]) : 0;
+          })
+          .filter(n => n > 0) || [];
+
+        let nextAiNumber = aiRiskNumbers.length > 0 ? Math.max(...aiRiskNumbers) + 1 : 1;
 
         // Map severity to likelihood/impact (1-5 scale)
         const severityMap: Record<string, { likelihood: number; impact: number }> = {
@@ -128,43 +122,85 @@ export function AIRiskGenerator({ onRisksGenerated }: AIRiskGeneratorProps) {
           'Low': { likelihood: 2, impact: 2 },
           'Very Low': { likelihood: 1, impact: 1 },
         };
-        const scores = severityMap[risk.severity] || { likelihood: 3, impact: 3 };
 
-        return {
-          organization_id: profile.organization_id,
-          user_id: user.id,
-          risk_code: riskCode,
-          risk_title: risk.title,
-          risk_description: risk.description,
-          division: 'Operations', // Default - user can edit later
-          department: 'Risk Management', // Default - user can edit later
-          category: risk.category,
-          owner: profile.full_name || user.email || 'AI Generated',
-          relevant_period: null,
-          likelihood_inherent: scores.likelihood,
-          impact_inherent: scores.impact,
-          status: 'Open' as const,
-        };
-      });
+        // Prepare risks with unique codes
+        const risksToSave = Array.from(selectedRisks).map((idx) => {
+          const risk = generatedRisks[idx];
 
-      const { error } = await supabase.from('risks').insert(risksToSave);
+          // Generate unique sequential risk code (AI-001, AI-002, etc.)
+          let riskCode = `AI-${String(nextAiNumber).padStart(3, '0')}`;
+          while (existingCodes.has(riskCode)) {
+            nextAiNumber++;
+            riskCode = `AI-${String(nextAiNumber).padStart(3, '0')}`;
+          }
+          existingCodes.add(riskCode);
+          nextAiNumber++;
 
-      if (error) throw error;
+          const scores = severityMap[risk.severity] || { likelihood: 3, impact: 3 };
 
-      alert(`Successfully saved ${risksToSave.length} risk(s)!`);
-      setGeneratedRisks([]);
-      setSelectedRisks(new Set());
-      setIsOpen(false);
+          return {
+            organization_id: profile.organization_id,
+            user_id: user.id,
+            risk_code: riskCode,
+            risk_title: risk.title,
+            risk_description: risk.description,
+            division: 'Operations', // Default - user can edit later
+            department: 'Risk Management', // Default - user can edit later
+            category: risk.category,
+            owner: profile.full_name || user.email || 'AI Generated',
+            relevant_period: null,
+            likelihood_inherent: scores.likelihood,
+            impact_inherent: scores.impact,
+            status: 'Open' as const,
+          };
+        });
 
-      if (onRisksGenerated) {
-        onRisksGenerated();
+        // Insert risks
+        const { error, data: insertedData } = await supabase
+          .from('risks')
+          .insert(risksToSave)
+          .select();
+
+        if (error) {
+          // If duplicate key error and we have retries left, try again
+          if ((error.code === '23505' || error.message.includes('duplicate key')) && attempt < maxRetries - 1) {
+            lastError = error;
+            attempt++;
+            console.log(`Duplicate key detected, retrying... (attempt ${attempt + 1}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, 100 * attempt)); // Brief delay before retry
+            continue;
+          }
+          throw error;
+        }
+
+        // Success!
+        alert(`Successfully saved ${risksToSave.length} risk(s)!`);
+        setGeneratedRisks([]);
+        setSelectedRisks(new Set());
+        setIsOpen(false);
+
+        if (onRisksGenerated) {
+          onRisksGenerated();
+        }
+
+        setIsLoading(false);
+        return; // Exit successfully
+      } catch (error: any) {
+        lastError = error;
+
+        // If not a duplicate error or out of retries, break
+        if (!(error.code === '23505' || error.message?.includes('duplicate key')) || attempt >= maxRetries - 1) {
+          break;
+        }
+
+        attempt++;
       }
-    } catch (error: any) {
-      console.error('Failed to save risks:', error);
-      alert(`Failed to save risks: ${error.message}`);
-    } finally {
-      setIsLoading(false);
     }
+
+    // If we got here, all retries failed
+    setIsLoading(false);
+    console.error('Failed to save risks after retries:', lastError);
+    alert(`Failed to save risks: ${lastError?.message || 'Unknown error'}. Please try again.`);
   };
 
   const getSeverityColor = (severity: string) => {
