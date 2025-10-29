@@ -345,21 +345,48 @@ async function loadScannerConfig(organizationId) {
 
 /**
  * Load risks from database for AI analysis
- * USER-LEVEL FILTERING: Only loads risks owned by the specific user
+ * USER-LEVEL FILTERING: Loads risks based on user role
+ * - Regular users: Only their own risks
+ * - Admins: All organizational risks
  */
 async function loadRisks(userId) {
-  const { data, error } = await supabase
+  // Get user profile to check role
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role, organization_id')
+    .eq('id', userId)
+    .single();
+
+  if (!profile) {
+    console.error('❌ No user profile found for user:', userId);
+    return [];
+  }
+
+  const isAdmin = profile.role === 'admin';
+
+  let query = supabase
     .from('risks')
     .select('risk_code, risk_title, risk_description, category, likelihood_inherent, impact_inherent')
-    .eq('user_id', userId)  // CHANGED: Filter by user_id for user-level isolation
     .order('risk_code');
+
+  if (isAdmin) {
+    // Admin: Load all risks for the organization
+    query = query.eq('organization_id', profile.organization_id);
+    console.log(`📊 Loading risks for ADMIN user ${userId} (org-wide)`);
+  } else {
+    // Regular user: Load only their own risks
+    query = query.eq('user_id', userId);
+    console.log(`📊 Loading risks for user ${userId} (personal only)`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error loading risks:', error);
     return [];
   }
 
-  console.log(`📊 Loaded ${data?.length || 0} risks for user ${userId}`);
+  console.log(`📊 Loaded ${data?.length || 0} risks for user ${userId} (${isAdmin ? 'ADMIN' : 'USER'})`);
   return data || [];
 }
 
