@@ -38,7 +38,7 @@ export function TreatmentLog() {
     setLoading(true);
     try {
       // Load all accepted alerts
-      const { data: allAccepted } = await loadRiskAlerts(['accepted']);
+      const { data: allAccepted } = await loadRiskAlerts('accepted');
 
       if (allAccepted) {
         // Filter by applied_to_risk status

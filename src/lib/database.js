@@ -180,6 +180,8 @@ export async function loadConfig() {
         departments: data.departments,
         categories: data.categories,
         owners: data.owners,
+        scanner_mode: data.scanner_mode,
+        scanner_confidence_threshold: data.scanner_confidence_threshold,
     };
 }
 /**
@@ -202,6 +204,8 @@ export async function saveConfig(config) {
         departments: config.departments,
         categories: config.categories,
         owners: config.owners,
+        scanner_mode: config.scanner_mode,
+        scanner_confidence_threshold: config.scanner_confidence_threshold,
     };
     const { error } = await supabase
         .from('app_configs')
