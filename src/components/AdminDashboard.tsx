@@ -5,7 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Table } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RefreshCw, Users, FileText, Shield, AlertTriangle, Check, X, UserCheck, UserX, Archive, BookOpen, TrendingUp } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { RefreshCw, Users, FileText, Shield, AlertTriangle, Check, X, UserCheck, UserX, Archive, BookOpen, TrendingUp, Trash2, Loader2 } from 'lucide-react';
+import { clearAllOrganizationData, clearRiskRegisterData } from '@/lib/admin';
 import ArchiveManagement from './ArchiveManagement';
 import AuditTrail from './AuditTrail';
 import HelpTab from './HelpTab';
@@ -39,6 +42,15 @@ export default function AdminDashboard({ config, showToast }: AdminDashboardProp
     totalControls: 0,
     pendingUsers: 0,
   });
+  const [clearingAll, setClearingAll] = useState(false);
+  const [clearMessage, setClearMessage] = useState('');
+  const [showClearDialog, setShowClearDialog] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+
+  const [clearingRisks, setClearingRisks] = useState(false);
+  const [clearRisksMessage, setClearRisksMessage] = useState('');
+  const [showClearRisksDialog, setShowClearRisksDialog] = useState(false);
+  const [confirmRisksText, setConfirmRisksText] = useState('');
 
   const loadAdminData = async () => {
     setLoading(true);
@@ -160,6 +172,67 @@ export default function AdminDashboard({ config, showToast }: AdminDashboardProp
     }
   };
 
+  const handleClearAllData = async () => {
+    if (confirmText !== 'DELETE') {
+      return; // Button should be disabled anyway
+    }
+
+    setShowClearDialog(false);
+    setClearingAll(true);
+    setClearMessage('Clearing all data...');
+
+    const { success, deleted, error } = await clearAllOrganizationData();
+
+    if (success) {
+      setClearMessage(
+        `Successfully cleared:\n• ${deleted.alerts} intelligence alerts\n• ${deleted.events} external events`
+      );
+      showToast(`Cleared ${deleted.alerts} alerts and ${deleted.events} events`, 'success');
+    } else {
+      const errorMsg = `Failed to clear data: ${error}`;
+      setClearMessage(errorMsg);
+      showToast(errorMsg, 'error');
+    }
+
+    setTimeout(() => {
+      setClearMessage('');
+      setConfirmText('');
+    }, 10000); // Show message for 10 seconds
+
+    setClearingAll(false);
+  };
+
+  const handleClearRiskRegister = async () => {
+    if (confirmRisksText !== 'DELETE RISKS') {
+      return;
+    }
+
+    setShowClearRisksDialog(false);
+    setClearingRisks(true);
+    setClearRisksMessage('Clearing risk register...');
+
+    const { success, deleted, error } = await clearRiskRegisterData();
+
+    if (success) {
+      setClearRisksMessage(
+        `Successfully cleared:\n• ${deleted.risks} risks\n• ${deleted.controls} controls\n• ${deleted.incidents} incidents\n• ${deleted.history} history records`
+      );
+      showToast(`Cleared ${deleted.risks} risks and ${deleted.history} history records`, 'success');
+      await loadAdminData(); // Refresh stats
+    } else {
+      const errorMsg = `Failed to clear risk register: ${error}`;
+      setClearRisksMessage(errorMsg);
+      showToast(errorMsg, 'error');
+    }
+
+    setTimeout(() => {
+      setClearRisksMessage('');
+      setConfirmRisksText('');
+    }, 10000);
+
+    setClearingRisks(false);
+  };
+
   useEffect(() => {
     loadAdminData();
   }, []);
@@ -254,6 +327,76 @@ export default function AdminDashboard({ config, showToast }: AdminDashboardProp
           </CardContent>
         </Card>
       </div>
+
+      {/* Danger Zone - Clear All Data */}
+      <Card className="border-red-200 bg-red-50">
+        <CardHeader>
+          <CardTitle className="text-red-600">⚠️ Danger Zone - Intelligence Data</CardTitle>
+          <CardDescription className="text-red-800">
+            Clear all intelligence alerts and external events for your organization. This action cannot be undone.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            variant="destructive"
+            onClick={() => setShowClearDialog(true)}
+            disabled={clearingAll}
+          >
+            {clearingAll ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Clearing...
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4 mr-2" />
+                CLEAR INTELLIGENCE DATA
+              </>
+            )}
+          </Button>
+
+          {clearMessage && (
+            <div className="mt-4 p-3 bg-white border border-red-200 rounded-lg text-sm whitespace-pre-line">
+              {clearMessage}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Danger Zone - Clear Risk Register */}
+      <Card className="border-red-200 bg-red-50">
+        <CardHeader>
+          <CardTitle className="text-red-600">⚠️ Danger Zone - Risk Register</CardTitle>
+          <CardDescription className="text-red-800">
+            Clear all risks, controls, incidents, and My Risk History for your organization. This action cannot be undone.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            variant="destructive"
+            onClick={() => setShowClearRisksDialog(true)}
+            disabled={clearingRisks}
+          >
+            {clearingRisks ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Clearing...
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4 mr-2" />
+                CLEAR RISK REGISTER
+              </>
+            )}
+          </Button>
+
+          {clearRisksMessage && (
+            <div className="mt-4 p-3 bg-white border border-red-200 rounded-lg text-sm whitespace-pre-line">
+              {clearRisksMessage}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Users Table */}
       <Card>
@@ -424,6 +567,100 @@ export default function AdminDashboard({ config, showToast }: AdminDashboardProp
       <TabsContent value="help">
         <HelpTab />
       </TabsContent>
+
+      {/* Confirmation Dialog for Clear All */}
+      <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>⚠️ WARNING: Clear Intelligence Data</DialogTitle>
+            <DialogDescription className="space-y-3">
+              <p>This will permanently delete:</p>
+              <ul className="list-disc list-inside text-sm">
+                <li>All intelligence alerts (pending, accepted, rejected)</li>
+                <li>All external events</li>
+              </ul>
+              <p className="font-semibold text-red-600">
+                This action CANNOT be undone and only affects data for your organization.
+              </p>
+              <p>Type <code className="bg-gray-100 px-1 rounded">DELETE</code> to confirm:</p>
+            </DialogDescription>
+          </DialogHeader>
+
+          <Input
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder="Type DELETE to confirm"
+            className="font-mono"
+          />
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowClearDialog(false);
+                setConfirmText('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleClearAllData}
+              disabled={confirmText !== 'DELETE'}
+            >
+              Confirm Deletion
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog for Clear Risk Register */}
+      <Dialog open={showClearRisksDialog} onOpenChange={setShowClearRisksDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>⚠️ WARNING: Clear Risk Register</DialogTitle>
+            <DialogDescription className="space-y-3">
+              <p>This will permanently delete:</p>
+              <ul className="list-disc list-inside text-sm">
+                <li>All risks</li>
+                <li>All controls</li>
+                <li>All incidents</li>
+                <li>All My Risk History records</li>
+              </ul>
+              <p className="font-semibold text-red-600">
+                This action CANNOT be undone and only affects data for your organization.
+              </p>
+              <p>Type <code className="bg-gray-100 px-1 rounded">DELETE RISKS</code> to confirm:</p>
+            </DialogDescription>
+          </DialogHeader>
+
+          <Input
+            value={confirmRisksText}
+            onChange={(e) => setConfirmRisksText(e.target.value)}
+            placeholder="Type DELETE RISKS to confirm"
+            className="font-mono"
+          />
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowClearRisksDialog(false);
+                setConfirmRisksText('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleClearRiskRegister}
+              disabled={confirmRisksText !== 'DELETE RISKS'}
+            >
+              Confirm Deletion
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Tabs>
   );
 }
