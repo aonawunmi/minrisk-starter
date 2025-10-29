@@ -315,6 +315,35 @@ async function storeEvents(parsedFeeds, maxAgeDays, riskKeywords, organizationId
 }
 
 /**
+ * Load scanner configuration from database
+ */
+async function loadScannerConfig(organizationId) {
+  try {
+    const { data, error } = await supabase
+      .from('app_configs')
+      .select('scanner_mode, scanner_confidence_threshold')
+      .eq('organization_id', organizationId)
+      .single();
+
+    if (error) {
+      console.warn('⚠️  Error loading scanner config, using defaults:', error.message);
+      return { scanner_mode: 'ai', scanner_confidence_threshold: 0.6 };
+    }
+
+    const config = {
+      scanner_mode: data?.scanner_mode || 'ai',
+      scanner_confidence_threshold: data?.scanner_confidence_threshold ?? 0.6
+    };
+
+    console.log(`📋 Scanner config loaded: mode=${config.scanner_mode}, threshold=${config.scanner_confidence_threshold}`);
+    return config;
+  } catch (error) {
+    console.error('Error loading scanner config:', error);
+    return { scanner_mode: 'ai', scanner_confidence_threshold: 0.6 };
+  }
+}
+
+/**
  * Load risks from database for AI analysis
  */
 async function loadRisks(organizationId) {
@@ -437,9 +466,16 @@ OR if truly no connection:
 
 /**
  * Create risk alerts from AI analysis
+ * @param {Array} storedEvents - Events to analyze
+ * @param {Array} risks - Organizational risks
+ * @param {string} claudeApiKey - API key for Claude AI
+ * @param {number} minConfidence - Minimum confidence threshold (0.0-1.0)
+ * @param {string} scannerMode - 'ai' or 'keyword' mode
  */
-async function createRiskAlerts(storedEvents, risks, claudeApiKey) {
+async function createRiskAlerts(storedEvents, risks, claudeApiKey, minConfidence = 0.6, scannerMode = 'ai') {
   let alertsCreated = 0;
+
+  console.log(`🔍 Analysis mode: ${scannerMode}, confidence threshold: ${minConfidence}`);
 
   for (const event of storedEvents) {
     try {
@@ -598,8 +634,9 @@ async function createRiskAlerts(storedEvents, risks, claudeApiKey) {
         }
       }
 
-      if (analysis.relevant && analysis.confidence >= 0.3 && analysis.risk_codes?.length > 0) {  // Lowered threshold to catch more potential matches
-        console.log(`   ✅ Alert criteria met! Creating alerts for: ${analysis.risk_codes.join(', ')}`);
+      // Use confidence threshold from scanner config (passed as parameter)
+      if (analysis.relevant && analysis.confidence >= minConfidence && analysis.risk_codes?.length > 0) {
+        console.log(`   ✅ Alert criteria met (confidence ${analysis.confidence} >= ${minConfidence})! Creating alerts for: ${analysis.risk_codes.join(', ')}`);
         for (const riskCode of analysis.risk_codes) {
           // Find the risk details to include in alert
           const riskDetails = risks.find(r => r.risk_code === riskCode);
@@ -881,6 +918,9 @@ export default async function handler(req, res) {
         });
       }
 
+      // Load scanner configuration
+      const scannerConfig = await loadScannerConfig(organizationId);
+
       // Load risks for this organization
       const risks = await loadRisks(organizationId);
       console.log(`📊 Loaded ${risks.length} risks for organization ${organizationId}`);
@@ -894,8 +934,14 @@ export default async function handler(req, res) {
         });
       }
 
-      // Analyze events and create alerts
-      const alertsCreated = await createRiskAlerts(events, risks, claudeApiKey);
+      // Analyze events and create alerts using scanner configuration
+      const alertsCreated = await createRiskAlerts(
+        events,
+        risks,
+        claudeApiKey,
+        scannerConfig.scanner_confidence_threshold,
+        scannerConfig.scanner_mode
+      );
 
       console.log(`✅ Analysis complete: ${events.length} events analyzed, ${alertsCreated} alerts created`);
 
@@ -1048,10 +1094,11 @@ export default async function handler(req, res) {
     const maxAgeDays = req.body?.maxAgeDays || 7; // Default to 7 days for daily scanning
     const selectedKeywords = req.body?.selectedKeywords; // Optional: user-selected keywords
 
-    // Load custom sources and keywords from database
+    // Load custom sources, keywords, and scanner configuration from database
     console.log('📊 Loading configuration from database...');
     const sourcesToScan = await loadNewsSources(organizationId);
     const riskKeywords = await loadRiskKeywords(organizationId, selectedKeywords);
+    const scannerConfig = await loadScannerConfig(organizationId);
 
     console.log(`📅 Filtering news from last ${maxAgeDays} days`);
     console.log(`📡 Scanning ${sourcesToScan.length} sources`);
@@ -1085,8 +1132,14 @@ export default async function handler(req, res) {
     // Run AI analysis and create alerts
     let alertsCreated = 0;
     if (storeResults.events.length > 0 && risks.length > 0) {
-      console.log('🤖 Starting Claude AI analysis...');
-      alertsCreated = await createRiskAlerts(storeResults.events, risks, claudeApiKey);
+      console.log(`🤖 Starting analysis (mode: ${scannerConfig.scanner_mode})...`);
+      alertsCreated = await createRiskAlerts(
+        storeResults.events,
+        risks,
+        claudeApiKey,
+        scannerConfig.scanner_confidence_threshold,
+        scannerConfig.scanner_mode
+      );
       console.log(`📊 Created ${alertsCreated} alerts`);
     }
 

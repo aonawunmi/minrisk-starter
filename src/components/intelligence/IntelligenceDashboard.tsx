@@ -2,13 +2,15 @@
 // Main dashboard widget for Risk Intelligence Monitor
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
+import { Switch } from '../ui/switch';
+import { Slider } from '../ui/slider';
 import {
   Brain,
   AlertTriangle,
@@ -38,6 +40,7 @@ import { EventBrowser } from './EventBrowser';
 import { NewsSourcesManager } from './NewsSourcesManager';
 import { RiskKeywordsManager } from './RiskKeywordsManager';
 import { supabase } from '../../lib/supabase';
+import { loadConfig, saveConfig } from '../../lib/database';
 
 type IntelligenceDashboardProps = {
   riskCode?: string; // Optional: filter by specific risk
@@ -76,9 +79,16 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
   const [loadingKeywords, setLoadingKeywords] = useState(false);
 
+  // Scanner configuration state
+  const [scannerMode, setScannerMode] = useState<'ai' | 'keyword'>('ai');
+  const [confidenceThreshold, setConfidenceThreshold] = useState(0.6);
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [configMessage, setConfigMessage] = useState('');
+
   useEffect(() => {
     loadData();
     loadStats();
+    loadScannerConfig();
   }, [riskCode]);
 
   useEffect(() => {
@@ -161,6 +171,55 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
   const handleOpenKeywordDialog = () => {
     loadAvailableKeywords();
     setShowKeywordDialog(true);
+  };
+
+  const loadScannerConfig = async () => {
+    try {
+      const config = await loadConfig();
+      if (config) {
+        setScannerMode(config.scanner_mode || 'ai');
+        setConfidenceThreshold(config.scanner_confidence_threshold || 0.6);
+      }
+    } catch (error) {
+      console.error('Error loading scanner config:', error);
+    }
+  };
+
+  const handleSaveScannerConfig = async () => {
+    setSavingConfig(true);
+    setConfigMessage('Saving configuration...');
+
+    try {
+      const config = await loadConfig();
+      if (!config) {
+        setConfigMessage('❌ Failed to load configuration');
+        setTimeout(() => setConfigMessage(''), 5000);
+        setSavingConfig(false);
+        return;
+      }
+
+      const updatedConfig = {
+        ...config,
+        scanner_mode: scannerMode,
+        scanner_confidence_threshold: confidenceThreshold,
+      };
+
+      const result = await saveConfig(updatedConfig);
+
+      if (result.success) {
+        setConfigMessage('✅ Scanner configuration saved successfully');
+      } else {
+        setConfigMessage(`❌ Failed to save configuration: ${result.error}`);
+      }
+
+      setTimeout(() => setConfigMessage(''), 5000);
+    } catch (error) {
+      console.error('Error saving scanner config:', error);
+      setConfigMessage(`❌ Error: ${error}`);
+      setTimeout(() => setConfigMessage(''), 5000);
+    } finally {
+      setSavingConfig(false);
+    }
   };
 
   const handleScanNews = async (keywordsToUse?: string[]) => {
@@ -394,6 +453,113 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
 
   return (
     <div className="space-y-4">
+      {/* Scanner Configuration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Scanner Configuration
+          </CardTitle>
+          <CardDescription>
+            Configure how the news scanner analyzes and filters events for risk intelligence
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Scanning Mode Toggle */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="scanner-mode" className="text-base font-medium">
+                Scanning Mode
+              </Label>
+              <p className="text-sm text-gray-500">
+                {scannerMode === 'ai'
+                  ? 'Claude AI analyzes events with confidence scoring'
+                  : 'Simple keyword matching against your risk keywords'
+                }
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className={`text-sm ${scannerMode === 'keyword' ? 'font-semibold text-blue-600' : 'text-gray-500'}`}>
+                Keyword Matching
+              </span>
+              <Switch
+                id="scanner-mode"
+                checked={scannerMode === 'ai'}
+                onCheckedChange={(checked) => setScannerMode(checked ? 'ai' : 'keyword')}
+              />
+              <span className={`text-sm ${scannerMode === 'ai' ? 'font-semibold text-purple-600' : 'text-gray-500'}`}>
+                Claude AI
+              </span>
+            </div>
+          </div>
+
+          {/* Confidence Threshold Slider (only for AI mode) */}
+          {scannerMode === 'ai' && (
+            <div className="space-y-3 pt-4 border-t">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="confidence-threshold" className="text-base font-medium">
+                  AI Confidence Threshold: {(confidenceThreshold * 100).toFixed(0)}%
+                </Label>
+                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                  {confidenceThreshold <= 0.3 && 'Very Lenient'}
+                  {confidenceThreshold > 0.3 && confidenceThreshold <= 0.5 && 'Lenient'}
+                  {confidenceThreshold > 0.5 && confidenceThreshold <= 0.7 && 'Balanced'}
+                  {confidenceThreshold > 0.7 && confidenceThreshold <= 0.85 && 'Restrictive'}
+                  {confidenceThreshold > 0.85 && 'Very Restrictive'}
+                </span>
+              </div>
+              <p className="text-sm text-gray-500">
+                Lower values catch more events (more lenient), higher values only catch high-confidence events (more restrictive)
+              </p>
+              <div className="flex items-center gap-4">
+                <span className="text-xs text-gray-400 whitespace-nowrap">More Events</span>
+                <Slider
+                  id="confidence-threshold"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={[confidenceThreshold]}
+                  onValueChange={(value) => setConfidenceThreshold(value[0])}
+                  className="flex-1"
+                />
+                <span className="text-xs text-gray-400 whitespace-nowrap">Fewer Events</span>
+              </div>
+              <div className="flex justify-between text-xs text-gray-400">
+                <span>0%</span>
+                <span>25%</span>
+                <span>50%</span>
+                <span>75%</span>
+                <span>100%</span>
+              </div>
+            </div>
+          )}
+
+          {/* Save Button */}
+          <div className="flex items-center gap-3 pt-4 border-t">
+            <Button
+              onClick={handleSaveScannerConfig}
+              disabled={savingConfig}
+              size="sm"
+            >
+              {savingConfig ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Save Configuration
+                </>
+              )}
+            </Button>
+            {configMessage && (
+              <span className="text-sm text-gray-600">{configMessage}</span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Header with Statistics */}
       <Card>
         <CardHeader>

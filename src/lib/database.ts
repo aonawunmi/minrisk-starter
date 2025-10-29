@@ -59,6 +59,8 @@ export type AppConfig = {
   departments: string[];
   categories: string[];
   owners: string[];
+  scanner_mode?: 'ai' | 'keyword';
+  scanner_confidence_threshold?: number;
 };
 
 // =====================================================
@@ -265,6 +267,8 @@ export async function loadConfig(): Promise<AppConfig | null> {
     departments: data.departments,
     categories: data.categories,
     owners: data.owners,
+    scanner_mode: data.scanner_mode,
+    scanner_confidence_threshold: data.scanner_confidence_threshold,
   };
 }
 
@@ -288,6 +292,8 @@ export async function saveConfig(config: AppConfig): Promise<{ success: boolean;
     departments: config.departments,
     categories: config.categories,
     owners: config.owners,
+    scanner_mode: config.scanner_mode,
+    scanner_confidence_threshold: config.scanner_confidence_threshold,
   };
 
   const { error } = await supabase
