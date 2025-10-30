@@ -89,6 +89,17 @@ export type KRITrendData = {
   alert_status?: string;
 };
 
+export type KRIDashboardSummary = {
+  totalKRIs: number;
+  activeKRIs: number;
+  openAlerts: number;
+  redAlerts: number;
+  yellowAlerts: number;
+  greenKRIs: number;
+  atRiskKRIs: number;
+  staleKRIs: number;
+};
+
 // =====================================================
 // KRI DEFINITIONS CRUD OPERATIONS
 // =====================================================
