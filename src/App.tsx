@@ -1000,6 +1000,7 @@ function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onR
     const [searchQuery, setSearchQuery] = useState("");
     const [appetiteCategories, setAppetiteCategories] = useState<RiskAppetiteConfig[]>([]);
     const [kriBreaches, setKriBreaches] = useState<Map<string, RiskKRIBreach[]>>(new Map());
+    const [kriMonitoring, setKriMonitoring] = useState<Map<string, number>>(new Map());
 
     // Load Risk Appetite categories
     useEffect(() => {
@@ -1008,25 +1009,36 @@ function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onR
         });
     }, []);
 
-    // Load KRI breach data for all displayed risks
+    // Load KRI data for all displayed risks
     useEffect(() => {
-        const loadKriBreachData = async () => {
+        const loadKriData = async () => {
             const breachMap = new Map<string, RiskKRIBreach[]>();
+            const monitoringMap = new Map<string, number>();
+
             for (const risk of sortedData) {
                 try {
+                    // Get linked KRIs count
+                    const linkedKRIs = await getKRIsForRisk(risk.risk_code);
+                    if (linkedKRIs.length > 0) {
+                        monitoringMap.set(risk.risk_code, linkedKRIs.length);
+                    }
+
+                    // Get active breaches
                     const breaches = await getRiskKRIBreaches(risk.risk_code);
                     if (breaches.length > 0) {
                         breachMap.set(risk.risk_code, breaches);
                     }
                 } catch (error) {
-                    console.error(`Failed to load KRI breaches for ${risk.risk_code}:`, error);
+                    console.error(`Failed to load KRI data for ${risk.risk_code}:`, error);
                 }
             }
+
+            setKriMonitoring(monitoringMap);
             setKriBreaches(breachMap);
         };
 
         if (sortedData.length > 0) {
-            loadKriBreachData();
+            loadKriData();
         }
     }, [sortedData]);
 
@@ -1285,17 +1297,32 @@ return (
                     </td>
                     <td className="px-3 py-2 text-center">
                       {(() => {
+                        const kriCount = kriMonitoring.get(r.risk_code) || 0;
                         const breaches = kriBreaches.get(r.risk_code);
-                        if (!breaches || breaches.length === 0) {
+
+                        // No KRIs monitoring this risk
+                        if (kriCount === 0) {
                           return <span className="text-gray-400">-</span>;
                         }
+
+                        // KRIs are monitoring - check for breaches
+                        if (!breaches || breaches.length === 0) {
+                          // Monitoring but no breaches (green - good)
+                          return (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              {kriCount} KRI{kriCount !== 1 ? 's' : ''}
+                            </span>
+                          );
+                        }
+
+                        // Has active breaches (red/yellow - alert)
                         const totalBreachCount = breaches.reduce((sum, b) => sum + Number(b.alert_count), 0);
                         const hasRedAlert = breaches.some(b => b.alert_level === 'red');
                         return (
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                             hasRedAlert ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
                           }`}>
-                            {totalBreachCount} breach{totalBreachCount !== 1 ? 'es' : ''}
+                            {kriCount} KRI{kriCount !== 1 ? 's' : ''} ({totalBreachCount} breach{totalBreachCount !== 1 ? 'es' : ''})
                           </span>
                         );
                       })()}
