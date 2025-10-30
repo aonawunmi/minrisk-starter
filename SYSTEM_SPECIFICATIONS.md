@@ -150,6 +150,25 @@ Residual Risk Score = Residual Likelihood × Residual Impact
   - Define measurement unit and collection frequency
   - Edit/delete existing KRI definitions
 
+- **🤖 AI-Powered KRI-to-Risk Linking** (Admin Feature):
+  - **Many-to-Many Architecture:** One KRI can monitor multiple risks simultaneously
+  - **AI Analysis:** Automatic suggestions for risk matches with confidence scores
+  - **Manual Override:** Admins can manually select any risk from the register
+  - **Sequential Linking:** Dialog remains open to link multiple risks in one session
+  - **Coverage Analysis Tab:**
+    - Gap detection: Identify risks with zero KRI monitoring
+    - Coverage matrix: View which KRIs monitor which risks
+    - Summary metrics: No Coverage / Basic Coverage / Good Coverage
+  - **Integration with Risk Register:**
+    - "KRI Monitors" column shows monitoring status for each risk
+    - Color-coded badges indicate breach levels (Green/Yellow/Red)
+    - Real-time visibility into risk monitoring coverage
+  - **Strategic Value:**
+    - Complete risk intelligence chain: Identify → Monitor → Respond
+    - Comprehensive coverage without KRI duplication
+    - Early warnings for multiple related risk scenarios
+    - Automated gap detection for proactive monitoring
+
 **KRI vs Incident Log Comparison:**
 
 | Aspect | KRI Module | Incident Log |

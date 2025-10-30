@@ -1219,6 +1219,128 @@ const sections = [
       <h4>📈 Data Entry, 📊 Dashboard, 🚨 Alerts Tabs</h4>
       <p>Admins have access to the same tabs as regular users, with organization-wide visibility.</p>
 
+      <h3>🤖 AI-Powered KRI-to-Risk Linking (Admin Feature)</h3>
+      <p>Connect KRIs to risks in your Risk Register to complete your risk intelligence chain: <strong>Identify → Monitor → Respond</strong>.</p>
+
+      <h4>🔗 Linking KRIs to Risks:</h4>
+      <p><strong>One KRI can monitor multiple risks simultaneously</strong> - providing comprehensive coverage for related risk scenarios.</p>
+
+      <ol>
+        <li>In <strong>Admin Dashboard → KRI Module → Management Tab</strong></li>
+        <li>Click the <strong>"Link to Risk"</strong> button (✨ sparkles icon) on any KRI card</li>
+        <li><strong>AI Recommendations (Automatic):</strong>
+          <ul>
+            <li>AI analyzes the KRI definition and suggests top 3 matching risks</li>
+            <li>Shows confidence score (0-100%) for each suggestion</li>
+            <li>Displays risk code, title, and AI reasoning</li>
+            <li>Color-coded badges: 🟢 Green (80%+), 🟡 Yellow (60-79%), ⚪ Gray (&lt;60%)</li>
+            <li>Click <strong>"Link"</strong> on any suggested risk</li>
+          </ul>
+        </li>
+        <li><strong>Manual Selection (Alternative):</strong>
+          <ul>
+            <li>Scroll to "Manual Selection" section in dialog</li>
+            <li>Dropdown shows ALL risks from your Risk Register</li>
+            <li>Select any risk code (e.g., RISK-001)</li>
+            <li>Preview the selected risk title</li>
+            <li>Click <strong>"Link Selected Risk"</strong></li>
+          </ul>
+        </li>
+        <li><strong>Sequential Linking:</strong>
+          <ul>
+            <li>Dialog stays open after linking</li>
+            <li>AI re-analyzes and filters out newly linked risks</li>
+            <li>"Currently Linked Risks" section shows all active links</li>
+            <li>Continue linking to additional risks as needed</li>
+            <li>Close dialog when finished</li>
+          </ul>
+        </li>
+      </ol>
+
+      <h4>📋 Viewing Linked Risks:</h4>
+      <ul>
+        <li>KRI cards display multiple blue badges showing all linked risks</li>
+        <li>Each badge shows: Risk Code, Risk Title, and AI Confidence %</li>
+        <li>Example: <span style="color: #1e40af; border: 1px solid #60a5fa; padding: 2px 6px; border-radius: 4px; font-size: 0.9em;">🔗 RISK-001: Supply Chain Disruption (92%)</span></li>
+      </ul>
+
+      <h4>🗑️ Unlinking Risks:</h4>
+      <ul>
+        <li>Click the <strong>X</strong> button on any linked risk badge</li>
+        <li>Confirms unlinking with dialog</li>
+        <li>Removes only that specific KRI-Risk connection</li>
+        <li>KRI can still monitor other linked risks</li>
+      </ul>
+
+      <h4>🎯 Coverage Analysis Tab:</h4>
+      <p>Identify gaps in your KRI monitoring strategy:</p>
+      <ul>
+        <li><strong>Summary Cards:</strong>
+          <ul>
+            <li>🔴 No Coverage - Risks with zero KRIs monitoring them</li>
+            <li>🟡 Basic Coverage - Risks with only 1 KRI</li>
+            <li>🟢 Good Coverage - Risks with 2+ KRIs</li>
+          </ul>
+        </li>
+        <li><strong>Coverage Matrix:</strong>
+          <ul>
+            <li>Table showing all risks and their KRI counts</li>
+            <li>Lists which KRIs are monitoring each risk</li>
+            <li>Color-coded status badges</li>
+          </ul>
+        </li>
+        <li><strong>Recommendations:</strong>
+          <ul>
+            <li>Critical risks should have at least 2 KRIs</li>
+            <li>High-impact risks benefit from multiple monitoring angles</li>
+            <li>Use AI suggestions to find suitable KRIs for uncovered risks</li>
+          </ul>
+        </li>
+      </ul>
+
+      <h4>📊 Integration with Risk Register:</h4>
+      <p>When you link KRIs to risks, the Risk Register displays monitoring status:</p>
+      <ul>
+        <li><strong>"KRI Monitors" column</strong> shows for each risk:</li>
+        <ul>
+          <li>⚪ <strong>"—"</strong> (Gray) = No KRIs monitoring this risk</li>
+          <li>🟢 <strong>"2 KRIs"</strong> (Green) = KRIs monitoring, no breaches (healthy)</li>
+          <li>🟡 <strong>"3 KRIs (2 breaches)"</strong> (Yellow) = Warning-level breaches detected</li>
+          <li>🔴 <strong>"1 KRI (5 breaches)"</strong> (Red) = Critical breaches requiring attention</li>
+        </ul>
+        <li>Provides immediate visibility into which risks are actively monitored</li>
+        <li>Red badges draw attention to risks with KRI threshold breaches</li>
+      </ul>
+
+      <h4>💡 Real-World Example:</h4>
+      <p><strong>Scenario:</strong> You create KRI-003 "Supplier Delivery Delays %"</p>
+      <ol>
+        <li>Click "Link to Risk" on KRI-003</li>
+        <li>AI suggests:
+          <ul>
+            <li>RISK-012: Supply Chain Disruption (95% confidence)</li>
+            <li>RISK-008: Operational Downtime (78% confidence)</li>
+            <li>RISK-021: Inventory Shortages (72% confidence)</li>
+          </ul>
+        </li>
+        <li>Link to all 3 risks (dialog stays open)</li>
+        <li>Now one KRI monitors 3 related risks simultaneously</li>
+        <li>Risk Register shows all 3 risks have KRI monitoring</li>
+        <li>When KRI-003 breaches threshold, all 3 risks show alert badge</li>
+        <li>Coverage Analysis tab shows improved coverage for those risks</li>
+      </ol>
+
+      <h4>🎯 Strategic Benefits:</h4>
+      <ul>
+        <li><strong>Comprehensive Coverage:</strong> One KRI can monitor multiple related risks</li>
+        <li><strong>No Duplication:</strong> Don't need separate KRIs for each related risk</li>
+        <li><strong>Gap Detection:</strong> Coverage Analysis identifies risks lacking monitoring</li>
+        <li><strong>Early Warnings:</strong> KRI breaches alert you to multiple at-risk scenarios</li>
+        <li><strong>AI Assistance:</strong> Automated suggestions reduce manual analysis</li>
+        <li><strong>Flexible Override:</strong> Manual selection for domain expertise</li>
+        <li><strong>Complete Risk Intelligence:</strong> Links Risk Register → KRI Module → Incident Log</li>
+      </ul>
+
       <h3>KRI vs Incident Log - Understanding the Difference</h3>
       <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-top: 10px;">
         <tr style="background: #f3f4f6;">
