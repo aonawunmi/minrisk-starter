@@ -68,7 +68,7 @@ SELECT
   r.organization_id,
   COUNT(DISTINCT k.id) as kri_count,
   ARRAY_AGG(DISTINCT k.kri_code ORDER BY k.kri_code) FILTER (WHERE k.id IS NOT NULL) as linked_kri_codes,
-  ARRAY_AGG(DISTINCT k.kri_name ORDER BY k.kri_code) FILTER (WHERE k.id IS NOT NULL) as linked_kri_names,
+  ARRAY_AGG(DISTINCT k.kri_name ORDER BY k.kri_name) FILTER (WHERE k.id IS NOT NULL) as linked_kri_names,
   CASE
     WHEN COUNT(DISTINCT k.id) = 0 THEN 'No Coverage'
     WHEN COUNT(DISTINCT k.id) = 1 THEN 'Basic Coverage'
