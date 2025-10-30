@@ -31,6 +31,7 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
   const [aiSuggestions, setAISuggestions] = useState<RiskSuggestion[]>([]);
   const [analyzingRisks, setAnalyzingRisks] = useState(false);
   const [linkingRiskCode, setLinkingRiskCode] = useState<string | null>(null);
+  const [manualRiskCode, setManualRiskCode] = useState<string>('');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -172,6 +173,7 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
     setLinkingKRI(kri);
     setShowLinkDialog(true);
     setAISuggestions([]);
+    setManualRiskCode('');
 
     // Start AI analysis
     setAnalyzingRisks(true);
@@ -186,7 +188,7 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
     }
   };
 
-  const handleConfirmLink = async (riskCode: string, confidence: number) => {
+  const handleConfirmLink = async (riskCode: string, confidence?: number) => {
     if (!linkingKRI) return;
 
     setLinkingRiskCode(riskCode);
@@ -194,12 +196,22 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
       await linkKRIToRisk(linkingKRI.id, riskCode, confidence);
       await loadData();
       setShowLinkDialog(false);
+      setManualRiskCode('');
     } catch (error) {
       console.error('Error linking KRI to risk:', error);
       alert('Failed to link KRI to risk');
     } finally {
       setLinkingRiskCode(null);
     }
+  };
+
+  const handleManualLink = () => {
+    if (!manualRiskCode) {
+      alert('Please select a risk to link');
+      return;
+    }
+    // Manual links have no AI confidence score
+    handleConfirmLink(manualRiskCode, undefined);
   };
 
   const handleUnlink = async (kri: KRIDefinition) => {
@@ -502,25 +514,20 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
                 <p className="text-sm text-gray-600">Analyzing KRI against risks...</p>
                 <p className="text-xs text-gray-500 mt-1">This may take a few seconds</p>
               </div>
-            ) : aiSuggestions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <AlertCircle className="h-12 w-12 text-gray-400 mb-3" />
-                <p className="text-sm font-medium">No strong matches found</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  AI couldn't find risks that strongly match this KRI. You can create a manual link later.
-                </p>
-              </div>
             ) : (
+              // Show both AI suggestions and manual selection
               <>
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                  <p className="text-sm text-purple-900 font-medium">AI Recommendations</p>
-                  <p className="text-xs text-purple-800 mt-1">
-                    Top {aiSuggestions.length} risk{aiSuggestions.length > 1 ? 's' : ''} that this KRI can monitor effectively
-                  </p>
-                </div>
+                {aiSuggestions.length > 0 && (
+                  <>
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                      <p className="text-sm text-purple-900 font-medium">🤖 AI Recommendations</p>
+                      <p className="text-xs text-purple-800 mt-1">
+                        Top {aiSuggestions.length} risk{aiSuggestions.length > 1 ? 's' : ''} that this KRI can monitor effectively
+                      </p>
+                    </div>
 
-                <div className="space-y-3">
-                  {aiSuggestions.map((suggestion, index) => (
+                    <div className="space-y-3">
+                      {aiSuggestions.map((suggestion, index) => (
                     <div
                       key={suggestion.risk.risk_code}
                       className="border rounded-lg p-4 hover:border-purple-300 transition-colors"
@@ -554,19 +561,68 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
                         <p className="text-xs text-blue-800">{suggestion.reasoning}</p>
                       </div>
 
-                      <Button
-                        size="sm"
-                        className="mt-3 w-full"
-                        onClick={() => handleConfirmLink(suggestion.risk.risk_code, suggestion.confidence)}
-                        disabled={linkingRiskCode !== null}
-                      >
-                        {linkingRiskCode === suggestion.risk.risk_code && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
-                        Link to {suggestion.risk.risk_code}
-                      </Button>
-                    </div>
-                  ))}
+                        <Button
+                          size="sm"
+                          className="mt-3 w-full"
+                          onClick={() => handleConfirmLink(suggestion.risk.risk_code, suggestion.confidence)}
+                          disabled={linkingRiskCode !== null}
+                        >
+                          {linkingRiskCode === suggestion.risk.risk_code && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                          Link to {suggestion.risk.risk_code}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Manual Selection Section */}
+              <div className="border-t pt-4 mt-4">
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3">
+                  <p className="text-sm text-gray-900 font-medium">📝 Manual Selection</p>
+                  <p className="text-xs text-gray-700 mt-1">
+                    Select any risk from your register if the AI suggestions don't match
+                  </p>
                 </div>
-              </>
+
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="manual-risk-select">Select Risk from Register</Label>
+                    <Select value={manualRiskCode} onValueChange={setManualRiskCode}>
+                      <SelectTrigger id="manual-risk-select">
+                        <SelectValue placeholder="Choose a risk to link..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {risks.map((risk) => (
+                          <SelectItem key={risk.risk_code} value={risk.risk_code}>
+                            {risk.risk_code}: {risk.risk_title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {manualRiskCode && (
+                    <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                      <p className="text-xs font-medium text-blue-900 mb-1">Selected Risk:</p>
+                      <p className="text-sm text-blue-800">
+                        {risks.find(r => r.risk_code === manualRiskCode)?.risk_title}
+                      </p>
+                    </div>
+                  )}
+
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={handleManualLink}
+                    disabled={!manualRiskCode || linkingRiskCode !== null}
+                  >
+                    {linkingRiskCode === manualRiskCode && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                    Link to Selected Risk
+                  </Button>
+                </div>
+              </div>
+            </>
             )}
           </div>
 
