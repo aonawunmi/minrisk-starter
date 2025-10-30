@@ -54,16 +54,17 @@ BEGIN
       -- Calculate residual risk using same formula as frontend
       GREATEST(1, r.likelihood_inherent - (r.likelihood_inherent - 1) * COALESCE(mr.max_likelihood_reduction, 0)) *
       GREATEST(1, r.impact_inherent - (r.impact_inherent - 1) * COALESCE(mr.max_impact_reduction, 0)) as risk_score,
-      COALESCE(ra.appetite_threshold, 15) as appetite_threshold,
-      COALESCE(ra.tolerance_max, 18) as tolerance_max
+      ra.appetite_threshold,
+      ra.tolerance_max
     FROM risks r
     LEFT JOIN max_reductions mr ON mr.risk_id = r.id
-    LEFT JOIN risk_appetite_config ra
+    INNER JOIN risk_appetite_config ra  -- Changed to INNER JOIN: only count configured risks
       ON ra.organization_id = r.organization_id
       AND ra.category = r.category
       AND ra.effective_from <= CURRENT_DATE
       AND (ra.effective_to IS NULL OR ra.effective_to >= CURRENT_DATE)
     WHERE r.organization_id = org_id
+    -- Only includes risks with explicit appetite configurations
   )
   SELECT
     COUNT(*)::INTEGER as total_risks,
