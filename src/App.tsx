@@ -29,10 +29,15 @@ const IncidentLogTab = React.lazy(() => import("@/components/incidents/IncidentL
 import { IntelligenceDashboard } from "@/components/intelligence/IntelligenceDashboard";
 import { loadRisks, createRisk, updateRisk, deleteRisk, loadConfig, saveConfig as saveConfigToDb } from '@/lib/database';
 import { loadIncidents, type Incident } from '@/lib/incidents';
+import { DashboardTab } from '@/components/DashboardTab';
+import { RiskRegisterTabGroup } from '@/components/RiskRegisterTabGroup';
+import { AnalyticsTabGroup } from '@/components/AnalyticsTabGroup';
+import { OperationsTabGroup } from '@/components/OperationsTabGroup';
 
 // Make the endpoint visible in DevTools (Claude API):
 ;(window as any).__MINRISK_AI_PATH = 'Claude API (direct)'
 console.log('AI endpoint:', (window as any).__MINRISK_AI_PATH)
+console.log('🚀 MinRisk UI Version: 2025-01-30-11:12 (6-TAB-LAYOUT)', window.location.href)
 
 
 /**
@@ -283,7 +288,7 @@ export default function MinRiskLatest() {
     const [heatMapView, setHeatMapView] = useState({ inherent: true, residual: true });
     const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
     const [priorityRisks, setPriorityRisks] = useState(new Set<string>());
-    const [activeTab, setActiveTab] = useState("register");
+    const [activeTab, setActiveTab] = useState("dashboard");
     const [editingRisk, setEditingRisk] = useState<ProcessedRisk | null>(null);
     const [userRole, setUserRole] = useState<'admin' | 'edit' | 'view_only' | null>(null);
     const [userStatus, setUserStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null);
@@ -421,6 +426,18 @@ export default function MinRiskLatest() {
             }
         }
         fetchData();
+    }, []);
+
+    // Listen for navigation events from Dashboard quick actions
+    useEffect(() => {
+        const handleNavigation = (event: Event) => {
+            const customEvent = event as CustomEvent;
+            setActiveTab(customEvent.detail);
+        };
+        window.addEventListener('minrisk:navigate', handleNavigation);
+        return () => {
+            window.removeEventListener('minrisk:navigate', handleNavigation);
+        };
     }, []);
 
     const filtered = useMemo(() => { const q = query.trim().toLowerCase(); return rows.filter(r => { const m = !q || [r.risk_code, r.risk_title, r.risk_description, r.owner, r.category, r.division, r.department].join(" ").toLowerCase().includes(q); const d = filters.divisions.length === 0 || filters.divisions.includes(r.division); const de = filters.departments.length === 0 || filters.departments.includes(r.department); const c = filters.categories.length === 0 || filters.categories.includes(r.category); const s = filters.statuses.length === 0 || filters.statuses.includes(r.status); const u = filters.users.length === 0 || (r.user_email && filters.users.includes(r.user_email)); const p = filters.periods.length === 0 || (r.relevant_period && filters.periods.includes(r.relevant_period)); return m && d && de && c && s && u && p; }); }, [rows, query, filters]);
@@ -805,40 +822,93 @@ export default function MinRiskLatest() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="mb-4">
-                <TabsTrigger value="register">Risk Register</TabsTrigger>
-                <TabsTrigger value="control_register">Control Register</TabsTrigger>
-                <TabsTrigger value="heatmap">Heat Map</TabsTrigger>
-                <TabsTrigger value="analytics">📊 Analytics</TabsTrigger>
-                <TabsTrigger value="risk_report">📋 Risk Report</TabsTrigger>
-                <TabsTrigger value="var_sandbox">📈 VaR Sandbox</TabsTrigger>
-                <TabsTrigger value="incidents">🚨 Incidents</TabsTrigger>
-                <TabsTrigger value="intelligence">🧠 Intelligence</TabsTrigger>
-                <TabsTrigger value="history">📜 History</TabsTrigger>
+                <TabsTrigger value="dashboard">📊 Dashboard</TabsTrigger>
+                <TabsTrigger value="register">📋 Risk Register</TabsTrigger>
+                <TabsTrigger value="analytics">📈 Analytics & Reports</TabsTrigger>
+                <TabsTrigger value="operations">🚨 Operations</TabsTrigger>
                 <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger>
-                {canEdit && <TabsTrigger value="import_risks">Risk Import</TabsTrigger>}
-                {canEdit && <TabsTrigger value="import_controls">Control Import</TabsTrigger>}
-                {isAdmin && <TabsTrigger value="admin">👥 Admin</TabsTrigger>}
+                {isAdmin && <TabsTrigger value="admin">⚙️ Admin</TabsTrigger>}
             </TabsList>
 
-            <TabsContent value="register"><RiskRegisterTab sortedData={sortedData} rowCount={filtered.length} requestSort={requestSort} onAdd={add} onEdit={setEditingRisk} onRemove={remove} config={config} rows={filtered} allRows={rows} priorityRisks={priorityRisks} setPriorityRisks={setPriorityRisks} canEdit={canEdit} filters={filters} setFilters={setFilters} isAdmin={isAdmin} /></TabsContent>
-            <TabsContent value="control_register"><ControlRegisterTab allRisks={filtered} priorityRisks={priorityRisks} canEdit={canEdit} /></TabsContent>
-            <TabsContent value="heatmap"><HeatmapTab processedData={processedData} allRows={rows} uniquePeriods={uniquePeriods} heatMapView={heatMapView} setHeatMapView={setHeatMapView} priorityRisks={priorityRisks} config={config} onEditRisk={setEditingRisk} canEdit={canEdit} /></TabsContent>
-            <TabsContent value="analytics"><AnalyticsDashboard risks={processedData} incidents={incidents} selectedPeriod={filters.periods} /></TabsContent>
-            <TabsContent value="risk_report"><RiskReportTab risks={processedData} config={config} /></TabsContent>
-            <TabsContent value="var_sandbox"><VarSandboxTab matrixSize={config.matrixSize} showToast={showToast} /></TabsContent>
-            <TabsContent value="incidents">
-                <React.Suspense fallback={<div className="flex items-center justify-center p-8"><div className="h-8 w-8 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin" /></div>}>
-                    <IncidentLogTab onRisksUpdate={loadRisksFromDB} isAdmin={isAdmin} />
-                </React.Suspense>
+            <TabsContent value="dashboard">
+                <DashboardTab risks={processedData} incidents={incidents} showToast={showToast} />
             </TabsContent>
-            <TabsContent value="intelligence">
-                <IntelligenceDashboard />
+
+            <TabsContent value="register">
+                <RiskRegisterTabGroup
+                    risks={processedData}
+                    config={config}
+                    canEdit={canEdit}
+                    onEditRisk={setEditingRisk}
+                    onDeleteRisk={remove}
+                    onToggleArchive={(risk) => {}}
+                    RiskRegisterContent={
+                        <RiskRegisterTab sortedData={sortedData} rowCount={filtered.length} requestSort={requestSort} onAdd={add} onEdit={setEditingRisk} onRemove={remove} config={config} rows={filtered} allRows={rows} priorityRisks={priorityRisks} setPriorityRisks={setPriorityRisks} canEdit={canEdit} filters={filters} setFilters={setFilters} isAdmin={isAdmin} />
+                    }
+                    ControlRegisterContent={
+                        <ControlRegisterTab allRisks={filtered} priorityRisks={priorityRisks} canEdit={canEdit} />
+                    }
+                    HeatMapContent={
+                        <HeatmapTab processedData={processedData} allRows={rows} uniquePeriods={uniquePeriods} heatMapView={heatMapView} setHeatMapView={setHeatMapView} priorityRisks={priorityRisks} config={config} onEditRisk={setEditingRisk} canEdit={canEdit} />
+                    }
+                    ImportContent={
+                        <>
+                            <Tabs defaultValue="risks">
+                                <TabsList>
+                                    <TabsTrigger value="risks">Risk Import</TabsTrigger>
+                                    <TabsTrigger value="controls">Control Import</TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="risks">
+                                    <RiskImportTab onImport={handleRiskBulkImport} currentConfig={config} canEdit={canEdit} />
+                                </TabsContent>
+                                <TabsContent value="controls">
+                                    <ControlImportTab onImport={handleControlBulkImport} allRisks={rows} canEdit={canEdit} />
+                                </TabsContent>
+                            </Tabs>
+                        </>
+                    }
+                />
             </TabsContent>
-            <TabsContent value="history"><RiskHistoryTab config={config} showToast={showToast} isAdmin={isAdmin} /></TabsContent>
-            <TabsContent value="ai_assistant"><AIRiskGenerator onRisksGenerated={loadRisksFromDB} /></TabsContent>
-            <TabsContent value="import_risks"><RiskImportTab onImport={handleRiskBulkImport} currentConfig={config} canEdit={canEdit} /></TabsContent>
-            <TabsContent value="import_controls"><ControlImportTab onImport={handleControlBulkImport} allRisks={rows} canEdit={canEdit} /></TabsContent>
-            {isAdmin && <TabsContent value="admin"><AdminDashboard config={config} showToast={showToast} /></TabsContent>}
+
+            <TabsContent value="analytics">
+                <AnalyticsTabGroup
+                    AnalyticsContent={
+                        <AnalyticsDashboard risks={processedData} incidents={incidents} selectedPeriod={filters.periods} />
+                    }
+                    VarSandboxContent={
+                        <VarSandboxTab matrixSize={config.matrixSize} showToast={showToast} />
+                    }
+                    RiskReportContent={
+                        <RiskReportTab risks={processedData} config={config} />
+                    }
+                />
+            </TabsContent>
+
+            <TabsContent value="operations">
+                <OperationsTabGroup
+                    IncidentsContent={
+                        <React.Suspense fallback={<div className="flex items-center justify-center p-8"><div className="h-8 w-8 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin" /></div>}>
+                            <IncidentLogTab onRisksUpdate={loadRisksFromDB} isAdmin={isAdmin} />
+                        </React.Suspense>
+                    }
+                    IntelligenceContent={
+                        <IntelligenceDashboard />
+                    }
+                    HistoryContent={
+                        <RiskHistoryTab config={config} showToast={showToast} isAdmin={isAdmin} />
+                    }
+                />
+            </TabsContent>
+
+            <TabsContent value="ai_assistant">
+                <AIRiskGenerator onRisksGenerated={loadRisksFromDB} />
+            </TabsContent>
+
+            {isAdmin && (
+                <TabsContent value="admin">
+                    <AdminDashboard config={config} showToast={showToast} />
+                </TabsContent>
+            )}
         </Tabs>
         
         {editingRisk && (
