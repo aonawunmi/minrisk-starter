@@ -1,11 +1,12 @@
 // src/components/KRITabGroup.tsx
-// Grouped tab for Key Risk Indicators: Dashboard, Management, Data Entry, Alerts
+// Grouped tab for Key Risk Indicators: Dashboard, Management, Data Entry, Alerts, Coverage
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { KRIDashboard } from './KRIDashboard';
 import { KRIManagement } from './KRIManagement';
 import { KRIDataEntry } from './KRIDataEntry';
 import { KRIAlerts } from './KRIAlerts';
+import { KRICoverageReport } from './KRICoverageReport';
 
 export type KRITabGroupProps = {
   showToast: (message: string, type?: 'success' | 'error') => void;
@@ -19,6 +20,7 @@ export function KRITabGroup({ showToast }: KRITabGroupProps) {
         <TabsTrigger value="management">📋 Management</TabsTrigger>
         <TabsTrigger value="data">📈 Data Entry</TabsTrigger>
         <TabsTrigger value="alerts">🚨 Alerts</TabsTrigger>
+        <TabsTrigger value="coverage">🎯 Coverage</TabsTrigger>
       </TabsList>
 
       <TabsContent value="dashboard" className="space-y-4">
@@ -59,6 +61,16 @@ export function KRITabGroup({ showToast }: KRITabGroupProps) {
           </p>
         </div>
         <KRIAlerts />
+      </TabsContent>
+
+      <TabsContent value="coverage" className="space-y-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+          <h3 className="font-semibold text-blue-900 mb-1">KRI Coverage Analysis: Gap Detection</h3>
+          <p className="text-sm text-blue-800">
+            Identify which risks in your register have KRI monitoring and which need additional coverage. Ensure all high-impact risks are being monitored effectively.
+          </p>
+        </div>
+        <KRICoverageReport />
       </TabsContent>
     </Tabs>
   );

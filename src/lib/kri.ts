@@ -16,7 +16,6 @@ export type KRIDefinition = {
   kri_name: string;
   description?: string;
   category?: string;
-  linked_risk_code?: string;
   indicator_type: 'leading' | 'lagging' | 'concurrent';
   measurement_unit: string;
   data_source?: string;
@@ -896,7 +895,7 @@ export async function suggestRisksForKRI(kri: KRIDefinition): Promise<RiskSugges
 **Available Risks in Register:**
 ${risks.slice(0, 50).map(r => `
 - ${r.risk_code}: ${r.risk_title}
-  Category: ${r.risk_category || 'N/A'}
+  Category: ${r.category || 'N/A'}
   Description: ${r.risk_description || 'N/A'}
 `).join('\n')}
 
@@ -941,7 +940,7 @@ If no good matches exist, return an empty array: []`;
           reasoning: s.reasoning,
         };
       })
-      .filter((s): s is RiskSuggestion => s !== null);
+      .filter((s: RiskSuggestion | null): s is RiskSuggestion => s !== null);
 
     console.log(`✅ suggestRisksForKRI: Found ${results.length} suggestions`);
     return results;

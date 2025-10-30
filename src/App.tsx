@@ -30,6 +30,7 @@ import { IntelligenceDashboard } from "@/components/intelligence/IntelligenceDas
 import { loadRisks, createRisk, updateRisk, deleteRisk, loadConfig, saveConfig as saveConfigToDb } from '@/lib/database';
 import { loadIncidents, type Incident } from '@/lib/incidents';
 import { loadAppetiteConfigs, type RiskAppetiteConfig } from '@/lib/risk-appetite';
+import { getKRIsForRisk, type RiskKRIBreach, getRiskKRIBreaches } from '@/lib/kri';
 import { DashboardTab } from '@/components/DashboardTab';
 import { RiskRegisterTabGroup } from '@/components/RiskRegisterTabGroup';
 import { AnalyticsTabGroup } from '@/components/AnalyticsTabGroup';
@@ -998,6 +999,7 @@ function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onR
     const [showBulkDelete, setShowBulkDelete] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [appetiteCategories, setAppetiteCategories] = useState<RiskAppetiteConfig[]>([]);
+    const [kriBreaches, setKriBreaches] = useState<Map<string, RiskKRIBreach[]>>(new Map());
 
     // Load Risk Appetite categories
     useEffect(() => {
@@ -1005,6 +1007,28 @@ function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onR
             console.error('Failed to load appetite categories:', err);
         });
     }, []);
+
+    // Load KRI breach data for all displayed risks
+    useEffect(() => {
+        const loadKriBreachData = async () => {
+            const breachMap = new Map<string, RiskKRIBreach[]>();
+            for (const risk of sortedData) {
+                try {
+                    const breaches = await getRiskKRIBreaches(risk.risk_code);
+                    if (breaches.length > 0) {
+                        breachMap.set(risk.risk_code, breaches);
+                    }
+                } catch (error) {
+                    console.error(`Failed to load KRI breaches for ${risk.risk_code}:`, error);
+                }
+            }
+            setKriBreaches(breachMap);
+        };
+
+        if (sortedData.length > 0) {
+            loadKriBreachData();
+        }
+    }, [sortedData]);
 
     // Check if risk exceeds appetite
     const checkAppetiteStatus = (risk: ProcessedRisk): { exceeds: boolean; category?: RiskAppetiteConfig } => {
@@ -1187,6 +1211,7 @@ return (
                 <th className="px-3 py-2 text-left font-semibold text-gray-700">Appetite</th>
                 <th className="px-3 py-2 text-left font-semibold text-gray-700">Status</th>
                 <th className="px-3 py-2 text-center font-semibold text-gray-700">Incidents</th>
+                <th className="px-3 py-2 text-center font-semibold text-gray-700">KRI Monitors</th>
                 {isAdmin && (
                   <th className="px-3 py-2 text-left font-semibold text-gray-700">
                     <MultiSelectPopover
@@ -1257,6 +1282,23 @@ return (
                       ) : (
                         <span className="text-gray-400">-</span>
                       )}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {(() => {
+                        const breaches = kriBreaches.get(r.risk_code);
+                        if (!breaches || breaches.length === 0) {
+                          return <span className="text-gray-400">-</span>;
+                        }
+                        const totalBreachCount = breaches.reduce((sum, b) => sum + Number(b.alert_count), 0);
+                        const hasRedAlert = breaches.some(b => b.alert_level === 'red');
+                        return (
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            hasRedAlert ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {totalBreachCount} breach{totalBreachCount !== 1 ? 'es' : ''}
+                          </span>
+                        );
+                      })()}
                     </td>
                     {isAdmin && (
                       <td className="px-3 py-2 text-xs text-gray-600">{r.user_email || 'N/A'}</td>
