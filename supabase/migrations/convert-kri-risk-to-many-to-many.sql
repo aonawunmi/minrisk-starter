@@ -36,7 +36,10 @@ SELECT
   organization_id,
   ai_link_confidence,
   linked_at,
-  linked_by
+  CASE
+    WHEN linked_by IS NOT NULL THEN linked_by::uuid
+    ELSE NULL
+  END as linked_by
 FROM kri_definitions
 WHERE linked_risk_code IS NOT NULL
 ON CONFLICT (kri_id, risk_code) DO NOTHING;
