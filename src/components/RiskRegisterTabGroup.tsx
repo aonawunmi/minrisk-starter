@@ -5,12 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { ProcessedRisk, AppConfig } from '@/App';
 
 type RiskRegisterTabGroupProps = {
-  risks: ProcessedRisk[];
-  config: AppConfig;
   canEdit: boolean;
-  onEditRisk: (risk: ProcessedRisk) => void;
-  onDeleteRisk: (risk: ProcessedRisk) => void;
-  onToggleArchive: (risk: ProcessedRisk) => void;
   RiskRegisterContent: React.ReactNode;
   ControlRegisterContent: React.ReactNode;
   HeatMapContent: React.ReactNode;
