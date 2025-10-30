@@ -192,14 +192,40 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
   RETURN QUERY
-  WITH risk_data AS (
+  WITH control_effectiveness AS (
+    -- Calculate effectiveness for each control
+    SELECT
+      c.risk_id,
+      c.target,
+      CASE
+        WHEN c.design = 0 OR c.implementation = 0 THEN 0
+        ELSE (c.design + c.implementation + c.monitoring + c.effectiveness_evaluation)::DECIMAL / 12.0
+      END as effectiveness
+    FROM controls c
+    WHERE c.risk_id IN (
+      SELECT id FROM risks WHERE organization_id = org_id AND deleted_at IS NULL AND archived_at IS NULL
+    )
+  ),
+  max_reductions AS (
+    -- Get maximum reduction per risk for each target type
+    SELECT
+      risk_id,
+      MAX(CASE WHEN target = 'Likelihood' THEN effectiveness ELSE 0 END) as max_likelihood_reduction,
+      MAX(CASE WHEN target = 'Impact' THEN effectiveness ELSE 0 END) as max_impact_reduction
+    FROM control_effectiveness
+    GROUP BY risk_id
+  ),
+  risk_data AS (
     SELECT
       r.risk_code,
       r.category,
-      (r.likelihood_inherent * r.impact_inherent) as risk_score,
+      -- Calculate residual risk using same formula as frontend
+      GREATEST(1, r.likelihood_inherent - (r.likelihood_inherent - 1) * COALESCE(mr.max_likelihood_reduction, 0)) *
+      GREATEST(1, r.impact_inherent - (r.impact_inherent - 1) * COALESCE(mr.max_impact_reduction, 0)) as risk_score,
       COALESCE(ra.appetite_threshold, 15) as appetite_threshold,
       COALESCE(ra.tolerance_max, 18) as tolerance_max
     FROM risks r
+    LEFT JOIN max_reductions mr ON mr.risk_id = r.id
     LEFT JOIN risk_appetite_config ra
       ON ra.organization_id = r.organization_id
       AND ra.category = r.category
