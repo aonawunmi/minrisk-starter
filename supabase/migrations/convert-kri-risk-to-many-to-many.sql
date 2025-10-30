@@ -44,14 +44,19 @@ FROM kri_definitions
 WHERE linked_risk_code IS NOT NULL
 ON CONFLICT (kri_id, risk_code) DO NOTHING;
 
--- Step 3: Drop old columns from kri_definitions (no longer needed)
+-- Step 3: Drop dependent objects FIRST before dropping columns
+DROP VIEW IF EXISTS kri_coverage_analysis;
+
+-- Drop any policies that depend on linked_risk_code
+DROP POLICY IF EXISTS "Users can view linked KRIs for org risks" ON kri_definitions;
+
+-- Step 4: Now safe to drop old columns from kri_definitions
 ALTER TABLE kri_definitions DROP COLUMN IF EXISTS linked_risk_code;
 ALTER TABLE kri_definitions DROP COLUMN IF EXISTS ai_link_confidence;
 ALTER TABLE kri_definitions DROP COLUMN IF EXISTS linked_at;
 ALTER TABLE kri_definitions DROP COLUMN IF EXISTS linked_by;
 
--- Step 4: Update kri_coverage_analysis view to use junction table
-DROP VIEW IF EXISTS kri_coverage_analysis;
+-- Step 5: Recreate kri_coverage_analysis view to use junction table
 CREATE VIEW kri_coverage_analysis AS
 SELECT
   r.risk_code as risk_id,
@@ -74,7 +79,7 @@ LEFT JOIN kri_risk_links krl ON krl.risk_code = r.risk_code
 LEFT JOIN kri_definitions k ON k.id = krl.kri_id AND k.enabled = true
 GROUP BY r.risk_code, r.risk_title, r.category, r.likelihood_inherent, r.impact_inherent, r.organization_id;
 
--- Step 5: Update get_risk_kri_breaches function to use junction table
+-- Step 6: Update get_risk_kri_breaches function to use junction table
 DROP FUNCTION IF EXISTS get_risk_kri_breaches(TEXT);
 CREATE OR REPLACE FUNCTION get_risk_kri_breaches(p_risk_code TEXT)
 RETURNS TABLE (
@@ -103,7 +108,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Step 6: Create helper function to get all risks linked to a KRI
+-- Step 7: Create helper function to get all risks linked to a KRI
 CREATE OR REPLACE FUNCTION get_linked_risks_for_kri(p_kri_id UUID)
 RETURNS TABLE (
   risk_code TEXT,
@@ -125,7 +130,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Step 7: RLS Policies for kri_risk_links table
+-- Step 8: RLS Policies for kri_risk_links table
 ALTER TABLE kri_risk_links ENABLE ROW LEVEL SECURITY;
 
 -- Users can view links for their organization
