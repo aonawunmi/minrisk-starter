@@ -29,7 +29,7 @@ const IncidentLogTab = React.lazy(() => import("@/components/incidents/IncidentL
 import { IntelligenceDashboard } from "@/components/intelligence/IntelligenceDashboard";
 import { loadRisks, createRisk, updateRisk, deleteRisk, loadConfig, saveConfig as saveConfigToDb } from '@/lib/database';
 import { loadIncidents, type Incident } from '@/lib/incidents';
-import { loadAppetiteCategories, type RiskAppetiteCategory } from '@/lib/risk-appetite';
+import { loadAppetiteConfigs, type RiskAppetiteConfig } from '@/lib/risk-appetite';
 import { DashboardTab } from '@/components/DashboardTab';
 import { RiskRegisterTabGroup } from '@/components/RiskRegisterTabGroup';
 import { AnalyticsTabGroup } from '@/components/AnalyticsTabGroup';
@@ -991,19 +991,19 @@ export default function MinRiskLatest() {
 function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onRemove, config, rows, allRows, priorityRisks, setPriorityRisks, canEdit, filters, setFilters, isAdmin }: { sortedData: ProcessedRisk[]; rowCount: number; requestSort: (key: keyof ProcessedRisk) => void; onAdd: (r: Omit<RiskRow, 'risk_code'>) => void; onEdit: (risk: ProcessedRisk) => void; onRemove: (code: string) => void; config: AppConfig; rows: RiskRow[]; allRows: RiskRow[]; priorityRisks: Set<string>; setPriorityRisks: React.Dispatch<React.SetStateAction<Set<string>>>; canEdit: boolean; filters: { divisions: string[]; departments: string[]; categories: string[]; statuses: string[]; users: string[]; periods: string[] }; setFilters: React.Dispatch<React.SetStateAction<{ divisions: string[]; departments: string[]; categories: string[]; statuses: string[]; users: string[]; periods: string[] }>>; isAdmin: boolean }) {
     const [showBulkDelete, setShowBulkDelete] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
-    const [appetiteCategories, setAppetiteCategories] = useState<RiskAppetiteCategory[]>([]);
+    const [appetiteCategories, setAppetiteCategories] = useState<RiskAppetiteConfig[]>([]);
 
     // Load Risk Appetite categories
     useEffect(() => {
-        loadAppetiteCategories().then(setAppetiteCategories).catch(err => {
+        loadAppetiteConfigs().then(setAppetiteCategories).catch((err: unknown) => {
             console.error('Failed to load appetite categories:', err);
         });
     }, []);
 
     // Check if risk exceeds appetite
-    const checkAppetiteStatus = (risk: ProcessedRisk): { exceeds: boolean; category?: RiskAppetiteCategory } => {
+    const checkAppetiteStatus = (risk: ProcessedRisk): { exceeds: boolean; category?: RiskAppetiteConfig } => {
         const category = appetiteCategories.find(cat =>
-            cat.risk_category === risk.category && cat.enabled
+            cat.category === risk.category
         );
         if (!category) return { exceeds: false };
         return {
