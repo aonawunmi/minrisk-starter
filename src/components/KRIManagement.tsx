@@ -28,7 +28,7 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
     kri_code: '',
     kri_name: '',
     description: '',
-    risk_category: '',
+    category: '',
     linked_risk_code: '',
     indicator_type: 'lagging' as 'leading' | 'lagging' | 'concurrent',
     measurement_unit: '',
@@ -61,7 +61,7 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
       kri_code: nextCode,
       kri_name: '',
       description: '',
-      risk_category: '',
+      category: '',
       linked_risk_code: '',
       indicator_type: 'lagging',
       measurement_unit: '',
@@ -82,7 +82,7 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
       kri_code: kri.kri_code,
       kri_name: kri.kri_name,
       description: kri.description || '',
-      risk_category: kri.risk_category || '',
+      category: kri.category || '',
       linked_risk_code: kri.linked_risk_code || '',
       indicator_type: kri.indicator_type,
       measurement_unit: kri.measurement_unit,
@@ -110,7 +110,7 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
         kri_code: formData.kri_code,
         kri_name: formData.kri_name,
         description: formData.description || undefined,
-        risk_category: formData.risk_category || undefined,
+        category: formData.category || undefined,
         linked_risk_code: formData.linked_risk_code || undefined,
         indicator_type: formData.indicator_type,
         measurement_unit: formData.measurement_unit,
@@ -188,7 +188,7 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
                     <div className="font-medium">{kri.kri_code} - {kri.kri_name}</div>
                     <div className="text-sm text-gray-600">{kri.description}</div>
                     <div className="flex gap-4 mt-2 text-xs text-gray-500">
-                      <span>Category: {kri.risk_category || 'N/A'}</span>
+                      <span>Category: {kri.category || 'N/A'}</span>
                       <span>Type: {kri.indicator_type}</span>
                       <span>Frequency: {kri.collection_frequency}</span>
                       <span>Unit: {kri.measurement_unit}</span>
@@ -257,11 +257,11 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
             {/* Classification */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="risk_category">Risk Category</Label>
+                <Label htmlFor="category">Risk Category</Label>
                 <Input
-                  id="risk_category"
-                  value={formData.risk_category}
-                  onChange={(e) => setFormData({ ...formData, risk_category: e.target.value })}
+                  id="category"
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   placeholder="e.g., Operational, Financial"
                 />
               </div>

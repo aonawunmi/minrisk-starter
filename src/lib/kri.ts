@@ -14,7 +14,7 @@ export type KRIDefinition = {
   kri_code: string;
   kri_name: string;
   description?: string;
-  risk_category?: string;
+  category?: string;
   linked_risk_code?: string;
   indicator_type: 'leading' | 'lagging' | 'concurrent';
   measurement_unit: string;

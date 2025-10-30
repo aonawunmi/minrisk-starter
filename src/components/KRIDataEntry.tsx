@@ -149,7 +149,7 @@ export function KRIDataEntry() {
                   <span className="font-medium">Type:</span> {selectedKRIData.indicator_type}
                 </div>
                 <div>
-                  <span className="font-medium">Category:</span> {selectedKRIData.risk_category || 'N/A'}
+                  <span className="font-medium">Category:</span> {selectedKRIData.category || 'N/A'}
                 </div>
               </div>
               {selectedKRIData.description && (

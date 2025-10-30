@@ -213,7 +213,7 @@ export function KRIDashboard() {
                   </div>
                   <div className="text-xs text-gray-900 font-medium mb-1">{kri.kri_name}</div>
                   <div className="text-xs text-gray-500">
-                    {kri.risk_category || 'Uncategorized'}
+                    {kri.category || 'Uncategorized'}
                   </div>
                   <div className="text-xs text-gray-500 mt-2">
                     Frequency: {kri.collection_frequency}
