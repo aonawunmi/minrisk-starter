@@ -500,6 +500,8 @@ export async function loadAppetiteHistory(limit: number = 30): Promise<RiskAppet
 
 /**
  * Check if a risk exceeds appetite threshold
+ * Note: "Exceeds" means beyond tolerance_max, not just above appetite_threshold
+ * Risks between appetite_threshold and tolerance_max are still acceptable
  */
 export async function checkRiskExceedsAppetite(
   riskScore: number,
@@ -508,11 +510,11 @@ export async function checkRiskExceedsAppetite(
   const config = await loadActiveAppetiteConfig(category);
 
   if (!config) {
-    // If no config exists, use default threshold of 15
-    return riskScore > 15;
+    // If no config exists, use default tolerance_max of 18
+    return riskScore > 18;
   }
 
-  return riskScore > config.appetite_threshold;
+  return riskScore > config.tolerance_max;
 }
 
 /**
@@ -525,8 +527,10 @@ export async function getRiskAppetiteStatus(
   const config = await loadActiveAppetiteConfig(category);
 
   if (!config) {
-    // If no config exists, use default threshold of 15
-    return riskScore <= 15 ? 'within' : 'exceeded';
+    // If no config exists, use default thresholds: appetite=15, tolerance=18
+    if (riskScore <= 15) return 'within';
+    if (riskScore <= 18) return 'tolerance';
+    return 'exceeded';
   }
 
   if (riskScore <= config.appetite_threshold) {

@@ -197,7 +197,8 @@ BEGIN
       r.risk_code,
       r.category,
       (r.likelihood_inherent * r.impact_inherent) as risk_score,
-      COALESCE(ra.appetite_threshold, 15) as appetite_threshold
+      COALESCE(ra.appetite_threshold, 15) as appetite_threshold,
+      COALESCE(ra.tolerance_max, 18) as tolerance_max
     FROM risks r
     LEFT JOIN risk_appetite_config ra
       ON ra.organization_id = r.organization_id
@@ -210,8 +211,8 @@ BEGIN
   )
   SELECT
     COUNT(*)::INTEGER as total_risks,
-    COUNT(*) FILTER (WHERE risk_score <= appetite_threshold)::INTEGER as risks_within_appetite,
-    COUNT(*) FILTER (WHERE risk_score > appetite_threshold)::INTEGER as risks_over_appetite,
+    COUNT(*) FILTER (WHERE risk_score <= tolerance_max)::INTEGER as risks_within_appetite,
+    COUNT(*) FILTER (WHERE risk_score > tolerance_max)::INTEGER as risks_over_appetite,
     ROUND(AVG(risk_score), 2) as avg_score,
     CASE
       WHEN COUNT(*) = 0 THEN 0

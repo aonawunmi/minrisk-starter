@@ -1006,8 +1006,10 @@ function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onR
             cat.category === risk.category
         );
         if (!category) return { exceeds: false };
+        // Risk exceeds only if it's above tolerance_max, not appetite_threshold
+        // Risks between appetite_threshold and tolerance_max are still acceptable
         return {
-            exceeds: risk.residual_score > category.appetite_threshold,
+            exceeds: risk.residual_score > category.tolerance_max,
             category
         };
     };
