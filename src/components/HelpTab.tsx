@@ -1075,4 +1075,272 @@ const sections = [
       </ul>
     `,
   },
+  {
+    id: 'kri-module',
+    title: 'Key Risk Indicators (KRI) Module ✨ NEW',
+    icon: '📉',
+    content: `
+      <h3>Overview</h3>
+      <p>The KRI Module enables <strong>proactive risk monitoring</strong> through quantitative metrics tracked over time. Unlike the Incident Log which records discrete events after they occur, KRIs provide early warning signals before risks materialize.</p>
+
+      <h3>Strategic Permission Model</h3>
+      <h4>🎯 Design Philosophy:</h4>
+      <ul>
+        <li><strong>Centralized Governance</strong> - Admins define WHAT gets measured</li>
+        <li><strong>Distributed Execution</strong> - Users enter their own measurements</li>
+        <li><strong>Shared Visibility</strong> - Everyone monitors organization-wide metrics</li>
+      </ul>
+
+      <h4>Who Can Do What:</h4>
+      <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-top: 10px;">
+        <tr style="background: #f3f4f6;">
+          <th>Function</th>
+          <th>Regular User</th>
+          <th>Admin</th>
+        </tr>
+        <tr>
+          <td><strong>View KRIs</strong></td>
+          <td>✅ All org KRIs</td>
+          <td>✅ All org KRIs</td>
+        </tr>
+        <tr>
+          <td><strong>Enter Data</strong></td>
+          <td>✅ Any KRI</td>
+          <td>✅ Any KRI</td>
+        </tr>
+        <tr>
+          <td><strong>View Dashboard</strong></td>
+          <td>✅ Org-wide</td>
+          <td>✅ Org-wide</td>
+        </tr>
+        <tr>
+          <td><strong>View Alerts</strong></td>
+          <td>✅ Org-wide</td>
+          <td>✅ Org-wide</td>
+        </tr>
+        <tr>
+          <td><strong>Define New KRIs</strong></td>
+          <td>❌ No</td>
+          <td>✅ Admin only</td>
+        </tr>
+        <tr>
+          <td><strong>Edit KRI Definitions</strong></td>
+          <td>❌ No</td>
+          <td>✅ Admin only</td>
+        </tr>
+        <tr>
+          <td><strong>Delete KRIs</strong></td>
+          <td>❌ No</td>
+          <td>✅ Admin only</td>
+        </tr>
+      </table>
+
+      <h3>For Regular Users: KRI Monitoring Tab</h3>
+      <p>Access from main navigation: <strong>📉 KRI Monitoring</strong></p>
+
+      <h4>📈 Data Entry (Primary Tab)</h4>
+      <ol>
+        <li>Select a KRI from the dropdown (e.g., "Customer Complaints Count")</li>
+        <li>Click <strong>"Add Measurement"</strong> button</li>
+        <li>Fill in measurement details:
+          <ul>
+            <li><strong>Measurement Date</strong> - When the data was recorded</li>
+            <li><strong>Measurement Value</strong> - The actual number (e.g., 8 complaints)</li>
+            <li><strong>Data Quality</strong> - Verified, Estimated, or Provisional</li>
+            <li><strong>Notes</strong> - Optional context (e.g., "Holiday season spike")</li>
+          </ul>
+        </li>
+        <li>Click <strong>"Save Measurement"</strong></li>
+        <li>View recent measurements with automatic alert badges:
+          <ul>
+            <li><span style="color: green;">🟢 GREEN</span> - Within target range</li>
+            <li><span style="color: #eab308;">🟡 YELLOW</span> - Warning threshold breached</li>
+            <li><span style="color: red;">🔴 RED</span> - Critical threshold breached</li>
+          </ul>
+        </li>
+      </ol>
+
+      <h4>📊 Dashboard Tab</h4>
+      <p>View organization-wide KRI performance:</p>
+      <ul>
+        <li><strong>Total KRIs</strong> - Number of active indicators</li>
+        <li><strong>Open Alerts</strong> - Threshold breaches requiring attention</li>
+        <li><strong>Within Thresholds</strong> - KRIs performing as expected</li>
+        <li><strong>At Risk</strong> - KRIs approaching thresholds</li>
+        <li><strong>Recent Activity</strong> - Latest measurements and changes</li>
+      </ul>
+
+      <h4>🚨 My Alerts Tab</h4>
+      <p>View KRIs that have breached thresholds:</p>
+      <ul>
+        <li><strong>Critical Alerts (Red)</strong> - Immediate attention required</li>
+        <li><strong>Warning Alerts (Yellow)</strong> - Monitoring needed</li>
+        <li>Details include measured value, threshold breached, and date</li>
+      </ul>
+
+      <h3>For Admins: KRI Management (Admin Dashboard)</h3>
+      <p>Access: <strong>Admin Dashboard → KRI Module</strong></p>
+
+      <h4>📋 Management Tab (Admin Exclusive)</h4>
+      <p><strong>Creating a New KRI:</strong></p>
+      <ol>
+        <li>Click <strong>"Add KRI"</strong> button</li>
+        <li>Fill in KRI definition form:
+          <ul>
+            <li><strong>KRI Code</strong> - Auto-generated (KRI-001, KRI-002, etc.)</li>
+            <li><strong>KRI Name</strong> - Descriptive title (e.g., "Customer Complaints Count")</li>
+            <li><strong>Description</strong> - What this KRI measures and why</li>
+            <li><strong>Risk Category</strong> - Operational, Financial, Compliance, etc.</li>
+            <li><strong>Indicator Type</strong> - Leading, Lagging, or Concurrent</li>
+            <li><strong>Measurement Unit</strong> - count, %, days, dollars, etc.</li>
+            <li><strong>Collection Frequency</strong> - Daily, Weekly, Monthly, Quarterly, Annually</li>
+            <li><strong>Target Value</strong> - Ideal measurement (e.g., 0 complaints)</li>
+            <li><strong>Lower Threshold</strong> - Warning level (e.g., 10 complaints)</li>
+            <li><strong>Upper Threshold</strong> - Critical level (e.g., 15 complaints)</li>
+            <li><strong>Threshold Direction</strong>:
+              <ul>
+                <li><strong>Above</strong> - Higher values are bad (e.g., complaints, errors)</li>
+                <li><strong>Below</strong> - Lower values are bad (e.g., uptime %, customer satisfaction)</li>
+                <li><strong>Between</strong> - Values outside range are bad (e.g., inventory levels)</li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+        <li>Click <strong>"Create"</strong></li>
+      </ol>
+
+      <p><strong>Editing/Deleting KRIs:</strong></p>
+      <ul>
+        <li>Click pencil icon to edit existing KRI definitions</li>
+        <li>Click trash icon to delete (with confirmation)</li>
+        <li>Changes affect all future measurements</li>
+      </ul>
+
+      <h4>📈 Data Entry, 📊 Dashboard, 🚨 Alerts Tabs</h4>
+      <p>Admins have access to the same tabs as regular users, with organization-wide visibility.</p>
+
+      <h3>KRI vs Incident Log - Understanding the Difference</h3>
+      <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-top: 10px;">
+        <tr style="background: #f3f4f6;">
+          <th>Aspect</th>
+          <th>KRI Module</th>
+          <th>Incident Log</th>
+        </tr>
+        <tr>
+          <td><strong>Purpose</strong></td>
+          <td>Proactive monitoring & early warning</td>
+          <td>Reactive event documentation</td>
+        </tr>
+        <tr>
+          <td><strong>Nature</strong></td>
+          <td>Quantitative trends over time</td>
+          <td>Qualitative event descriptions</td>
+        </tr>
+        <tr>
+          <td><strong>Timing</strong></td>
+          <td>Before major issues occur</td>
+          <td>After events happen</td>
+        </tr>
+        <tr>
+          <td><strong>Format</strong></td>
+          <td>Time-series metrics (numbers)</td>
+          <td>Narrative reports (text)</td>
+        </tr>
+        <tr>
+          <td><strong>Example</strong></td>
+          <td>"15 customer complaints this month" (trending up ⚠️)</td>
+          <td>"Server outage on Jan 15, lasted 2 hours, affected 50 users"</td>
+        </tr>
+      </table>
+
+      <h4>How They Work Together:</h4>
+      <ul>
+        <li><strong>KRIs show patterns:</strong> "Complaint count increasing: 5 → 8 → 12 → 15 per month"</li>
+        <li><strong>Incidents show details:</strong> Individual complaint records with root causes</li>
+        <li><strong>KRIs can be derived from incidents:</strong> "Count of critical incidents per month" (KRI) = counting incident log entries</li>
+        <li><strong>Strategic value:</strong> KRIs predict, Incidents explain</li>
+      </ul>
+
+      <h3>Real-World Example Workflow</h3>
+      <h4>Step 1: Admin Defines KRI (One-Time Setup)</h4>
+      <p>Admin creates: "System Outages Count"</p>
+      <ul>
+        <li>Unit: count</li>
+        <li>Frequency: Monthly</li>
+        <li>Warning Threshold: 3 outages/month</li>
+        <li>Critical Threshold: 5 outages/month</li>
+        <li>Direction: Above (higher is bad)</li>
+      </ul>
+
+      <h4>Step 2: Users Enter Measurements (Ongoing)</h4>
+      <p>IT Manager records monthly:</p>
+      <ul>
+        <li>January: 1 outage → 🟢 Green</li>
+        <li>February: 2 outages → 🟢 Green</li>
+        <li>March: 4 outages → 🟡 Yellow (Warning!)</li>
+        <li>April: 6 outages → 🔴 Red (Critical!)</li>
+      </ul>
+
+      <h4>Step 3: Dashboard Shows Trend</h4>
+      <p>Everyone sees: "System Outages Count trending upward from 1 to 6 over 4 months"</p>
+
+      <h4>Step 4: Management Takes Action</h4>
+      <ul>
+        <li>Investigate root causes (check Incident Log for outage details)</li>
+        <li>Implement controls (infrastructure upgrades, monitoring tools)</li>
+        <li>Monitor subsequent months to verify improvement</li>
+      </ul>
+
+      <h3>Best Practices</h3>
+      <ul>
+        <li><strong>Start small:</strong> Define 5-10 critical KRIs, not 50</li>
+        <li><strong>Align with strategy:</strong> KRIs should reflect organizational priorities</li>
+        <li><strong>Set realistic thresholds:</strong> Based on historical data and industry benchmarks</li>
+        <li><strong>Regular updates:</strong> Enter data consistently per defined frequency</li>
+        <li><strong>Review alerts promptly:</strong> Red alerts require immediate investigation</li>
+        <li><strong>Document context:</strong> Use Notes field to explain unusual readings</li>
+        <li><strong>Link to risks:</strong> KRIs should map to risks in your Risk Register</li>
+        <li><strong>Periodic review:</strong> Admins should review and adjust thresholds quarterly</li>
+      </ul>
+
+      <h3>Sample KRIs by Category</h3>
+      <h4>Operational Risk:</h4>
+      <ul>
+        <li>System Outages Count (monthly)</li>
+        <li>Failed Transactions % (daily)</li>
+        <li>Average Resolution Time (days)</li>
+      </ul>
+
+      <h4>Financial Risk:</h4>
+      <ul>
+        <li>Budget Variance % (monthly)</li>
+        <li>Accounts Payable Days (weekly)</li>
+        <li>Cash Flow Ratio (monthly)</li>
+      </ul>
+
+      <h4>Compliance Risk:</h4>
+      <ul>
+        <li>Policy Violations Count (monthly)</li>
+        <li>Training Completion % (quarterly)</li>
+        <li>Audit Findings Count (annually)</li>
+      </ul>
+
+      <h4>Cyber Risk:</h4>
+      <ul>
+        <li>Failed Login Attempts Count (daily)</li>
+        <li>Unpatched Systems % (monthly)</li>
+        <li>Phishing Simulation Click Rate % (quarterly)</li>
+      </ul>
+
+      <h3>Strategic Benefits</h3>
+      <ul>
+        <li><strong>Early Warning:</strong> Detect deteriorating conditions before major incidents</li>
+        <li><strong>Data-Driven Decisions:</strong> Objective metrics for resource allocation</li>
+        <li><strong>Trend Analysis:</strong> Identify patterns and predict future risks</li>
+        <li><strong>Accountability:</strong> Clear ownership through distributed data entry</li>
+        <li><strong>Regulatory Compliance:</strong> Demonstrate proactive risk monitoring (Basel III, ISO 31000)</li>
+        <li><strong>Board Reporting:</strong> Quantitative risk metrics for executive dashboards</li>
+      </ul>
+    `,
+  },
 ];
