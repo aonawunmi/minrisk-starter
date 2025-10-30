@@ -34,6 +34,7 @@ import { DashboardTab } from '@/components/DashboardTab';
 import { RiskRegisterTabGroup } from '@/components/RiskRegisterTabGroup';
 import { AnalyticsTabGroup } from '@/components/AnalyticsTabGroup';
 import { OperationsTabGroup } from '@/components/OperationsTabGroup';
+import { UserKRIView } from '@/components/UserKRIView';
 
 // Make the endpoint visible in DevTools (Claude API):
 ;(window as any).__MINRISK_AI_PATH = 'Claude API (direct)'
@@ -827,6 +828,7 @@ export default function MinRiskLatest() {
                 <TabsTrigger value="register">📋 Risk Register</TabsTrigger>
                 <TabsTrigger value="analytics">📈 Analytics & Reports</TabsTrigger>
                 <TabsTrigger value="operations">🚨 Operations</TabsTrigger>
+                <TabsTrigger value="kri">📉 KRI Monitoring</TabsTrigger>
                 <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger>
                 {isAdmin && <TabsTrigger value="admin">⚙️ Admin</TabsTrigger>}
             </TabsList>
@@ -894,6 +896,10 @@ export default function MinRiskLatest() {
                         <RiskHistoryTab config={config} showToast={showToast} isAdmin={isAdmin} />
                     }
                 />
+            </TabsContent>
+
+            <TabsContent value="kri">
+                <UserKRIView />
             </TabsContent>
 
             <TabsContent value="ai_assistant">
