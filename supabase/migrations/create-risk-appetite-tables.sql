@@ -305,6 +305,74 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- =====================================================
+-- FUNCTION: Calculate Appetite Utilization for USER
+-- Purpose: Calculate appetite for a specific user's risks only
+-- =====================================================
+
+CREATE OR REPLACE FUNCTION calculate_appetite_utilization_user(target_user_id UUID)
+RETURNS TABLE (
+  total_risks INTEGER,
+  risks_within_appetite INTEGER,
+  risks_over_appetite INTEGER,
+  avg_score DECIMAL(5,2),
+  utilization DECIMAL(5,2)
+)
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN QUERY
+  WITH control_effectiveness AS (
+    SELECT
+      c.risk_id,
+      c.target,
+      CASE
+        WHEN c.design = 0 OR c.implementation = 0 THEN 0
+        ELSE (c.design + c.implementation + c.monitoring + c.effectiveness_evaluation)::DECIMAL / 12.0
+      END as effectiveness
+    FROM controls c
+    WHERE c.risk_id IN (
+      SELECT id FROM risks WHERE user_id = target_user_id
+    )
+  ),
+  max_reductions AS (
+    SELECT
+      risk_id,
+      MAX(CASE WHEN target = 'Likelihood' THEN effectiveness ELSE 0 END) as max_likelihood_reduction,
+      MAX(CASE WHEN target = 'Impact' THEN effectiveness ELSE 0 END) as max_impact_reduction
+    FROM control_effectiveness
+    GROUP BY risk_id
+  ),
+  risk_data AS (
+    SELECT
+      r.risk_code,
+      r.category,
+      GREATEST(1, r.likelihood_inherent - (r.likelihood_inherent - 1) * COALESCE(mr.max_likelihood_reduction, 0)) *
+      GREATEST(1, r.impact_inherent - (r.impact_inherent - 1) * COALESCE(mr.max_impact_reduction, 0)) as risk_score,
+      ra.appetite_threshold,
+      ra.tolerance_max
+    FROM risks r
+    LEFT JOIN max_reductions mr ON mr.risk_id = r.id
+    INNER JOIN risk_appetite_config ra
+      ON ra.organization_id = r.organization_id
+      AND ra.category = r.category
+      AND ra.effective_from <= CURRENT_DATE
+      AND (ra.effective_to IS NULL OR ra.effective_to >= CURRENT_DATE)
+    WHERE r.user_id = target_user_id  -- USER-LEVEL FILTER
+  )
+  SELECT
+    COUNT(*)::INTEGER as total_risks,
+    COUNT(*) FILTER (WHERE risk_score <= tolerance_max)::INTEGER as risks_within_appetite,
+    COUNT(*) FILTER (WHERE risk_score > tolerance_max)::INTEGER as risks_over_appetite,
+    ROUND(AVG(risk_score), 2) as avg_score,
+    CASE
+      WHEN COUNT(*) = 0 THEN 0
+      ELSE ROUND((AVG(risk_score) / 30.0) * 100, 2)
+    END as utilization
+  FROM risk_data;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =====================================================
 -- TRIGGER: Update timestamp on config changes
 -- =====================================================
 

@@ -398,19 +398,49 @@ export async function deleteAppetiteException(id: string): Promise<void> {
 // =====================================================
 
 /**
- * Calculate current appetite utilization for the organization
+ * Calculate current appetite utilization
+ * - Admins: See organization-wide data
+ * - Regular users: See only their own risks
  */
 export async function calculateAppetiteUtilization(): Promise<AppetiteUtilization> {
-  const orgId = await getUserOrganizationId();
-  if (!orgId) {
-    throw new Error('No organization found for user');
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('User not authenticated');
   }
 
-  console.log('🔍 calculateAppetiteUtilization: Calculating for org:', orgId);
+  // Get user profile to check role
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role, organization_id')
+    .eq('id', user.id)
+    .single();
 
-  // Call the PostgreSQL function
-  const { data, error } = await supabase
-    .rpc('calculate_appetite_utilization', { org_id: orgId });
+  if (!profile) {
+    throw new Error('No user profile found');
+  }
+
+  const isAdmin = profile.role === 'admin';
+
+  console.log(`🔍 calculateAppetiteUtilization: ${isAdmin ? 'ADMIN - org-wide' : 'USER - personal only'}`);
+
+  // Call appropriate PostgreSQL function based on role
+  let data, error;
+
+  if (isAdmin) {
+    // Admin: Organization-wide view
+    const result = await supabase.rpc('calculate_appetite_utilization', {
+      org_id: profile.organization_id
+    });
+    data = result.data;
+    error = result.error;
+  } else {
+    // Regular user: Personal view only
+    const result = await supabase.rpc('calculate_appetite_utilization_user', {
+      target_user_id: user.id
+    });
+    data = result.data;
+    error = result.error;
+  }
 
   if (error) {
     console.error('❌ calculateAppetiteUtilization: Error:', error);
