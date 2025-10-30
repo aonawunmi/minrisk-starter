@@ -497,31 +497,73 @@ export async function generateAppetiteSnapshot(): Promise<void> {
 // =====================================================
 
 /**
- * Load appetite history for the organization
+ * Load appetite history
+ * - Admins: Load organization-wide historical snapshots
+ * - Regular users: Return today's calculated data only (no historical trend stored per-user)
  */
 export async function loadAppetiteHistory(limit: number = 30): Promise<RiskAppetiteHistory[]> {
-  const orgId = await getUserOrganizationId();
-  if (!orgId) {
-    console.log('❌ loadAppetiteHistory: No organization found');
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    console.log('❌ loadAppetiteHistory: No user found');
     return [];
   }
 
-  console.log('🔍 loadAppetiteHistory: Loading history for org:', orgId);
+  // Get user profile to check role
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role, organization_id')
+    .eq('id', user.id)
+    .single();
 
-  const { data, error } = await supabase
-    .from('risk_appetite_history')
-    .select('*')
-    .eq('organization_id', orgId)
-    .order('snapshot_date', { ascending: false })
-    .limit(limit);
-
-  if (error) {
-    console.error('❌ loadAppetiteHistory: Error:', error);
-    throw new Error(`Failed to load appetite history: ${error.message}`);
+  if (!profile) {
+    console.log('❌ loadAppetiteHistory: No profile found');
+    return [];
   }
 
-  console.log(`✅ loadAppetiteHistory: Loaded ${data?.length || 0} history records`);
-  return data || [];
+  const isAdmin = profile.role === 'admin';
+
+  if (isAdmin) {
+    // Admin: Load org-wide historical snapshots from database
+    console.log('🔍 loadAppetiteHistory: Loading org-wide history');
+
+    const { data, error } = await supabase
+      .from('risk_appetite_history')
+      .select('*')
+      .eq('organization_id', profile.organization_id)
+      .order('snapshot_date', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('❌ loadAppetiteHistory: Error:', error);
+      throw new Error(`Failed to load appetite history: ${error.message}`);
+    }
+
+    console.log(`✅ loadAppetiteHistory: Loaded ${data?.length || 0} history records`);
+    return data || [];
+  } else {
+    // Regular user: Calculate today's snapshot only (no historical data stored per-user)
+    console.log('🔍 loadAppetiteHistory: Generating current snapshot for user');
+
+    try {
+      const utilization = await calculateAppetiteUtilization();
+
+      // Return today's data as a single-item history array
+      return [{
+        id: 'current',
+        organization_id: profile.organization_id,
+        snapshot_date: new Date().toISOString().split('T')[0],
+        total_risks: utilization.total_risks,
+        risks_within_appetite: utilization.risks_within_appetite,
+        risks_over_appetite: utilization.risks_over_appetite,
+        avg_risk_score: utilization.avg_score,
+        appetite_utilization: utilization.utilization,
+        created_at: new Date().toISOString(),
+      }];
+    } catch (error) {
+      console.error('❌ loadAppetiteHistory: Error calculating user data:', error);
+      return [];
+    }
+  }
 }
 
 // =====================================================
