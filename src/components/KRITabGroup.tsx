@@ -22,18 +22,42 @@ export function KRITabGroup({ showToast }: KRITabGroupProps) {
       </TabsList>
 
       <TabsContent value="dashboard" className="space-y-4">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+          <h3 className="font-semibold text-green-900 mb-1">Admin View: Consolidated Organization Data</h3>
+          <p className="text-sm text-green-800">
+            As an admin, you can view aggregated KRI metrics from all users across your organization. Users see only their own isolated data.
+          </p>
+        </div>
         <KRIDashboard />
       </TabsContent>
 
       <TabsContent value="management" className="space-y-4">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+          <h3 className="font-semibold text-green-900 mb-1">Admin: Define KRIs for Organization</h3>
+          <p className="text-sm text-green-800">
+            Create and manage KRI definitions that all users can track. Users will enter their own measurements independently.
+          </p>
+        </div>
         <KRIManagement canEdit={true} />
       </TabsContent>
 
       <TabsContent value="data" className="space-y-4">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+          <h3 className="font-semibold text-green-900 mb-1">Admin: Your Personal KRI Data Entry</h3>
+          <p className="text-sm text-green-800">
+            Enter your own KRI measurements. This is your personal data entry area, isolated from other users.
+          </p>
+        </div>
         <KRIDataEntry />
       </TabsContent>
 
       <TabsContent value="alerts" className="space-y-4">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+          <h3 className="font-semibold text-green-900 mb-1">Admin View: All Organization Alerts</h3>
+          <p className="text-sm text-green-800">
+            View threshold breaches from all users across the organization. Users see only their own alerts.
+          </p>
+        </div>
         <KRIAlerts />
       </TabsContent>
     </Tabs>
