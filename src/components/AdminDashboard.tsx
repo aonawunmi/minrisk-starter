@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { RefreshCw, Users, FileText, Shield, AlertTriangle, Check, X, UserCheck, UserX, Archive, BookOpen, TrendingUp, Trash2, Loader2 } from 'lucide-react';
+import { RefreshCw, Users, FileText, Shield, AlertTriangle, Check, X, UserCheck, UserX, Archive, BookOpen, TrendingUp, Trash2, Loader2, Activity } from 'lucide-react';
 import { clearAllOrganizationData, clearRiskRegisterData } from '@/lib/admin';
 import ArchiveManagement from './ArchiveManagement';
 import AuditTrail from './AuditTrail';
@@ -15,6 +15,7 @@ import HelpTab from './HelpTab';
 import { VarScaleConfig } from './VarScaleConfig';
 import AppetiteConfigManager from './risk-appetite/AppetiteConfigManager';
 import AppetiteDashboard from './risk-appetite/AppetiteDashboard';
+import { KRITabGroup } from './KRITabGroup';
 import type { AppConfig } from '../App';
 
 type UserData = {
@@ -249,7 +250,7 @@ export default function AdminDashboard({ config, showToast }: AdminDashboardProp
 
   return (
     <Tabs defaultValue="users" className="space-y-6">
-      <TabsList className="grid w-full grid-cols-6 max-w-4xl">
+      <TabsList className="grid w-full grid-cols-7 max-w-5xl">
         <TabsTrigger value="users">
           <Users className="h-4 w-4 mr-2" />
           Users
@@ -257,6 +258,10 @@ export default function AdminDashboard({ config, showToast }: AdminDashboardProp
         <TabsTrigger value="appetite">
           <Shield className="h-4 w-4 mr-2" />
           Risk Appetite
+        </TabsTrigger>
+        <TabsTrigger value="kri">
+          <Activity className="h-4 w-4 mr-2" />
+          KRI Module
         </TabsTrigger>
         <TabsTrigger value="var_config">
           <TrendingUp className="h-4 w-4 mr-2" />
@@ -573,6 +578,10 @@ export default function AdminDashboard({ config, showToast }: AdminDashboardProp
             <AppetiteDashboard showToast={showToast} />
           </TabsContent>
         </Tabs>
+      </TabsContent>
+
+      <TabsContent value="kri" className="space-y-6">
+        <KRITabGroup showToast={showToast} />
       </TabsContent>
 
       <TabsContent value="archive">
