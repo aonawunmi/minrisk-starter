@@ -2,7 +2,8 @@
 // Backend functions for Key Risk Indicators (KRI) Module (Phase 5B)
 
 import { supabase } from './supabase';
-import { getUserOrganizationId } from './database';
+import { getUserOrganizationId, loadRisks, type RiskRow } from './database';
+import { askClaude } from './ai';
 
 // =====================================================
 // TYPES
@@ -29,6 +30,11 @@ export type KRIDefinition = {
   created_at: string;
   updated_at: string;
   created_by?: string;
+  // AI-powered risk linking fields
+  linked_risk_code?: string | null;
+  ai_link_confidence?: number | null;
+  linked_at?: string | null;
+  linked_by?: string | null;
 };
 
 export type KRIDataEntry = {
@@ -829,4 +835,254 @@ export function exportKRIDataToCSV(entries: KRIDataEntry[], kriName: string): st
   ].join('\n');
 
   return csv;
+}
+
+// =====================================================
+// AI-POWERED KRI-TO-RISK LINKING
+// =====================================================
+
+export type RiskSuggestion = {
+  risk: RiskRow;
+  confidence: number; // 0-100
+  reasoning: string;
+};
+
+export type KRICoverageAnalysis = {
+  risk_id: string;
+  risk_code: string;
+  risk_title: string;
+  risk_category: string | null;
+  inherent_likelihood: number | null;
+  inherent_impact: number | null;
+  kri_count: number;
+  linked_kri_codes: string[] | null;
+  linked_kri_names: string[] | null;
+  coverage_status: 'No Coverage' | 'Basic Coverage' | 'Good Coverage';
+};
+
+export type RiskKRIBreach = {
+  kri_code: string;
+  kri_name: string;
+  alert_level: string;
+  alert_count: number;
+  latest_breach_date: string;
+};
+
+/**
+ * Use AI to suggest risks that match a KRI
+ */
+export async function suggestRisksForKRI(kri: KRIDefinition): Promise<RiskSuggestion[]> {
+  console.log('🤖 suggestRisksForKRI: Analyzing KRI:', kri.kri_code);
+
+  // Load all risks
+  const risks = await loadRisks();
+  if (risks.length === 0) {
+    console.log('⚠️ No risks found in register');
+    return [];
+  }
+
+  // Build AI prompt
+  const prompt = `You are a risk management expert analyzing Key Risk Indicators (KRIs) and their relationship to organizational risks.
+
+**KRI to Analyze:**
+- Code: ${kri.kri_code}
+- Name: ${kri.kri_name}
+- Description: ${kri.description || 'N/A'}
+- Category: ${kri.category || 'N/A'}
+- Type: ${kri.indicator_type}
+- Unit: ${kri.measurement_unit}
+- Frequency: ${kri.collection_frequency}
+
+**Available Risks in Register:**
+${risks.slice(0, 50).map(r => `
+- ${r.risk_code}: ${r.risk_title}
+  Category: ${r.risk_category || 'N/A'}
+  Description: ${r.risk_description || 'N/A'}
+`).join('\n')}
+
+**Task:**
+Analyze which risks from the register this KRI would be most effective at monitoring. Consider:
+1. Direct relationship (does the KRI measure something directly related to the risk?)
+2. Early warning potential (would the KRI detect risk changes before they materialize?)
+3. Category alignment (do they share similar risk domains?)
+4. Actionability (would KRI breaches trigger relevant risk responses?)
+
+**Return ONLY a valid JSON array with up to 3 best matches, ordered by relevance:**
+[
+  {
+    "risk_code": "RISK-XXX",
+    "confidence": 85,
+    "reasoning": "Brief explanation of why this KRI monitors this risk"
+  }
+]
+
+If no good matches exist, return an empty array: []`;
+
+  try {
+    const response = await askClaude(prompt);
+
+    // Parse AI response
+    const jsonMatch = response.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      console.log('⚠️ No JSON found in AI response');
+      return [];
+    }
+
+    const suggestions = JSON.parse(jsonMatch[0]);
+
+    // Map risk codes to full risk objects
+    const results: RiskSuggestion[] = suggestions
+      .map((s: { risk_code: string; confidence: number; reasoning: string }) => {
+        const risk = risks.find(r => r.risk_code === s.risk_code);
+        if (!risk) return null;
+        return {
+          risk,
+          confidence: s.confidence,
+          reasoning: s.reasoning,
+        };
+      })
+      .filter((s): s is RiskSuggestion => s !== null);
+
+    console.log(`✅ suggestRisksForKRI: Found ${results.length} suggestions`);
+    return results;
+  } catch (error) {
+    console.error('❌ suggestRisksForKRI: Error:', error);
+    throw new Error('Failed to analyze KRI for risk suggestions');
+  }
+}
+
+/**
+ * Link a KRI to a risk
+ */
+export async function linkKRIToRisk(
+  kriId: string,
+  riskCode: string,
+  confidence?: number
+): Promise<KRIDefinition> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+
+  console.log('🔗 linkKRIToRisk: Linking KRI', kriId, 'to risk', riskCode);
+
+  const { data, error } = await supabase
+    .from('kri_definitions')
+    .update({
+      linked_risk_code: riskCode,
+      ai_link_confidence: confidence,
+      linked_at: new Date().toISOString(),
+      linked_by: user.id,
+    })
+    .eq('id', kriId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('❌ linkKRIToRisk: Error:', error);
+    throw new Error(`Failed to link KRI to risk: ${error.message}`);
+  }
+
+  console.log('✅ linkKRIToRisk: KRI linked to risk');
+  return data;
+}
+
+/**
+ * Unlink a KRI from its risk
+ */
+export async function unlinkKRIFromRisk(kriId: string): Promise<KRIDefinition> {
+  console.log('🔓 unlinkKRIFromRisk: Unlinking KRI', kriId);
+
+  const { data, error } = await supabase
+    .from('kri_definitions')
+    .update({
+      linked_risk_code: null,
+      ai_link_confidence: null,
+      linked_at: null,
+      linked_by: null,
+    })
+    .eq('id', kriId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('❌ unlinkKRIFromRisk: Error:', error);
+    throw new Error(`Failed to unlink KRI from risk: ${error.message}`);
+  }
+
+  console.log('✅ unlinkKRIFromRisk: KRI unlinked');
+  return data;
+}
+
+/**
+ * Get KRI coverage analysis for all risks
+ */
+export async function getKRICoverageAnalysis(): Promise<KRICoverageAnalysis[]> {
+  const orgId = await getUserOrganizationId();
+  if (!orgId) {
+    throw new Error('No organization found for user');
+  }
+
+  console.log('📊 getKRICoverageAnalysis: Loading coverage analysis');
+
+  const { data, error } = await supabase
+    .from('kri_coverage_analysis')
+    .select('*')
+    .eq('organization_id', orgId)
+    .order('kri_count', { ascending: false });
+
+  if (error) {
+    console.error('❌ getKRICoverageAnalysis: Error:', error);
+    throw new Error(`Failed to load KRI coverage analysis: ${error.message}`);
+  }
+
+  console.log(`✅ getKRICoverageAnalysis: Loaded ${data?.length || 0} risks`);
+  return data || [];
+}
+
+/**
+ * Get active KRI breaches for a specific risk
+ */
+export async function getRiskKRIBreaches(riskCode: string): Promise<RiskKRIBreach[]> {
+  console.log('🚨 getRiskKRIBreaches: Loading breaches for risk:', riskCode);
+
+  const { data, error } = await supabase
+    .rpc('get_risk_kri_breaches', { p_risk_code: riskCode });
+
+  if (error) {
+    console.error('❌ getRiskKRIBreaches: Error:', error);
+    throw new Error(`Failed to load risk KRI breaches: ${error.message}`);
+  }
+
+  console.log(`✅ getRiskKRIBreaches: Found ${data?.length || 0} breaches`);
+  return data || [];
+}
+
+/**
+ * Get KRIs linked to a specific risk
+ */
+export async function getKRIsForRisk(riskCode: string): Promise<KRIDefinition[]> {
+  const orgId = await getUserOrganizationId();
+  if (!orgId) {
+    console.log('❌ getKRIsForRisk: No organization found');
+    return [];
+  }
+
+  console.log('🔍 getKRIsForRisk: Loading KRIs for risk:', riskCode);
+
+  const { data, error } = await supabase
+    .from('kri_definitions')
+    .select('*')
+    .eq('organization_id', orgId)
+    .eq('linked_risk_code', riskCode)
+    .eq('enabled', true)
+    .order('kri_code', { ascending: true });
+
+  if (error) {
+    console.error('❌ getKRIsForRisk: Error:', error);
+    throw new Error(`Failed to load KRIs for risk: ${error.message}`);
+  }
+
+  console.log(`✅ getKRIsForRisk: Found ${data?.length || 0} linked KRIs`);
+  return data || [];
 }

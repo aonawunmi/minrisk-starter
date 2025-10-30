@@ -9,8 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
-import { loadKRIDefinitions, createKRIDefinition, updateKRIDefinition, deleteKRIDefinition, generateNextKRICode, type KRIDefinition } from '@/lib/kri';
+import { Plus, Pencil, Trash2, Loader2, Link as LinkIcon, Unlink, Sparkles, AlertCircle } from 'lucide-react';
+import { loadKRIDefinitions, createKRIDefinition, updateKRIDefinition, deleteKRIDefinition, generateNextKRICode, suggestRisksForKRI, linkKRIToRisk, unlinkKRIFromRisk, type KRIDefinition, type RiskSuggestion } from '@/lib/kri';
+import { loadRisks, type RiskRow } from '@/lib/database';
 
 type KRIManagementProps = {
   canEdit: boolean;
@@ -18,10 +19,18 @@ type KRIManagementProps = {
 
 export function KRIManagement({ canEdit }: KRIManagementProps) {
   const [kris, setKris] = useState<KRIDefinition[]>([]);
+  const [risks, setRisks] = useState<RiskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [editingKRI, setEditingKRI] = useState<KRIDefinition | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // AI Risk Linking state
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [linkingKRI, setLinkingKRI] = useState<KRIDefinition | null>(null);
+  const [aiSuggestions, setAISuggestions] = useState<RiskSuggestion[]>([]);
+  const [analyzingRisks, setAnalyzingRisks] = useState(false);
+  const [linking, setLinking] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -48,8 +57,12 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const data = await loadKRIDefinitions();
-      setKris(data);
+      const [kriData, riskData] = await Promise.all([
+        loadKRIDefinitions(),
+        loadRisks()
+      ]);
+      setKris(kriData);
+      setRisks(riskData);
     } finally {
       setLoading(false);
     }
@@ -154,6 +167,61 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
     }
   };
 
+  // AI Risk Linking handlers
+  const handleLinkToRisk = async (kri: KRIDefinition) => {
+    setLinkingKRI(kri);
+    setShowLinkDialog(true);
+    setAISuggestions([]);
+
+    // Start AI analysis
+    setAnalyzingRisks(true);
+    try {
+      const suggestions = await suggestRisksForKRI(kri);
+      setAISuggestions(suggestions);
+    } catch (error) {
+      console.error('Error analyzing KRI for risk suggestions:', error);
+      alert('Failed to analyze KRI for risk suggestions');
+    } finally {
+      setAnalyzingRisks(false);
+    }
+  };
+
+  const handleConfirmLink = async (riskId: string, confidence: number) => {
+    if (!linkingKRI) return;
+
+    setLinking(true);
+    try {
+      await linkKRIToRisk(linkingKRI.id, riskId, confidence);
+      await loadData();
+      setShowLinkDialog(false);
+    } catch (error) {
+      console.error('Error linking KRI to risk:', error);
+      alert('Failed to link KRI to risk');
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  const handleUnlink = async (kri: KRIDefinition) => {
+    if (!confirm(`Remove link between ${kri.kri_code} and its risk?`)) {
+      return;
+    }
+
+    try {
+      await unlinkKRIFromRisk(kri.id);
+      await loadData();
+    } catch (error) {
+      console.error('Error unlinking KRI:', error);
+      alert('Failed to unlink KRI');
+    }
+  };
+
+  // Helper to get linked risk for a KRI
+  const getLinkedRisk = (kri: KRIDefinition): RiskRow | undefined => {
+    if (!kri.linked_risk_code) return undefined;
+    return risks.find(r => r.risk_code === kri.linked_risk_code);
+  };
+
   if (loading) {
     return <div className="p-8 text-center">Loading KRIs...</div>;
   }
@@ -182,30 +250,65 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
             </div>
           ) : (
             <div className="space-y-2">
-              {kris.map((kri) => (
-                <div key={kri.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                  <div className="flex-1">
-                    <div className="font-medium">{kri.kri_code} - {kri.kri_name}</div>
-                    <div className="text-sm text-gray-600">{kri.description}</div>
-                    <div className="flex gap-4 mt-2 text-xs text-gray-500">
-                      <span>Category: {kri.category || 'N/A'}</span>
-                      <span>Type: {kri.indicator_type}</span>
-                      <span>Frequency: {kri.collection_frequency}</span>
-                      <span>Unit: {kri.measurement_unit}</span>
+              {kris.map((kri) => {
+                const linkedRisk = risks.find(r => r.risk_code === kri.linked_risk_code);
+                return (
+                  <div key={kri.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                    <div className="flex-1">
+                      <div className="font-medium">{kri.kri_code} - {kri.kri_name}</div>
+                      <div className="text-sm text-gray-600">{kri.description}</div>
+                      <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                        <span>Category: {kri.category || 'N/A'}</span>
+                        <span>Type: {kri.indicator_type}</span>
+                        <span>Frequency: {kri.collection_frequency}</span>
+                        <span>Unit: {kri.measurement_unit}</span>
+                      </div>
+                      {linkedRisk && (
+                        <div className="mt-2 flex items-center gap-2 text-xs">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-medium">
+                            <LinkIcon className="h-3 w-3" />
+                            Linked to: {linkedRisk.risk_code} - {linkedRisk.risk_title}
+                          </span>
+                          {kri.ai_link_confidence && (
+                            <span className="text-gray-500">
+                              ({kri.ai_link_confidence}% confidence)
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
+                    {canEdit && (
+                      <div className="flex gap-2">
+                        {kri.linked_risk_code ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleUnlink(kri)}
+                            title="Unlink from risk"
+                          >
+                            <Unlink className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleLinkToRisk(kri)}
+                            title="Link to risk with AI"
+                          >
+                            <Sparkles className="h-4 w-4 text-purple-500" />
+                          </Button>
+                        )}
+                        <Button variant="outline" size="sm" onClick={() => handleEdit(kri)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleDelete(kri)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                  {canEdit && (
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => handleEdit(kri)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleDelete(kri)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -373,6 +476,103 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {editingKRI ? 'Update' : 'Create'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Risk Linking Dialog */}
+      <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-500" />
+              AI-Powered Risk Linking
+            </DialogTitle>
+            <DialogDescription>
+              AI analyzed KRI "{linkingKRI?.kri_name}" against your Risk Register.
+              Select a risk to link for integrated monitoring.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {analyzingRisks ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-purple-500 mb-3" />
+                <p className="text-sm text-gray-600">Analyzing KRI against risks...</p>
+                <p className="text-xs text-gray-500 mt-1">This may take a few seconds</p>
+              </div>
+            ) : aiSuggestions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <AlertCircle className="h-12 w-12 text-gray-400 mb-3" />
+                <p className="text-sm font-medium">No strong matches found</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  AI couldn't find risks that strongly match this KRI. You can create a manual link later.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                  <p className="text-sm text-purple-900 font-medium">AI Recommendations</p>
+                  <p className="text-xs text-purple-800 mt-1">
+                    Top {aiSuggestions.length} risk{aiSuggestions.length > 1 ? 's' : ''} that this KRI can monitor effectively
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  {aiSuggestions.map((suggestion, index) => (
+                    <div
+                      key={suggestion.risk.risk_code}
+                      className="border rounded-lg p-4 hover:border-purple-300 transition-colors"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm">
+                              #{index + 1} {suggestion.risk.risk_code}: {suggestion.risk.risk_title}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                suggestion.confidence >= 80
+                                  ? 'bg-green-100 text-green-800'
+                                  : suggestion.confidence >= 60
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}
+                            >
+                              {suggestion.confidence}% match
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1">
+                            {suggestion.risk.risk_description}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="bg-blue-50 border border-blue-200 rounded p-2 mt-2">
+                        <p className="text-xs text-blue-900 font-medium mb-1">AI Reasoning:</p>
+                        <p className="text-xs text-blue-800">{suggestion.reasoning}</p>
+                      </div>
+
+                      <Button
+                        size="sm"
+                        className="mt-3 w-full"
+                        onClick={() => handleConfirmLink(suggestion.risk.risk_code, suggestion.confidence)}
+                        disabled={linking}
+                      >
+                        {linking && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                        Link to {suggestion.risk.risk_code}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLinkDialog(false)} disabled={linking}>
+              Cancel
             </Button>
           </DialogFooter>
         </DialogContent>
