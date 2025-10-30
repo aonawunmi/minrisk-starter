@@ -9,9 +9,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Pencil, Trash2, Loader2, Link as LinkIcon, Unlink, Sparkles, AlertCircle } from 'lucide-react';
-import { loadKRIDefinitions, createKRIDefinition, updateKRIDefinition, deleteKRIDefinition, generateNextKRICode, suggestRisksForKRI, linkKRIToRisk, unlinkKRIFromRisk, type KRIDefinition, type RiskSuggestion } from '@/lib/kri';
+import { Plus, Pencil, Trash2, Loader2, Link as LinkIcon, Unlink, Sparkles, AlertCircle, X } from 'lucide-react';
+import { loadKRIDefinitions, createKRIDefinition, updateKRIDefinition, deleteKRIDefinition, generateNextKRICode, suggestRisksForKRI, linkKRIToRisk, unlinkKRIFromRisk, getLinkedRisksForKRI, type KRIDefinition, type RiskSuggestion, type LinkedRisk } from '@/lib/kri';
 import { loadRisks, type RiskRow } from '@/lib/database';
+import { Badge } from '@/components/ui/badge';
 
 type KRIManagementProps = {
   canEdit: boolean;
@@ -32,6 +33,7 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
   const [analyzingRisks, setAnalyzingRisks] = useState(false);
   const [linkingRiskCode, setLinkingRiskCode] = useState<string | null>(null);
   const [manualRiskCode, setManualRiskCode] = useState<string>('');
+  const [linkedRisksMap, setLinkedRisksMap] = useState<Map<string, LinkedRisk[]>>(new Map());
 
   // Form state
   const [formData, setFormData] = useState({
@@ -39,7 +41,6 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
     kri_name: '',
     description: '',
     category: '',
-    linked_risk_code: '',
     indicator_type: 'lagging' as 'leading' | 'lagging' | 'concurrent',
     measurement_unit: '',
     data_source: '',
@@ -64,6 +65,20 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
       ]);
       setKris(kriData);
       setRisks(riskData);
+
+      // Load linked risks for each KRI
+      const linksMap = new Map<string, LinkedRisk[]>();
+      for (const kri of kriData) {
+        try {
+          const linkedRisks = await getLinkedRisksForKRI(kri.id);
+          if (linkedRisks.length > 0) {
+            linksMap.set(kri.id, linkedRisks);
+          }
+        } catch (error) {
+          console.error(`Failed to load linked risks for KRI ${kri.kri_code}:`, error);
+        }
+      }
+      setLinkedRisksMap(linksMap);
     } finally {
       setLoading(false);
     }
@@ -76,7 +91,6 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
       kri_name: '',
       description: '',
       category: '',
-      linked_risk_code: '',
       indicator_type: 'lagging',
       measurement_unit: '',
       data_source: '',
@@ -97,7 +111,6 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
       kri_name: kri.kri_name,
       description: kri.description || '',
       category: kri.category || '',
-      linked_risk_code: kri.linked_risk_code || '',
       indicator_type: kri.indicator_type,
       measurement_unit: kri.measurement_unit,
       data_source: kri.data_source || '',
@@ -125,7 +138,6 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
         kri_name: formData.kri_name,
         description: formData.description || undefined,
         category: formData.category || undefined,
-        linked_risk_code: formData.linked_risk_code || undefined,
         indicator_type: formData.indicator_type,
         measurement_unit: formData.measurement_unit,
         data_source: formData.data_source || undefined,
@@ -194,9 +206,21 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
     setLinkingRiskCode(riskCode);
     try {
       await linkKRIToRisk(linkingKRI.id, riskCode, confidence);
-      await loadData();
-      setShowLinkDialog(false);
+
+      // Reload linked risks for this KRI
+      const linkedRisks = await getLinkedRisksForKRI(linkingKRI.id);
+      setLinkedRisksMap(prev => new Map(prev).set(linkingKRI.id, linkedRisks));
+
+      // Re-run AI analysis to get fresh suggestions (filtering out newly linked risk)
+      setAnalyzingRisks(true);
+      const suggestions = await suggestRisksForKRI(linkingKRI);
+      setAISuggestions(suggestions);
+      setAnalyzingRisks(false);
+
+      // Clear manual selection
       setManualRiskCode('');
+
+      // DON'T close dialog - allow linking to multiple risks
     } catch (error) {
       console.error('Error linking KRI to risk:', error);
       alert('Failed to link KRI to risk');
@@ -214,24 +238,34 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
     handleConfirmLink(manualRiskCode, undefined);
   };
 
-  const handleUnlink = async (kri: KRIDefinition) => {
-    if (!confirm(`Remove link between ${kri.kri_code} and its risk?`)) {
+  const handleUnlink = async (kriId: string, riskCode: string, riskTitle: string) => {
+    if (!confirm(`Remove link to ${riskCode} (${riskTitle})?`)) {
       return;
     }
 
     try {
-      await unlinkKRIFromRisk(kri.id);
-      await loadData();
+      await unlinkKRIFromRisk(kriId, riskCode);
+
+      // Reload linked risks for this KRI
+      const linkedRisks = await getLinkedRisksForKRI(kriId);
+      if (linkedRisks.length > 0) {
+        setLinkedRisksMap(prev => new Map(prev).set(kriId, linkedRisks));
+      } else {
+        setLinkedRisksMap(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(kriId);
+          return newMap;
+        });
+      }
     } catch (error) {
       console.error('Error unlinking KRI:', error);
       alert('Failed to unlink KRI');
     }
   };
 
-  // Helper to get linked risk for a KRI
-  const getLinkedRisk = (kri: KRIDefinition): RiskRow | undefined => {
-    if (!kri.linked_risk_code) return undefined;
-    return risks.find(r => r.risk_code === kri.linked_risk_code);
+  // Helper to get linked risks for a KRI
+  const getLinkedRisks = (kri: KRIDefinition): LinkedRisk[] => {
+    return linkedRisksMap.get(kri.id) || [];
   };
 
   if (loading) {
@@ -263,7 +297,7 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
           ) : (
             <div className="space-y-2">
               {kris.map((kri) => {
-                const linkedRisk = risks.find(r => r.risk_code === kri.linked_risk_code);
+                const linkedRisks = getLinkedRisks(kri);
                 return (
                   <div key={kri.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
                     <div className="flex-1">
@@ -275,41 +309,41 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
                         <span>Frequency: {kri.collection_frequency}</span>
                         <span>Unit: {kri.measurement_unit}</span>
                       </div>
-                      {linkedRisk && (
-                        <div className="mt-2 flex items-center gap-2 text-xs">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-medium">
-                            <LinkIcon className="h-3 w-3" />
-                            Linked to: {linkedRisk.risk_code} - {linkedRisk.risk_title}
-                          </span>
-                          {kri.ai_link_confidence && (
-                            <span className="text-gray-500">
-                              ({kri.ai_link_confidence}% confidence)
-                            </span>
-                          )}
+                      {linkedRisks.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {linkedRisks.map((linkedRisk) => (
+                            <Badge
+                              key={linkedRisk.risk_code}
+                              variant="outline"
+                              className="bg-blue-50 text-blue-800 border-blue-200 text-xs"
+                            >
+                              <LinkIcon className="h-3 w-3 mr-1 inline" />
+                              {linkedRisk.risk_code}: {linkedRisk.risk_title}
+                              {linkedRisk.ai_link_confidence && ` (${linkedRisk.ai_link_confidence}%)`}
+                              {canEdit && (
+                                <button
+                                  onClick={() => handleUnlink(kri.id, linkedRisk.risk_code, linkedRisk.risk_title)}
+                                  className="ml-1 hover:text-red-600"
+                                  title="Unlink"
+                                >
+                                  <X className="h-3 w-3 inline" />
+                                </button>
+                              )}
+                            </Badge>
+                          ))}
                         </div>
                       )}
                     </div>
                     {canEdit && (
                       <div className="flex gap-2">
-                        {kri.linked_risk_code ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleUnlink(kri)}
-                            title="Unlink from risk"
-                          >
-                            <Unlink className="h-4 w-4" />
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleLinkToRisk(kri)}
-                            title="Link to risk with AI"
-                          >
-                            <Sparkles className="h-4 w-4 text-purple-500" />
-                          </Button>
-                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleLinkToRisk(kri)}
+                          title="Link to more risks with AI"
+                        >
+                          <Sparkles className="h-4 w-4 text-purple-500" />
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => handleEdit(kri)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -508,6 +542,31 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {/* Currently Linked Risks */}
+            {linkingKRI && getLinkedRisks(linkingKRI).length > 0 && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <p className="text-sm text-green-900 font-medium mb-2">✅ Currently Linked Risks ({getLinkedRisks(linkingKRI).length})</p>
+                <div className="flex flex-wrap gap-1">
+                  {getLinkedRisks(linkingKRI).map((linkedRisk) => (
+                    <Badge
+                      key={linkedRisk.risk_code}
+                      variant="outline"
+                      className="bg-green-100 text-green-800 border-green-300 text-xs"
+                    >
+                      {linkedRisk.risk_code}: {linkedRisk.risk_title}
+                      <button
+                        onClick={() => handleUnlink(linkingKRI.id, linkedRisk.risk_code, linkedRisk.risk_title)}
+                        className="ml-1 hover:text-red-600"
+                        title="Unlink"
+                      >
+                        <X className="h-3 w-3 inline" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {analyzingRisks ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-purple-500 mb-3" />
@@ -593,11 +652,17 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
                         <SelectValue placeholder="Choose a risk to link..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {risks.map((risk) => (
-                          <SelectItem key={risk.risk_code} value={risk.risk_code}>
-                            {risk.risk_code}: {risk.risk_title}
-                          </SelectItem>
-                        ))}
+                        {risks
+                          .filter(risk => {
+                            if (!linkingKRI) return true;
+                            const linked = linkedRisksMap.get(linkingKRI.id) || [];
+                            return !linked.some(lr => lr.risk_code === risk.risk_code);
+                          })
+                          .map((risk) => (
+                            <SelectItem key={risk.risk_code} value={risk.risk_code}>
+                              {risk.risk_code}: {risk.risk_title}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>

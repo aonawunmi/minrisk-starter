@@ -29,11 +29,24 @@ export type KRIDefinition = {
   created_at: string;
   updated_at: string;
   created_by?: string;
-  // AI-powered risk linking fields
-  linked_risk_code?: string | null;
+};
+
+export type KRIRiskLink = {
+  id: string;
+  kri_id: string;
+  risk_code: string;
+  organization_id: string;
   ai_link_confidence?: number | null;
-  linked_at?: string | null;
+  linked_at: string;
   linked_by?: string | null;
+  created_at: string;
+};
+
+export type LinkedRisk = {
+  risk_code: string;
+  risk_title: string;
+  ai_link_confidence?: number | null;
+  linked_at: string;
 };
 
 export type KRIDataEntry = {
@@ -874,9 +887,20 @@ export async function suggestRisksForKRI(kri: KRIDefinition): Promise<RiskSugges
   console.log('🤖 suggestRisksForKRI: Analyzing KRI:', kri.kri_code);
 
   // Load all risks
-  const risks = await loadRisks();
-  if (risks.length === 0) {
+  const allRisks = await loadRisks();
+  if (allRisks.length === 0) {
     console.log('⚠️ No risks found in register');
+    return [];
+  }
+
+  // Get already-linked risks to filter them out
+  const linkedRisks = await getLinkedRisksForKRI(kri.id);
+  const linkedRiskCodes = new Set(linkedRisks.map(lr => lr.risk_code));
+
+  // Filter to only unlinked risks
+  const risks = allRisks.filter(r => !linkedRiskCodes.has(r.risk_code));
+  if (risks.length === 0) {
+    console.log('⚠️ All risks already linked to this KRI');
     return [];
   }
 
@@ -951,29 +975,34 @@ If no good matches exist, return an empty array: []`;
 }
 
 /**
- * Link a KRI to a risk
+ * Link a KRI to a risk (many-to-many)
  */
 export async function linkKRIToRisk(
   kriId: string,
   riskCode: string,
   confidence?: number
-): Promise<KRIDefinition> {
+): Promise<KRIRiskLink> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     throw new Error('User not authenticated');
   }
 
+  const orgId = await getUserOrganizationId();
+  if (!orgId) {
+    throw new Error('No organization found for user');
+  }
+
   console.log('🔗 linkKRIToRisk: Linking KRI', kriId, 'to risk', riskCode);
 
   const { data, error } = await supabase
-    .from('kri_definitions')
-    .update({
-      linked_risk_code: riskCode,
+    .from('kri_risk_links')
+    .insert({
+      kri_id: kriId,
+      risk_code: riskCode,
+      organization_id: orgId,
       ai_link_confidence: confidence,
-      linked_at: new Date().toISOString(),
       linked_by: user.id,
     })
-    .eq('id', kriId)
     .select()
     .single();
 
@@ -987,30 +1016,60 @@ export async function linkKRIToRisk(
 }
 
 /**
- * Unlink a KRI from its risk
+ * Unlink a KRI from a specific risk
  */
-export async function unlinkKRIFromRisk(kriId: string): Promise<KRIDefinition> {
-  console.log('🔓 unlinkKRIFromRisk: Unlinking KRI', kriId);
+export async function unlinkKRIFromRisk(kriId: string, riskCode: string): Promise<void> {
+  console.log('🔓 unlinkKRIFromRisk: Unlinking KRI', kriId, 'from risk', riskCode);
 
-  const { data, error } = await supabase
-    .from('kri_definitions')
-    .update({
-      linked_risk_code: null,
-      ai_link_confidence: null,
-      linked_at: null,
-      linked_by: null,
-    })
-    .eq('id', kriId)
-    .select()
-    .single();
+  const { error } = await supabase
+    .from('kri_risk_links')
+    .delete()
+    .eq('kri_id', kriId)
+    .eq('risk_code', riskCode);
 
   if (error) {
     console.error('❌ unlinkKRIFromRisk: Error:', error);
     throw new Error(`Failed to unlink KRI from risk: ${error.message}`);
   }
 
-  console.log('✅ unlinkKRIFromRisk: KRI unlinked');
-  return data;
+  console.log('✅ unlinkKRIFromRisk: KRI unlinked from risk');
+}
+
+/**
+ * Unlink a KRI from ALL risks
+ */
+export async function unlinkKRIFromAllRisks(kriId: string): Promise<void> {
+  console.log('🔓 unlinkKRIFromAllRisks: Unlinking KRI', kriId, 'from all risks');
+
+  const { error } = await supabase
+    .from('kri_risk_links')
+    .delete()
+    .eq('kri_id', kriId);
+
+  if (error) {
+    console.error('❌ unlinkKRIFromAllRisks: Error:', error);
+    throw new Error(`Failed to unlink KRI from all risks: ${error.message}`);
+  }
+
+  console.log('✅ unlinkKRIFromAllRisks: KRI unlinked from all risks');
+}
+
+/**
+ * Get all risks linked to a KRI
+ */
+export async function getLinkedRisksForKRI(kriId: string): Promise<LinkedRisk[]> {
+  console.log('🔍 getLinkedRisksForKRI: Loading linked risks for KRI:', kriId);
+
+  const { data, error } = await supabase
+    .rpc('get_linked_risks_for_kri', { p_kri_id: kriId });
+
+  if (error) {
+    console.error('❌ getLinkedRisksForKRI: Error:', error);
+    throw new Error(`Failed to load linked risks: ${error.message}`);
+  }
+
+  console.log(`✅ getLinkedRisksForKRI: Found ${data?.length || 0} linked risks`);
+  return data || [];
 }
 
 /**
@@ -1069,19 +1128,25 @@ export async function getKRIsForRisk(riskCode: string): Promise<KRIDefinition[]>
 
   console.log('🔍 getKRIsForRisk: Loading KRIs for risk:', riskCode);
 
+  // Join through the junction table
   const { data, error } = await supabase
-    .from('kri_definitions')
-    .select('*')
-    .eq('organization_id', orgId)
-    .eq('linked_risk_code', riskCode)
-    .eq('enabled', true)
-    .order('kri_code', { ascending: true });
+    .from('kri_risk_links')
+    .select(`
+      kri_definitions!inner(*)
+    `)
+    .eq('risk_code', riskCode)
+    .eq('organization_id', orgId);
 
   if (error) {
     console.error('❌ getKRIsForRisk: Error:', error);
     throw new Error(`Failed to load KRIs for risk: ${error.message}`);
   }
 
-  console.log(`✅ getKRIsForRisk: Found ${data?.length || 0} linked KRIs`);
-  return data || [];
+  // Extract KRI definitions from joined data
+  const kris = data?.map(link => (link as any).kri_definitions).filter((k): k is KRIDefinition =>
+    k !== null && k.enabled === true
+  ) || [];
+
+  console.log(`✅ getKRIsForRisk: Found ${kris.length} linked KRIs`);
+  return kris;
 }
