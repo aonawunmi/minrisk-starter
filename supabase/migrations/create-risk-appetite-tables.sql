@@ -211,7 +211,7 @@ BEGIN
       END as effectiveness
     FROM controls c
     WHERE c.risk_id IN (
-      SELECT id FROM risks WHERE organization_id = org_id AND deleted_at IS NULL AND archived_at IS NULL
+      SELECT id FROM risks WHERE organization_id = org_id
     )
   ),
   max_reductions AS (
@@ -240,8 +240,6 @@ BEGIN
       AND ra.effective_from <= CURRENT_DATE
       AND (ra.effective_to IS NULL OR ra.effective_to >= CURRENT_DATE)
     WHERE r.organization_id = org_id
-      AND r.deleted_at IS NULL
-      AND r.archived_at IS NULL
   )
   SELECT
     COUNT(*)::INTEGER as total_risks,
