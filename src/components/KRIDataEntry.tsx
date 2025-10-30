@@ -69,7 +69,8 @@ export function KRIDataEntry() {
 
     setSaving(true);
     try {
-      await createKRIDataEntry(selectedKRI, {
+      await createKRIDataEntry({
+        kri_id: selectedKRI,
         measurement_date: formData.measurement_date,
         measurement_value: parseFloat(formData.measurement_value),
         notes: formData.notes || undefined,
