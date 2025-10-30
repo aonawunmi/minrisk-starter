@@ -179,6 +179,56 @@ A: No. Once accepted, alerts become part of your audit trail. You can only delet
 - Show trends in external threats
 - Document risk landscape changes
 
+## NEW: User-Level Data Isolation
+
+### What Is It?
+
+User-level data isolation ensures that each user only sees and manages their own risks and related alerts. Admin users have special privileges to view all organizational data.
+
+### How It Works
+
+**Regular Users:**
+- See only risks they created/own
+- Only get alerts for their own risks
+- Cannot view or modify other users' risks
+- Risk analysis uses only their personal risk portfolio
+
+**Admin Users:**
+- View ALL organizational risks (cross-user visibility)
+- See alerts for all organizational risks
+- Can review all user data for oversight
+- Risk analysis includes all organizational risks
+
+### Where It Applies
+
+**Risk Register:**
+- Users see only their own risks
+- Admins see all organizational risks
+
+**Intelligence Monitor:**
+- Alerts filtered by risk ownership
+- Users get alerts only for their risks
+- Admins get alerts for all org risks
+
+**News Analysis:**
+- AI analyzes news against user's risk portfolio
+- Admins get analysis against full organizational portfolio
+- External events (news) are org-wide (everyone sees same news)
+
+### Why This Matters
+
+1. **Data Privacy**: Users work independently without seeing each other's data
+2. **Focused View**: Users only see relevant risks for their area
+3. **Admin Oversight**: Admins can monitor org-wide risk landscape
+4. **Proper Attribution**: Clear ownership of risks and decisions
+
+### Technical Details
+
+- Filtering happens at database level (secure)
+- Backend API enforces role-based access
+- Frontend UI adapts to user role automatically
+- All changes logged with user attribution
+
 ## Need Help?
 
 - Check `INTELLIGENCE-UPGRADES-COMPLETE.md` for technical details
@@ -187,6 +237,6 @@ A: No. Once accepted, alerts become part of your audit trail. You can only delet
 
 ---
 
-**Version:** 1.0
-**Last Updated:** 2025-10-28
+**Version:** 1.1
+**Last Updated:** 2025-10-29
 **Related Documents:** INTELLIGENCE-UPGRADES-COMPLETE.md, INTELLIGENCE-SYSTEM-STATUS.md

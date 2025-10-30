@@ -79,6 +79,22 @@
 - [x] Help documentation updated with VaR section
 - [x] Deployed to production
 
+### 9. User-Level Data Isolation (Phase 4)
+- [x] Admin cross-user visibility for Risk Register
+- [x] User-level filtering for regular users (own risks only)
+- [x] Admin role logic in database.ts (loadRisks function)
+- [x] User-level filtering for Intelligence Alerts
+- [x] Admin cross-user visibility for alerts (org-wide)
+- [x] Backend API admin role filtering (api/scan-news.js)
+- [x] Fixed admin 500 error with no personal risks
+- [x] Safe user ID extraction in backend
+- [x] Removed large response payload issues
+- [x] Alert persistence after news analysis
+- [x] Role-based news analysis (admins analyze org-wide risks)
+- [x] Help documentation updated (HELP-INTELLIGENCE-UPGRADES.md)
+- [x] Debugging logs added for troubleshooting
+- [x] Deployed to production
+
 ---
 
 ## 🔲 Remaining Tasks
@@ -282,7 +298,17 @@ Implement a "Commit" button in the risk register interface for risk managers to 
 - Comprehensive results display
 - **Status:** 100% complete, tested, in production
 
-### 🔮 Phase 4 - FUTURE
+### ✅ Phase 4 - User-Level Data Isolation - COMPLETE (Deployed to Production)
+- Admin cross-user visibility for risks and alerts
+- User-level filtering (users see only their own data)
+- Backend API role-based filtering
+- Fixed admin 500 errors with no personal risks
+- Alert persistence and proper role detection
+- News analysis against org-wide risks for admins
+- Debugging logs for troubleshooting
+- **Status:** 100% complete, tested, in production
+
+### 🔮 Phase 5 - FUTURE
 - User risk transfer
 - Risk score migration tool
 - Email notifications
