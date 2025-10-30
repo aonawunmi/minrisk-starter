@@ -30,7 +30,7 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
   const [linkingKRI, setLinkingKRI] = useState<KRIDefinition | null>(null);
   const [aiSuggestions, setAISuggestions] = useState<RiskSuggestion[]>([]);
   const [analyzingRisks, setAnalyzingRisks] = useState(false);
-  const [linking, setLinking] = useState(false);
+  const [linkingRiskCode, setLinkingRiskCode] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -186,19 +186,19 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
     }
   };
 
-  const handleConfirmLink = async (riskId: string, confidence: number) => {
+  const handleConfirmLink = async (riskCode: string, confidence: number) => {
     if (!linkingKRI) return;
 
-    setLinking(true);
+    setLinkingRiskCode(riskCode);
     try {
-      await linkKRIToRisk(linkingKRI.id, riskId, confidence);
+      await linkKRIToRisk(linkingKRI.id, riskCode, confidence);
       await loadData();
       setShowLinkDialog(false);
     } catch (error) {
       console.error('Error linking KRI to risk:', error);
       alert('Failed to link KRI to risk');
     } finally {
-      setLinking(false);
+      setLinkingRiskCode(null);
     }
   };
 
@@ -558,9 +558,9 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
                         size="sm"
                         className="mt-3 w-full"
                         onClick={() => handleConfirmLink(suggestion.risk.risk_code, suggestion.confidence)}
-                        disabled={linking}
+                        disabled={linkingRiskCode !== null}
                       >
-                        {linking && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                        {linkingRiskCode === suggestion.risk.risk_code && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
                         Link to {suggestion.risk.risk_code}
                       </Button>
                     </div>
@@ -571,7 +571,7 @@ export function KRIManagement({ canEdit }: KRIManagementProps) {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowLinkDialog(false)} disabled={linking}>
+            <Button variant="outline" onClick={() => setShowLinkDialog(false)} disabled={linkingRiskCode !== null}>
               Cancel
             </Button>
           </DialogFooter>
