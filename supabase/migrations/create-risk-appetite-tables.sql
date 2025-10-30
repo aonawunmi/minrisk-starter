@@ -177,6 +177,12 @@ CREATE POLICY "System can insert history"
   ON risk_appetite_history FOR INSERT
   WITH CHECK (true); -- Will be called by backend service
 
+-- RLS Policy: System can update history records (for ON CONFLICT DO UPDATE)
+CREATE POLICY "System can update history"
+  ON risk_appetite_history FOR UPDATE
+  USING (true)
+  WITH CHECK (true);
+
 -- =====================================================
 -- FUNCTION: Calculate Appetite Utilization
 -- Purpose: Calculate how much of risk appetite is being utilized
@@ -189,7 +195,9 @@ RETURNS TABLE (
   risks_over_appetite INTEGER,
   avg_score DECIMAL(5,2),
   utilization DECIMAL(5,2)
-) AS $$
+)
+SECURITY DEFINER
+AS $$
 BEGIN
   RETURN QUERY
   WITH control_effectiveness AS (
@@ -254,7 +262,9 @@ $$ LANGUAGE plpgsql;
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION generate_appetite_snapshot(org_id UUID)
-RETURNS VOID AS $$
+RETURNS VOID
+SECURITY DEFINER
+AS $$
 DECLARE
   v_total INTEGER;
   v_within INTEGER;

@@ -1,33 +1,50 @@
--- KRI (Key Risk Indicators) Module
--- ISO 31000 compliant KRI tracking and monitoring system
+-- =====================================================
+-- PHASE 5B: KEY RISK INDICATORS (KRI) MODULE
+-- Clean Migration: Drop and Recreate KRI Tables
+-- Created: 2025-10-30
+-- =====================================================
 
+-- Drop existing KRI tables if they exist (in correct order due to foreign keys)
+DROP TABLE IF EXISTS kri_comments CASCADE;
+DROP TABLE IF EXISTS kri_alerts CASCADE;
+DROP TABLE IF EXISTS kri_data_entries CASCADE;
+DROP TABLE IF EXISTS kri_definitions CASCADE;
+
+-- Drop existing functions
+DROP FUNCTION IF EXISTS create_kri_alert_on_breach() CASCADE;
+DROP FUNCTION IF EXISTS auto_calculate_kri_alert_status() CASCADE;
+DROP FUNCTION IF EXISTS calculate_kri_alert_status(UUID, NUMERIC) CASCADE;
+DROP FUNCTION IF EXISTS update_kri_definitions_updated_at() CASCADE;
+
+-- =====================================================
 -- KRI Definitions Table
 -- Stores metadata for each Key Risk Indicator
-CREATE TABLE IF NOT EXISTS kri_definitions (
+-- =====================================================
+CREATE TABLE kri_definitions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id UUID NOT NULL REFERENCES organizations(organization_id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
 
   -- Basic Information
-  kri_code TEXT NOT NULL, -- e.g., "KRI-001"
+  kri_code TEXT NOT NULL,
   kri_name TEXT NOT NULL,
   description TEXT,
 
   -- Classification
-  risk_category TEXT, -- Links to risk categories
-  linked_risk_code TEXT, -- Optional link to specific risk
-  indicator_type TEXT NOT NULL, -- 'leading', 'lagging', 'concurrent'
-  measurement_unit TEXT NOT NULL, -- e.g., '%', 'count', 'days', 'USD'
+  category TEXT,
+  linked_risk_code TEXT,
+  indicator_type TEXT NOT NULL,
+  measurement_unit TEXT NOT NULL,
 
   -- Data Collection
-  data_source TEXT, -- Where the data comes from
-  collection_frequency TEXT NOT NULL, -- 'daily', 'weekly', 'monthly', 'quarterly', 'annually'
-  responsible_user TEXT, -- Email of person responsible for data entry
+  data_source TEXT,
+  collection_frequency TEXT NOT NULL,
+  responsible_user TEXT,
 
   -- Thresholds
-  target_value NUMERIC, -- Ideal/target value
-  lower_threshold NUMERIC, -- Below this = yellow alert
-  upper_threshold NUMERIC, -- Above this = red alert
-  threshold_direction TEXT NOT NULL DEFAULT 'above', -- 'above', 'below', 'between' - which direction triggers alert
+  target_value NUMERIC,
+  lower_threshold NUMERIC,
+  upper_threshold NUMERIC,
+  threshold_direction TEXT NOT NULL DEFAULT 'above',
 
   -- Status
   enabled BOOLEAN DEFAULT true,
@@ -40,12 +57,14 @@ CREATE TABLE IF NOT EXISTS kri_definitions (
   UNIQUE(organization_id, kri_code)
 );
 
+-- =====================================================
 -- KRI Data Entries Table
 -- Time-series data for KRI measurements
-CREATE TABLE IF NOT EXISTS kri_data_entries (
+-- =====================================================
+CREATE TABLE kri_data_entries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   kri_id UUID NOT NULL REFERENCES kri_definitions(id) ON DELETE CASCADE,
-  organization_id UUID NOT NULL REFERENCES organizations(organization_id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
 
   -- Measurement Data
   measurement_date DATE NOT NULL,
@@ -53,10 +72,10 @@ CREATE TABLE IF NOT EXISTS kri_data_entries (
 
   -- Context
   notes TEXT,
-  data_quality TEXT, -- 'verified', 'estimated', 'provisional'
+  data_quality TEXT,
 
   -- Alert Status (calculated)
-  alert_status TEXT, -- 'green', 'yellow', 'red', null
+  alert_status TEXT,
 
   -- Metadata
   entered_at TIMESTAMPTZ DEFAULT now(),
@@ -65,22 +84,24 @@ CREATE TABLE IF NOT EXISTS kri_data_entries (
   UNIQUE(kri_id, measurement_date)
 );
 
+-- =====================================================
 -- KRI Alerts Table
 -- Tracks threshold breaches and alert notifications
-CREATE TABLE IF NOT EXISTS kri_alerts (
+-- =====================================================
+CREATE TABLE kri_alerts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   kri_id UUID NOT NULL REFERENCES kri_definitions(id) ON DELETE CASCADE,
   data_entry_id UUID REFERENCES kri_data_entries(id) ON DELETE CASCADE,
-  organization_id UUID NOT NULL REFERENCES organizations(organization_id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
 
   -- Alert Details
-  alert_level TEXT NOT NULL, -- 'yellow', 'red'
+  alert_level TEXT NOT NULL,
   alert_date DATE NOT NULL,
   measured_value NUMERIC NOT NULL,
   threshold_breached NUMERIC NOT NULL,
 
   -- Status
-  status TEXT DEFAULT 'open', -- 'open', 'acknowledged', 'resolved', 'dismissed'
+  status TEXT DEFAULT 'open',
   acknowledged_by TEXT,
   acknowledged_at TIMESTAMPTZ,
   resolution_notes TEXT,
@@ -90,37 +111,43 @@ CREATE TABLE IF NOT EXISTS kri_alerts (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- =====================================================
 -- KRI Comments Table
 -- Discussion and notes on KRIs
-CREATE TABLE IF NOT EXISTS kri_comments (
+-- =====================================================
+CREATE TABLE kri_comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   kri_id UUID NOT NULL REFERENCES kri_definitions(id) ON DELETE CASCADE,
-  organization_id UUID NOT NULL REFERENCES organizations(organization_id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
 
   comment_text TEXT NOT NULL,
   created_by TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- =====================================================
 -- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_kri_definitions_org ON kri_definitions(organization_id);
-CREATE INDEX IF NOT EXISTS idx_kri_definitions_category ON kri_definitions(risk_category);
-CREATE INDEX IF NOT EXISTS idx_kri_definitions_enabled ON kri_definitions(enabled);
+-- =====================================================
+CREATE INDEX idx_kri_definitions_org ON kri_definitions(organization_id);
+CREATE INDEX idx_kri_definitions_category ON kri_definitions(category);
+CREATE INDEX idx_kri_definitions_enabled ON kri_definitions(enabled);
 
-CREATE INDEX IF NOT EXISTS idx_kri_data_entries_kri ON kri_data_entries(kri_id);
-CREATE INDEX IF NOT EXISTS idx_kri_data_entries_org ON kri_data_entries(organization_id);
-CREATE INDEX IF NOT EXISTS idx_kri_data_entries_date ON kri_data_entries(measurement_date);
-CREATE INDEX IF NOT EXISTS idx_kri_data_entries_alert_status ON kri_data_entries(alert_status);
+CREATE INDEX idx_kri_data_entries_kri ON kri_data_entries(kri_id);
+CREATE INDEX idx_kri_data_entries_org ON kri_data_entries(organization_id);
+CREATE INDEX idx_kri_data_entries_date ON kri_data_entries(measurement_date);
+CREATE INDEX idx_kri_data_entries_alert_status ON kri_data_entries(alert_status);
 
-CREATE INDEX IF NOT EXISTS idx_kri_alerts_kri ON kri_alerts(kri_id);
-CREATE INDEX IF NOT EXISTS idx_kri_alerts_org ON kri_alerts(organization_id);
-CREATE INDEX IF NOT EXISTS idx_kri_alerts_status ON kri_alerts(status);
-CREATE INDEX IF NOT EXISTS idx_kri_alerts_level ON kri_alerts(alert_level);
-CREATE INDEX IF NOT EXISTS idx_kri_alerts_date ON kri_alerts(alert_date);
+CREATE INDEX idx_kri_alerts_kri ON kri_alerts(kri_id);
+CREATE INDEX idx_kri_alerts_org ON kri_alerts(organization_id);
+CREATE INDEX idx_kri_alerts_status ON kri_alerts(status);
+CREATE INDEX idx_kri_alerts_level ON kri_alerts(alert_level);
+CREATE INDEX idx_kri_alerts_date ON kri_alerts(alert_date);
 
-CREATE INDEX IF NOT EXISTS idx_kri_comments_kri ON kri_comments(kri_id);
+CREATE INDEX idx_kri_comments_kri ON kri_comments(kri_id);
 
+-- =====================================================
 -- Row Level Security (RLS) Policies
+-- =====================================================
 ALTER TABLE kri_definitions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kri_data_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kri_alerts ENABLE ROW LEVEL SECURITY;
@@ -237,6 +264,10 @@ CREATE POLICY "Users can insert KRI comments"
       SELECT organization_id FROM user_profiles WHERE id = auth.uid()
     )
   );
+
+-- =====================================================
+-- Functions and Triggers
+-- =====================================================
 
 -- Trigger to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_kri_definitions_updated_at()
@@ -374,3 +405,7 @@ CREATE TRIGGER kri_data_entry_create_alert
   AFTER INSERT OR UPDATE ON kri_data_entries
   FOR EACH ROW
   EXECUTE FUNCTION create_kri_alert_on_breach();
+
+-- =====================================================
+-- MIGRATION COMPLETE
+-- =====================================================
