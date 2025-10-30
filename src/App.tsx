@@ -836,12 +836,7 @@ export default function MinRiskLatest() {
 
             <TabsContent value="register">
                 <RiskRegisterTabGroup
-                    risks={processedData}
-                    config={config}
                     canEdit={canEdit}
-                    onEditRisk={setEditingRisk}
-                    onDeleteRisk={remove}
-                    onToggleArchive={(risk) => {}}
                     RiskRegisterContent={
                         <RiskRegisterTab sortedData={sortedData} rowCount={filtered.length} requestSort={requestSort} onAdd={add} onEdit={setEditingRisk} onRemove={remove} config={config} rows={filtered} allRows={rows} priorityRisks={priorityRisks} setPriorityRisks={setPriorityRisks} canEdit={canEdit} filters={filters} setFilters={setFilters} isAdmin={isAdmin} />
                     }
