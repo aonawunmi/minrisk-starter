@@ -29,6 +29,7 @@ const IncidentLogTab = React.lazy(() => import("@/components/incidents/IncidentL
 import { IntelligenceDashboard } from "@/components/intelligence/IntelligenceDashboard";
 import { loadRisks, createRisk, updateRisk, deleteRisk, loadConfig, saveConfig as saveConfigToDb } from '@/lib/database';
 import { loadIncidents, type Incident } from '@/lib/incidents';
+import { loadAppetiteCategories, type RiskAppetiteCategory } from '@/lib/risk-appetite';
 import { DashboardTab } from '@/components/DashboardTab';
 import { RiskRegisterTabGroup } from '@/components/RiskRegisterTabGroup';
 import { AnalyticsTabGroup } from '@/components/AnalyticsTabGroup';
@@ -990,6 +991,26 @@ export default function MinRiskLatest() {
 function RiskRegisterTab({ sortedData, rowCount, requestSort, onAdd, onEdit, onRemove, config, rows, allRows, priorityRisks, setPriorityRisks, canEdit, filters, setFilters, isAdmin }: { sortedData: ProcessedRisk[]; rowCount: number; requestSort: (key: keyof ProcessedRisk) => void; onAdd: (r: Omit<RiskRow, 'risk_code'>) => void; onEdit: (risk: ProcessedRisk) => void; onRemove: (code: string) => void; config: AppConfig; rows: RiskRow[]; allRows: RiskRow[]; priorityRisks: Set<string>; setPriorityRisks: React.Dispatch<React.SetStateAction<Set<string>>>; canEdit: boolean; filters: { divisions: string[]; departments: string[]; categories: string[]; statuses: string[]; users: string[]; periods: string[] }; setFilters: React.Dispatch<React.SetStateAction<{ divisions: string[]; departments: string[]; categories: string[]; statuses: string[]; users: string[]; periods: string[] }>>; isAdmin: boolean }) {
     const [showBulkDelete, setShowBulkDelete] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    const [appetiteCategories, setAppetiteCategories] = useState<RiskAppetiteCategory[]>([]);
+
+    // Load Risk Appetite categories
+    useEffect(() => {
+        loadAppetiteCategories().then(setAppetiteCategories).catch(err => {
+            console.error('Failed to load appetite categories:', err);
+        });
+    }, []);
+
+    // Check if risk exceeds appetite
+    const checkAppetiteStatus = (risk: ProcessedRisk): { exceeds: boolean; category?: RiskAppetiteCategory } => {
+        const category = appetiteCategories.find(cat =>
+            cat.risk_category === risk.category && cat.enabled
+        );
+        if (!category) return { exceeds: false };
+        return {
+            exceeds: risk.residual_score > category.appetite_threshold,
+            category
+        };
+    };
 
     // Always show all sorted data - priority checkboxes are just for marking/selection
     // Apply search filter
@@ -1155,6 +1176,7 @@ return (
                   </Button>
                 </th>
                 <th className="px-3 py-2 text-left font-semibold text-gray-700">Bucket (Res)</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">Appetite</th>
                 <th className="px-3 py-2 text-left font-semibold text-gray-700">Status</th>
                 <th className="px-3 py-2 text-center font-semibold text-gray-700">Incidents</th>
                 {isAdmin && (
@@ -1196,6 +1218,27 @@ return (
                       <span className={`px-2 py-1 rounded-full text-xs ${bgColorClass} ${textColor}`}>
                         {tag}
                       </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      {(() => {
+                        const appetiteStatus = checkAppetiteStatus(r);
+                        if (!appetiteStatus.category) {
+                          return <span className="text-gray-400 text-xs">-</span>;
+                        }
+                        if (appetiteStatus.exceeds) {
+                          return (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              <AlertTriangle className="mr-1 h-3 w-3" />
+                              Exceeds
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Within
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-3 py-2">{r.status}</td>
                     <td className="px-3 py-2 text-center">
