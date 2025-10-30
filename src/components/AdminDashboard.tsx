@@ -13,6 +13,8 @@ import ArchiveManagement from './ArchiveManagement';
 import AuditTrail from './AuditTrail';
 import HelpTab from './HelpTab';
 import { VarScaleConfig } from './VarScaleConfig';
+import AppetiteConfigManager from './risk-appetite/AppetiteConfigManager';
+import AppetiteDashboard from './risk-appetite/AppetiteDashboard';
 import type { AppConfig } from '../App';
 
 type UserData = {
@@ -247,10 +249,14 @@ export default function AdminDashboard({ config, showToast }: AdminDashboardProp
 
   return (
     <Tabs defaultValue="users" className="space-y-6">
-      <TabsList className="grid w-full grid-cols-5 max-w-3xl">
+      <TabsList className="grid w-full grid-cols-6 max-w-4xl">
         <TabsTrigger value="users">
           <Users className="h-4 w-4 mr-2" />
           Users
+        </TabsTrigger>
+        <TabsTrigger value="appetite">
+          <Shield className="h-4 w-4 mr-2" />
+          Risk Appetite
         </TabsTrigger>
         <TabsTrigger value="var_config">
           <TrendingUp className="h-4 w-4 mr-2" />
@@ -550,6 +556,23 @@ export default function AdminDashboard({ config, showToast }: AdminDashboardProp
           </div>
         </CardContent>
       </Card>
+      </TabsContent>
+
+      <TabsContent value="appetite" className="space-y-6">
+        <Tabs defaultValue="config">
+          <TabsList>
+            <TabsTrigger value="config">Configuration</TabsTrigger>
+            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="config">
+            <AppetiteConfigManager config={config} showToast={showToast} />
+          </TabsContent>
+
+          <TabsContent value="dashboard">
+            <AppetiteDashboard showToast={showToast} />
+          </TabsContent>
+        </Tabs>
       </TabsContent>
 
       <TabsContent value="archive">
