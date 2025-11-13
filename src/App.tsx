@@ -862,19 +862,19 @@ export default function MinRiskLatest() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="mb-4">
-                {!isSuperAdmin && <TabsTrigger value="dashboard">📊 Dashboard</TabsTrigger>}
-                {!isSuperAdmin && <TabsTrigger value="register">📋 Risk Register</TabsTrigger>}
-                {!isSuperAdmin && <TabsTrigger value="analytics">📈 Analytics & Reports</TabsTrigger>}
-                {!isSuperAdmin && isAdmin && (
+                <TabsTrigger value="dashboard">📊 Dashboard</TabsTrigger>
+                <TabsTrigger value="register">📋 Risk Register</TabsTrigger>
+                <TabsTrigger value="analytics">📈 Analytics & Reports</TabsTrigger>
+                {isAdmin && (
                   <TabsTrigger value="reports">
                     <FileText className="mr-2 h-4 w-4" />
                     ERM Reports
                   </TabsTrigger>
                 )}
-                {!isSuperAdmin && <TabsTrigger value="operations">🚨 Operations</TabsTrigger>}
-                {!isSuperAdmin && <TabsTrigger value="kri">📉 KRI Monitoring</TabsTrigger>}
-                {!isSuperAdmin && <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger>}
-                {!isSuperAdmin && isAdmin && <TabsTrigger value="admin">⚙️ Admin</TabsTrigger>}
+                <TabsTrigger value="operations">🚨 Operations</TabsTrigger>
+                <TabsTrigger value="kri">📉 KRI Monitoring</TabsTrigger>
+                <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger>
+                {(isAdmin || isSuperAdmin) && <TabsTrigger value="admin">⚙️ Admin</TabsTrigger>}
                 {isSuperAdmin && <TabsTrigger value="superadmin">🛡️ Super Admin</TabsTrigger>}
             </TabsList>
 

@@ -318,10 +318,10 @@ export async function loadRisks(): Promise<RiskRow[]> {
     return [];
   }
 
-  // Get user profile to check role
+  // Get user profile to check role and Super Admin status
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('role, organization_id')
+    .select('role, organization_id, is_super_admin')
     .eq('id', user.id)
     .single();
 
@@ -330,17 +330,22 @@ export async function loadRisks(): Promise<RiskRow[]> {
     return [];
   }
 
-  const isAdmin = profile.role === 'admin';
+  const isSuperAdmin = profile.is_super_admin === true;
+  const isAdmin = profile.role === 'primary_admin' || profile.role === 'secondary_admin' || profile.role === 'admin';
 
+  // SUPER ADMIN: Load ALL risks from ALL organizations (consolidated read-only view)
   // ADMIN: Load ALL risks for organization (cross-user visibility)
   // REGULAR USER: Load ONLY their own risks (user-level isolation)
-  console.log(`📡 Fetching risks from Supabase for user ${user.id} (${isAdmin ? 'ADMIN - org-wide' : 'USER - personal only'})...`);
+  console.log(`📡 Fetching risks from Supabase for user ${user.id} (${isSuperAdmin ? 'SUPER ADMIN - all orgs' : isAdmin ? 'ADMIN - org-wide' : 'USER - personal only'})...`);
 
   let query = supabase
     .from('risks')
     .select('*');
 
-  if (isAdmin) {
+  if (isSuperAdmin) {
+    // Super Admin: Load ALL risks from ALL organizations (no filter)
+    console.log('🛡️ Super Admin: Loading all risks from all organizations');
+  } else if (isAdmin) {
     // Admin: Load all risks for the organization
     query = query.eq('organization_id', profile.organization_id);
   } else {
