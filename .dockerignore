@@ -1,0 +1,85 @@
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Build output
+dist
+build
+.vite
+*.tsbuildinfo
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+coverage
+.nyc_output
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation (not needed in production)
+*.md
+!README.md
+docs/
+
+# Development files
+.vercel
+.eslintrc*
+.prettierrc*
+.editorconfig
+
+# Logs
+logs
+*.log
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# SQL and database files
+*.sql
+*.db
+*.sqlite
+
+# Excel test files
+*.xlsx
+*.xls
+
+# PDF files
+*.pdf
+
+# Archive files
+*.zip
+
+# Screenshots
+Screenshots/
+
+# Supabase local
+supabase/.branches
+supabase/.temp
+
+# Templates (not needed in container)
+templates/
+
+# Test scripts
+test-*.js
+test-*.html
+check-*.js
+check-*.sql

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Organization Settings</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Test Organization Settings Table</h1>
+    <button onclick="testTable()">Test Table Access</button>
+    <button onclick="testInsert()">Test Insert</button>
+    <button onclick="testRead()">Test Read</button>
+    <pre id="output"></pre>
+
+    <script>
+        const SUPABASE_URL = 'https://cnywkjfkhnwptceluvzs.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNueXdramZraG53cHRjZWx1dnpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5NDk1NTksImV4cCI6MjA3MzUyNTU1OX0.XSt2QsEfyRMgn6_YL-vJcTyM2nt_6AUOucBiaZDCTzg';
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        function log(message) {
+            document.getElementById('output').textContent += message + '\n';
+        }
+
+        async function testTable() {
+            log('Testing table access...');
+            const { data, error } = await supabase
+                .from('organization_settings')
+                .select('*')
+                .limit(1);
+
+            if (error) {
+                log('❌ Error: ' + JSON.stringify(error, null, 2));
+            } else {
+                log('✅ Table accessible. Data: ' + JSON.stringify(data, null, 2));
+            }
+        }
+
+        async function testInsert() {
+            log('\nTesting insert...');
+            const { data, error } = await supabase
+                .from('organization_settings')
+                .upsert({
+                    organization_id: '00000000-0000-0000-0000-000000000001',
+                    institution_type: 'Bank',
+                    default_regulator: 'CBN',
+                    organization_name: 'Test Organization',
+                    updated_by: 'test@test.com',
+                    updated_at: new Date().toISOString()
+                }, {
+                    onConflict: 'organization_id'
+                })
+                .select();
+
+            if (error) {
+                log('❌ Insert Error: ' + JSON.stringify(error, null, 2));
+            } else {
+                log('✅ Insert successful. Data: ' + JSON.stringify(data, null, 2));
+            }
+        }
+
+        async function testRead() {
+            log('\nTesting read for org 00000000-0000-0000-0000-000000000001...');
+            const { data, error } = await supabase
+                .from('organization_settings')
+                .select('*')
+                .eq('organization_id', '00000000-0000-0000-0000-000000000001')
+                .maybeSingle();
+
+            if (error) {
+                log('❌ Read Error: ' + JSON.stringify(error, null, 2));
+            } else {
+                log('✅ Read successful. Data: ' + JSON.stringify(data, null, 2));
+            }
+        }
+    </script>
+</body>
+</html>

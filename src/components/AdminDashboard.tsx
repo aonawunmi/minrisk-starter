@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { RefreshCw, Users, FileText, Shield, AlertTriangle, Check, X, UserCheck, UserX, Archive, BookOpen, TrendingUp, Trash2, Loader2, Activity } from 'lucide-react';
+import { RefreshCw, Users, FileText, Shield, AlertTriangle, Check, X, UserCheck, UserX, Archive, BookOpen, TrendingUp, Trash2, Loader2, Activity, Building2 } from 'lucide-react';
 import { clearAllOrganizationData, clearRiskRegisterData } from '@/lib/admin';
 import ArchiveManagement from './ArchiveManagement';
 import AuditTrail from './AuditTrail';
@@ -16,6 +16,7 @@ import { VarScaleConfig } from './VarScaleConfig';
 import AppetiteConfigManager from './risk-appetite/AppetiteConfigManager';
 import AppetiteDashboard from './risk-appetite/AppetiteDashboard';
 import { KRITabGroup } from './KRITabGroup';
+import { OrganizationSettings } from './OrganizationSettings';
 import type { AppConfig } from '../App';
 
 type UserData = {
@@ -250,10 +251,14 @@ export default function AdminDashboard({ config, showToast }: AdminDashboardProp
 
   return (
     <Tabs defaultValue="users" className="space-y-6">
-      <TabsList className="grid w-full grid-cols-7 max-w-5xl">
+      <TabsList className="grid w-full grid-cols-8 max-w-6xl">
         <TabsTrigger value="users">
           <Users className="h-4 w-4 mr-2" />
           Users
+        </TabsTrigger>
+        <TabsTrigger value="organization">
+          <Building2 className="h-4 w-4 mr-2" />
+          Organization
         </TabsTrigger>
         <TabsTrigger value="appetite">
           <Shield className="h-4 w-4 mr-2" />
@@ -561,6 +566,14 @@ export default function AdminDashboard({ config, showToast }: AdminDashboardProp
           </div>
         </CardContent>
       </Card>
+      </TabsContent>
+
+      <TabsContent value="organization" className="space-y-6">
+        <OrganizationSettings
+          organizationId={config.organizationId}
+          organizationName={config.organizationName || 'MinRisk Organization'}
+          userEmail={config.userEmail}
+        />
       </TabsContent>
 
       <TabsContent value="appetite" className="space-y-6">

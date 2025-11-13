@@ -123,9 +123,9 @@ export default function HelpTab() {
       {/* Version Info */}
       <Card>
         <CardContent className="pt-6 text-center text-sm text-gray-500">
-          <p>MinRisk User Manual - Version 4.1</p>
-          <p>Last Updated: October 28, 2025</p>
-          <p className="mt-2 text-xs">✨ Now with Incidents, Analytics, Intelligence Monitor & Enhanced AI</p>
+          <p>MinRisk User Manual - Version 5.0</p>
+          <p>Last Updated: November 9, 2025</p>
+          <p className="mt-2 text-xs">✨ Now with ERM Report Generation, Risk Velocity, Incidents, Analytics, Intelligence Monitor & Enhanced AI</p>
         </CardContent>
       </Card>
     </div>
@@ -1462,6 +1462,241 @@ const sections = [
         <li><strong>Accountability:</strong> Clear ownership through distributed data entry</li>
         <li><strong>Regulatory Compliance:</strong> Demonstrate proactive risk monitoring (Basel III, ISO 31000)</li>
         <li><strong>Board Reporting:</strong> Quantitative risk metrics for executive dashboards</li>
+      </ul>
+    `,
+  },
+  {
+    id: 'erm-reports',
+    title: 'ERM Report Generation ✨ NEW',
+    icon: '📄',
+    content: `
+      <h3>About ERM Reports</h3>
+      <p>Generate stakeholder-specific risk reports with AI-powered narratives for Regulators, Board Risk Committee, and CEO/EXCO.</p>
+
+      <h3>Organization Setup (First-Time - Admin Only)</h3>
+      <ol>
+        <li>Go to <strong>Admin Dashboard → Organization Settings</strong></li>
+        <li>Select your <strong>Institution Type</strong>:
+          <ul>
+            <li><strong>Bank</strong> → Reports route to CBN (Central Bank of Nigeria)</li>
+            <li><strong>Capital Markets</strong> → Reports route to SEC (Securities and Exchange Commission)</li>
+            <li><strong>Pensions</strong> → Reports route to PENCOM (National Pension Commission)</li>
+          </ul>
+        </li>
+        <li>Default regulator is automatically set based on institution type</li>
+        <li>Click <strong>"Save Settings"</strong></li>
+      </ol>
+
+      <h3>Generating Reports</h3>
+      <ol>
+        <li>Navigate to <strong>Reports</strong> tab in main navigation</li>
+        <li>Select <strong>Report Audience</strong>:
+          <ul>
+            <li><strong>Regulator</strong> - CBN, SEC, or PENCOM (based on institution type)</li>
+            <li><strong>Board Risk Committee (BRC)</strong> - Strategic oversight and decisions</li>
+            <li><strong>CEO/Executive Committee</strong> - Executive one-pager</li>
+          </ul>
+        </li>
+        <li>Enter <strong>Reporting Period</strong> (e.g., "Q4 2024", "FY 2025")</li>
+        <li>Click <strong>"Generate Draft"</strong></li>
+        <li>Wait 30-60 seconds for AI to generate narratives</li>
+        <li>Review the generated report with all sections</li>
+      </ol>
+
+      <h3>Report Sections by Audience</h3>
+
+      <h4>CBN (Central Bank) Report:</h4>
+      <ul>
+        <li>Executive Summary</li>
+        <li>Capital Adequacy & Liquidity</li>
+        <li>Credit Risk Quality & Concentrations</li>
+        <li>Market Risk Exposures</li>
+        <li>Operational Loss Events</li>
+        <li>ICAAP Highlights</li>
+        <li>Control Exceptions (DIME Failures)</li>
+        <li>Risk Appetite Breaches & Remediation</li>
+        <li>Forward-Looking Risk Assessment</li>
+        <li>Appendices (optional)</li>
+      </ul>
+
+      <h4>Board Risk Committee Report:</h4>
+      <ul>
+        <li>Executive Summary</li>
+        <li>Top 10 Risks & Risk Movement</li>
+        <li>Risk Appetite Utilization</li>
+        <li>Emerging Risks</li>
+        <li>Control Effectiveness (DIME Dashboard)</li>
+        <li>KRI Performance & Breaches</li>
+        <li>Decisions Required</li>
+        <li>Appendices (optional)</li>
+      </ul>
+
+      <h4>CEO/EXCO Report:</h4>
+      <ul>
+        <li>Executive One-Page Summary</li>
+        <li>Business Impact Highlights</li>
+        <li>Cost of Risk</li>
+        <li>Time-to-Mitigation for Top Risks</li>
+        <li>Ownership & Accountability</li>
+      </ul>
+
+      <h3>Editing Report Drafts</h3>
+      <ol>
+        <li>Click the <strong>expand arrow</strong> (▶) to open any section</li>
+        <li>Review the AI-generated narrative</li>
+        <li>Click <strong>"Edit"</strong> button</li>
+        <li>Modify the text in the editor</li>
+        <li>Click <strong>"Save"</strong> to update</li>
+        <li>Last edited by and timestamp are recorded</li>
+      </ol>
+
+      <h3>Section Management</h3>
+      <ul>
+        <li><strong>Toggle Include/Exclude:</strong> Use the switch to hide optional sections</li>
+        <li><strong>Data Preview:</strong> View tables and charts in each section</li>
+        <li><strong>Narrative + Data:</strong> Sections combine AI narrative with structured data</li>
+      </ul>
+
+      <h3>Exporting Reports</h3>
+      <h4>Word Export (.docx):</h4>
+      <ul>
+        <li>Click <strong>"Word"</strong> button in report header</li>
+        <li>Downloads editable .docx file</li>
+        <li>Includes all narratives and data</li>
+        <li>Shows "DRAFT" watermark if not finalized</li>
+        <li>Header/footer with organization name and date</li>
+      </ul>
+
+      <h4>PDF Export (.pdf):</h4>
+      <ul>
+        <li>Click <strong>"PDF"</strong> button in report header</li>
+        <li>Downloads printable .pdf file</li>
+        <li>Professional formatting with tables</li>
+        <li>Shows "DRAFT" watermark if not finalized</li>
+        <li>Page numbers and generation date</li>
+      </ul>
+
+      <h3>Finalizing Reports</h3>
+      <ol>
+        <li>Review all sections and ensure accuracy</li>
+        <li>Click <strong>"Finalize"</strong> button</li>
+        <li>Confirm warning dialog (cannot be undone)</li>
+        <li>Report status changes to 🔒 Final</li>
+        <li>Report is locked - no further editing allowed</li>
+        <li>Watermark removed from exports</li>
+        <li>Finalization recorded in audit trail</li>
+      </ol>
+
+      <h3>Regulator Override (Admin Only)</h3>
+      <p>Change the default regulator if needed:</p>
+      <ol>
+        <li>When generating a Regulator report</li>
+        <li>Click <strong>"Override Regulator"</strong> button</li>
+        <li>Select different regulator (CBN/SEC/PENCOM)</li>
+        <li>Enter <strong>reason for override</strong> (required)</li>
+        <li>Confirm override</li>
+        <li>Override logged in audit trail</li>
+      </ol>
+
+      <h3>AI-Powered Narratives</h3>
+      <p>Each section narrative is automatically generated by Claude AI based on:</p>
+      <ul>
+        <li>Your risk register data</li>
+        <li>Control effectiveness (DIME scores)</li>
+        <li>KRI alerts and breaches</li>
+        <li>Risk appetite exceptions</li>
+        <li>Incident records</li>
+        <li>Risk movement trends</li>
+      </ul>
+
+      <p>Narratives are:</p>
+      <ul>
+        <li><strong>Audience-specific:</strong> Tone adapted for Regulator/Board/CEO</li>
+        <li><strong>Decision-oriented:</strong> Focuses on actions and outcomes</li>
+        <li><strong>Concise:</strong> 2-5 sentences per section (CEO reports shorter)</li>
+        <li><strong>Editable:</strong> You can modify any AI-generated text</li>
+      </ul>
+
+      <h3>Risk Velocity & Movement</h3>
+      <p>Reports automatically track risk score changes over time:</p>
+      <ul>
+        <li><strong>Rising Risks:</strong> Risks with increasing scores (trending worse)</li>
+        <li><strong>Falling Risks:</strong> Risks with decreasing scores (improving)</li>
+        <li><strong>Stable Risks:</strong> No significant change</li>
+        <li>Velocity narratives explain why risks changed</li>
+      </ul>
+
+      <h3>Audit Trail</h3>
+      <p>All report actions are logged:</p>
+      <ul>
+        <li>Report creation</li>
+        <li>Section narrative edits</li>
+        <li>Section toggles (include/exclude)</li>
+        <li>Regulator overrides with reasons</li>
+        <li>Finalization events</li>
+      </ul>
+
+      <h3>Best Practices</h3>
+      <ul>
+        <li><strong>Generate early:</strong> Create drafts 1-2 weeks before deadline</li>
+        <li><strong>Review AI narratives:</strong> Always verify accuracy and context</li>
+        <li><strong>Add context:</strong> Edit narratives to include organization-specific details</li>
+        <li><strong>Use section toggles:</strong> Hide optional appendices for cleaner reports</li>
+        <li><strong>Export before finalizing:</strong> Share drafts with stakeholders first</li>
+        <li><strong>Keep drafts:</strong> Don't finalize until ready to submit</li>
+        <li><strong>Document overrides:</strong> Provide clear reasons for regulator changes</li>
+      </ul>
+
+      <h3>Regulatory Alignment</h3>
+      <h4>CBN Reports Focus:</h4>
+      <ul>
+        <li>Prudential soundness and capital adequacy</li>
+        <li>Credit quality and concentration risk</li>
+        <li>Market risk exposures and liquidity</li>
+        <li>Operational resilience and loss events</li>
+        <li>ICAAP highlights and stress testing</li>
+      </ul>
+
+      <h4>SEC Reports Focus:</h4>
+      <ul>
+        <li>Market integrity and investor protection</li>
+        <li>Exposure limits and breach management</li>
+        <li>Client asset protection</li>
+        <li>Conduct risk and compliance exceptions</li>
+        <li>Stress testing outcomes</li>
+      </ul>
+
+      <h4>PENCOM Reports Focus:</h4>
+      <ul>
+        <li>Investment allocation vs regulatory caps</li>
+        <li>Concentration risk management</li>
+        <li>ALM and duration management</li>
+        <li>Operational and fraud risk</li>
+        <li>RSA operations and safeguarding</li>
+      </ul>
+
+      <h3>Troubleshooting</h3>
+      <p><strong>Q: "Organization settings not found" error</strong><br>
+      A: Admin must configure institution type in Admin Dashboard → Organization Settings first.</p>
+
+      <p><strong>Q: Report generation takes too long</strong><br>
+      A: AI narrative generation typically takes 30-60 seconds. Wait patiently or refresh if it exceeds 2 minutes.</p>
+
+      <p><strong>Q: Can't edit after finalization</strong><br>
+      A: By design - finalized reports are locked. Generate a new report for the next period.</p>
+
+      <p><strong>Q: Narratives don't match my data</strong><br>
+      A: AI generates based on current data. Click "Edit" to manually correct any inaccuracies.</p>
+
+      <p><strong>Q: Export button not working</strong><br>
+      A: Check browser allows file downloads. Try different browser if issue persists.</p>
+
+      <h3>Report Storage</h3>
+      <ul>
+        <li>All drafts saved automatically in database</li>
+        <li>Multiple drafts can exist for different audiences and periods</li>
+        <li>Finalized reports become permanent records</li>
+        <li>Complete audit trail preserved for compliance</li>
       </ul>
     `,
   },

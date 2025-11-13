@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # MinRisk Frontend Application
+  minrisk-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+        VITE_ANTHROPIC_API_KEY: ${VITE_ANTHROPIC_API_KEY}
+    container_name: minrisk-web
+    ports:
+      - "80:80"
+    environment:
+      - NODE_ENV=production
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+      - VITE_ANTHROPIC_API_KEY=${VITE_ANTHROPIC_API_KEY}
+    restart: unless-stopped
+    networks:
+      - minrisk-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Add a local Supabase instance for development
+  # Uncomment the sections below if you want to run Supabase locally
+
+  # supabase-db:
+  #   image: supabase/postgres:15.1.0.117
+  #   container_name: minrisk-db
+  #   ports:
+  #     - "5432:5432"
+  #   environment:
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your-super-secret-password}
+  #     POSTGRES_DB: postgres
+  #   volumes:
+  #     - db-data:/var/lib/postgresql/data
+  #   restart: unless-stopped
+  #   networks:
+  #     - minrisk-network
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # supabase-studio:
+  #   image: supabase/studio:20240101
+  #   container_name: minrisk-studio
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     SUPABASE_URL: http://supabase-kong:8000
+  #     SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+  #     STUDIO_PG_META_URL: http://supabase-meta:8080
+  #   depends_on:
+  #     - supabase-db
+  #   restart: unless-stopped
+  #   networks:
+  #     - minrisk-network
+
+networks:
+  minrisk-network:
+    driver: bridge
+
+# Uncomment if using local Supabase
+# volumes:
+#   db-data:

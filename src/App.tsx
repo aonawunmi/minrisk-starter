@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Upload, Plus, Search, RefreshCw, Settings, Table, Pencil, Trash2, ChevronsUpDown, FileUp, AlertTriangle, ArrowUpDown, Sparkles, Calendar, Archive, Download, ArrowRight, Brain } from "lucide-react";
+import { Upload, Plus, Search, RefreshCw, Settings, Table, Pencil, Trash2, ChevronsUpDown, FileUp, AlertTriangle, ArrowUpDown, Sparkles, Calendar, Archive, Download, ArrowRight, Brain, FileText } from "lucide-react";
 import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
 import html2canvas from 'html2canvas';
@@ -27,6 +27,9 @@ import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 // Lazy load incidents to avoid blocking app startup
 const IncidentLogTab = React.lazy(() => import("@/components/incidents/IncidentLogTab").then(m => ({ default: m.IncidentLogTab })));
 import { IntelligenceDashboard } from "@/components/intelligence/IntelligenceDashboard";
+import { ReportsContainer } from "@/components/reports/ReportsContainer";
+// FORCE CACHE BUST - NEW CODE v2.0
+console.log('🔥🔥🔥 APP.TSX LOADED - NEW VERSION 2.0 🔥🔥🔥');
 import { loadRisks, createRisk, updateRisk, deleteRisk, loadConfig, saveConfig as saveConfigToDb } from '@/lib/database';
 import { loadIncidents, type Incident } from '@/lib/incidents';
 import { loadAppetiteConfigs, type RiskAppetiteConfig } from '@/lib/risk-appetite';
@@ -293,6 +296,7 @@ export default function MinRiskLatest() {
     const [priorityRisks, setPriorityRisks] = useState(new Set<string>());
     const [activeTab, setActiveTab] = useState("dashboard");
     const [editingRisk, setEditingRisk] = useState<ProcessedRisk | null>(null);
+    const [currentUser, setCurrentUser] = useState<{id: string; email: string; organization_id: string} | null>(null);
     const [userRole, setUserRole] = useState<'admin' | 'edit' | 'view_only' | null>(null);
     const [userStatus, setUserStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null);
     const [activePeriod, setActivePeriod] = useState<string | null>(null);
@@ -382,7 +386,7 @@ export default function MinRiskLatest() {
                     // Load user role, status, and active period
                     const { data: profile } = await supabase
                         .from('user_profiles')
-                        .select('role, status, active_period')
+                        .select('role, status, active_period, organization_id')
                         .eq('id', user.id)
                         .single();
 
@@ -390,6 +394,11 @@ export default function MinRiskLatest() {
                         setUserRole(profile.role);
                         setUserStatus(profile.status);
                         setActivePeriod(profile.active_period || null);
+                        setCurrentUser({
+                            id: user.id,
+                            email: user.email || '',
+                            organization_id: profile.organization_id || user.id
+                        });
                         console.log('👤 User role:', profile.role, 'Status:', profile.status, 'Active Period:', profile.active_period);
                     }
                 }
@@ -828,6 +837,12 @@ export default function MinRiskLatest() {
                 <TabsTrigger value="dashboard">📊 Dashboard</TabsTrigger>
                 <TabsTrigger value="register">📋 Risk Register</TabsTrigger>
                 <TabsTrigger value="analytics">📈 Analytics & Reports</TabsTrigger>
+                {isAdmin && (
+                  <TabsTrigger value="reports">
+                    <FileText className="mr-2 h-4 w-4" />
+                    ERM Reports
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="operations">🚨 Operations</TabsTrigger>
                 <TabsTrigger value="kri">📉 KRI Monitoring</TabsTrigger>
                 <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger>
@@ -905,6 +920,15 @@ export default function MinRiskLatest() {
 
             <TabsContent value="ai_assistant">
                 <AIRiskGenerator onRisksGenerated={loadRisksFromDB} />
+            </TabsContent>
+
+            <TabsContent value="reports">
+                <ReportsContainer
+                    organizationId={currentUser?.organization_id || ''}
+                    userId={currentUser?.id || ''}
+                    userEmail={currentUser?.email || ''}
+                    userRole={userRole || 'view_only'}
+                />
             </TabsContent>
 
             {isAdmin && (
