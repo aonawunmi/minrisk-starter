@@ -381,12 +381,17 @@ export default function MinRiskLatest() {
 
                 if (user) {
                     // Check if user is Super Admin via database (reliable method)
-                    const { data: superAdminCheck, error: superAdminError } = await supabase
-                        .rpc('check_is_super_admin');
+                    const { data: profileData, error: profileError } = await supabase
+                        .from('user_profiles')
+                        .select('is_super_admin')
+                        .eq('id', user.id)
+                        .single();
 
-                    const isSuperAdminFlag = superAdminCheck === true;
+                    const isSuperAdminFlag = profileData?.is_super_admin === true;
                     setIsSuperAdmin(isSuperAdminFlag);
                     console.log('🛡️ Is Super Admin (from database):', isSuperAdminFlag);
+                    console.log('🛡️ Profile data:', profileData);
+                    console.log('🛡️ Profile error:', profileError);
 
                     // If Super Admin, set active tab and skip normal profile loading
                     if (isSuperAdminFlag) {
