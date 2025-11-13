@@ -159,14 +159,31 @@ export function SuperAdminPanel() {
 
     setDeleting(true);
     try {
-      const { error } = await supabase
-        .from('organizations')
-        .delete()
-        .eq('id', org.id);
+      // Get current session
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session) {
+        throw new Error('Not authenticated');
+      }
 
-      if (error) throw error;
+      // Call Edge Function to delete organization
+      const deleteResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-organization`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          organization_id: org.id,
+        }),
+      });
 
-      alert(`✅ Organization Deleted!\n\n"${org.name}" has been permanently removed.`);
+      const deleteResult = await deleteResponse.json();
+
+      if (!deleteResponse.ok) {
+        throw new Error(deleteResult.error || 'Failed to delete organization');
+      }
+
+      alert(`✅ Organization Deleted!\n\n${deleteResult.message}`);
 
       // Reload organizations
       loadOrganizations();
