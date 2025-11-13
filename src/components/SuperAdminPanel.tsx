@@ -76,49 +76,38 @@ export function SuperAdminPanel() {
 
       if (orgError) throw orgError;
 
-      // Step 2: Invite user via Supabase Auth Admin API
-      const { data: inviteData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
-        adminEmail.trim(),
-        {
-          data: {
-            organization_id: org.id,
-            organization_name: newOrgName.trim()
-          },
-          redirectTo: `${window.location.origin}/auth/callback`
-        }
-      );
+      // Step 2: Invite user via Edge Function
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session) {
+        throw new Error('Not authenticated');
+      }
 
-      if (inviteError) {
-        // If user already exists, try to update their profile instead
-        if (inviteError.message.includes('already registered')) {
-          const { data: existingUsers } = await supabase
-            .from('user_profiles')
-            .select('id, email')
-            .eq('email', adminEmail.trim())
-            .single();
+      const inviteResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-user`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: adminEmail.trim(),
+          organization_id: org.id,
+          organization_name: newOrgName.trim(),
+          redirect_to: `${window.location.origin}/auth/callback`,
+        }),
+      });
 
-          if (existingUsers) {
-            // Update existing user's organization
-            const { error: updateError } = await supabase
-              .from('user_profiles')
-              .update({
-                organization_id: org.id,
-                role: 'primary_admin'
-              })
-              .eq('id', existingUsers.id);
+      const inviteResult = await inviteResponse.json();
 
-            if (updateError) throw updateError;
+      if (!inviteResponse.ok) {
+        throw new Error(inviteResult.error || 'Failed to invite user');
+      }
 
-            alert(`✅ Organization Created!\n\nUser "${adminEmail}" already exists and has been assigned as Primary Admin of "${newOrgName}".`);
-          } else {
-            throw new Error('User exists but profile not found. Please contact support.');
-          }
+      if (inviteResult.success) {
+        if (inviteResult.message.includes('already exists')) {
+          alert(`✅ Organization Created!\n\nUser "${adminEmail}" already exists and has been assigned as Primary Admin of "${newOrgName}".`);
         } else {
-          throw inviteError;
+          alert(`✅ Organization Created Successfully!\n\nOrganization: "${newOrgName}"\nAdmin Email: ${adminEmail}\n\nAn invitation email has been sent to ${adminEmail}.\n\nThey will be automatically assigned as Primary Admin when they accept the invitation.`);
         }
-      } else {
-        // Success - invitation sent
-        alert(`✅ Organization Created Successfully!\n\nOrganization: "${newOrgName}"\nAdmin Email: ${adminEmail}\n\nAn invitation email has been sent to ${adminEmail}.\n\nThey will be automatically assigned as Primary Admin when they accept the invitation.`);
       }
 
       // Reset form and close dialog
