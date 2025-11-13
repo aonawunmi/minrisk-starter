@@ -15,6 +15,9 @@ type Organization = {
   active: boolean;
   created_at: string;
   risk_count?: number;
+  primary_admin_email?: string;
+  primary_admin_name?: string;
+  secondary_admin_count?: number;
 };
 
 export function SuperAdminPanel() {
@@ -25,12 +28,12 @@ export function SuperAdminPanel() {
   const [adminEmail, setAdminEmail] = useState('');
   const [creating, setCreating] = useState(false);
 
-  // Load organizations
+  // Load organizations with admin details
   const loadOrganizations = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .rpc('list_organizations');
+        .rpc('list_organizations_with_admins');
 
       if (error) throw error;
 
@@ -47,7 +50,7 @@ export function SuperAdminPanel() {
     loadOrganizations();
   }, []);
 
-  // Create organization
+  // Create organization with automatic user invitation
   const handleCreateOrganization = async () => {
     if (!newOrgName.trim()) {
       alert('Validation Error: Please enter an organization name.');
@@ -70,7 +73,50 @@ export function SuperAdminPanel() {
 
       if (orgError) throw orgError;
 
-      alert(`✅ Success!\n\nOrganization "${newOrgName}" has been created successfully.\n\nNext Step: Now invite the admin user via Supabase Auth:\n${adminEmail}`);
+      // Step 2: Invite user via Supabase Auth Admin API
+      const { data: inviteData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
+        adminEmail.trim(),
+        {
+          data: {
+            organization_id: org.id,
+            organization_name: newOrgName.trim()
+          },
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      );
+
+      if (inviteError) {
+        // If user already exists, try to update their profile instead
+        if (inviteError.message.includes('already registered')) {
+          const { data: existingUsers } = await supabase
+            .from('user_profiles')
+            .select('id, email')
+            .eq('email', adminEmail.trim())
+            .single();
+
+          if (existingUsers) {
+            // Update existing user's organization
+            const { error: updateError } = await supabase
+              .from('user_profiles')
+              .update({
+                organization_id: org.id,
+                role: 'primary_admin'
+              })
+              .eq('id', existingUsers.id);
+
+            if (updateError) throw updateError;
+
+            alert(`✅ Organization Created!\n\nUser "${adminEmail}" already exists and has been assigned as Primary Admin of "${newOrgName}".`);
+          } else {
+            throw new Error('User exists but profile not found. Please contact support.');
+          }
+        } else {
+          throw inviteError;
+        }
+      } else {
+        // Success - invitation sent
+        alert(`✅ Organization Created Successfully!\n\nOrganization: "${newOrgName}"\nAdmin Email: ${adminEmail}\n\nAn invitation email has been sent to ${adminEmail}.\n\nThey will be automatically assigned as Primary Admin when they accept the invitation.`);
+      }
 
       // Reset form and close dialog
       setNewOrgName('');
@@ -197,7 +243,7 @@ export function SuperAdminPanel() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="admin-email">Admin Email</Label>
+                    <Label htmlFor="admin-email">Primary Admin Email</Label>
                     <Input
                       id="admin-email"
                       type="email"
@@ -206,7 +252,7 @@ export function SuperAdminPanel() {
                       onChange={(e) => setAdminEmail(e.target.value)}
                     />
                     <p className="text-xs text-muted-foreground">
-                      You'll need to invite this user via Supabase Auth after creating the organization.
+                      This user will be the Primary Admin who can create up to 3 Secondary Admins.
                     </p>
                   </div>
                 </div>
@@ -236,6 +282,8 @@ export function SuperAdminPanel() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Organization</TableHead>
+                  <TableHead>Primary Admin</TableHead>
+                  <TableHead>Secondary Admins</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Risks</TableHead>
                   <TableHead>Created</TableHead>
@@ -249,6 +297,22 @@ export function SuperAdminPanel() {
                       <div className="flex items-center gap-2">
                         <Building2 className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">{org.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {org.primary_admin_email ? (
+                        <div className="text-sm">
+                          <div className="font-medium">{org.primary_admin_name || 'N/A'}</div>
+                          <div className="text-muted-foreground">{org.primary_admin_email}</div>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Not assigned</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Users className="h-3 w-3 text-muted-foreground" />
+                        <span>{org.secondary_admin_count || 0}/3</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -307,10 +371,11 @@ export function SuperAdminPanel() {
         <CardContent className="text-sm space-y-2">
           <p><strong>To add a new organization:</strong></p>
           <ol className="list-decimal list-inside space-y-1 ml-2">
-            <li>Click "Add Organization" and enter organization details</li>
-            <li>Go to Supabase Dashboard → Authentication → Users → "Invite User"</li>
-            <li>Enter the admin email and send invite</li>
-            <li>After they verify, link them to the organization via SQL or user management</li>
+            <li>Click "Add Organization" button above</li>
+            <li>Enter the organization name and Primary Admin email</li>
+            <li>Click "Create Organization" - the system automatically sends an invitation email</li>
+            <li>The admin receives an email to verify and set their password</li>
+            <li>Once verified, they're automatically assigned as Primary Admin</li>
           </ol>
           <p className="mt-3"><strong>To disable an organization:</strong> Click the "Disable" button. Users from that organization won't be able to access the system.</p>
         </CardContent>

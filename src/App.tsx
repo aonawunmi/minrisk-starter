@@ -300,6 +300,7 @@ export default function MinRiskLatest() {
     const [currentUser, setCurrentUser] = useState<{id: string; email: string; organization_id: string} | null>(null);
     const [userRole, setUserRole] = useState<'admin' | 'edit' | 'view_only' | null>(null);
     const [userStatus, setUserStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null);
+    const [isSuperAdmin, setIsSuperAdmin] = useState(false);
     const [activePeriod, setActivePeriod] = useState<string | null>(null);
     const [toast, setToast] = useState<{message: string; type: 'success' | 'error'} | null>(null);
     const [showChangePeriodDialog, setShowChangePeriodDialog] = useState(false);
@@ -379,28 +380,49 @@ export default function MinRiskLatest() {
                 console.log('👤 User:', user?.id || 'No user');
 
                 if (user) {
-                    // Ensure user profile exists (creates if doesn't exist)
-                    console.log('📝 Creating/checking user profile...');
-                    const profileResult = await getOrCreateUserProfile(user.id);
-                    console.log('📝 Profile result:', profileResult);
+                    // Check if user is Super Admin via database (reliable method)
+                    const { data: superAdminCheck, error: superAdminError } = await supabase
+                        .rpc('check_is_super_admin');
 
-                    // Load user role, status, and active period
-                    const { data: profile } = await supabase
-                        .from('user_profiles')
-                        .select('role, status, active_period, organization_id')
-                        .eq('id', user.id)
-                        .single();
+                    const isSuperAdminFlag = superAdminCheck === true;
+                    setIsSuperAdmin(isSuperAdminFlag);
+                    console.log('🛡️ Is Super Admin (from database):', isSuperAdminFlag);
 
-                    if (profile) {
-                        setUserRole(profile.role);
-                        setUserStatus(profile.status);
-                        setActivePeriod(profile.active_period || null);
+                    // If Super Admin, set active tab and skip normal profile loading
+                    if (isSuperAdminFlag) {
+                        setActiveTab('superadmin');
+                        setUserRole('admin'); // Give admin role for any residual permissions
+                        setUserStatus('approved');
                         setCurrentUser({
                             id: user.id,
                             email: user.email || '',
-                            organization_id: profile.organization_id || user.id
+                            organization_id: user.id // Super Admin has no org
                         });
-                        console.log('👤 User role:', profile.role, 'Status:', profile.status, 'Active Period:', profile.active_period);
+                        console.log('🛡️ Super Admin user detected, skipping normal profile load');
+                    } else {
+                        // Ensure user profile exists (creates if doesn't exist)
+                        console.log('📝 Creating/checking user profile...');
+                        const profileResult = await getOrCreateUserProfile(user.id);
+                        console.log('📝 Profile result:', profileResult);
+
+                        // Load user role, status, and active period
+                        const { data: profile } = await supabase
+                            .from('user_profiles')
+                            .select('role, status, active_period, organization_id')
+                            .eq('id', user.id)
+                            .single();
+
+                        if (profile) {
+                            setUserRole(profile.role);
+                            setUserStatus(profile.status);
+                            setActivePeriod(profile.active_period || null);
+                            setCurrentUser({
+                                id: user.id,
+                                email: user.email || '',
+                                organization_id: profile.organization_id || user.id
+                            });
+                            console.log('👤 User role:', profile.role, 'Status:', profile.status, 'Active Period:', profile.active_period);
+                        }
                     }
                 }
 
@@ -794,19 +816,19 @@ export default function MinRiskLatest() {
             <div>
                 <h1 className="text-2xl md:text-3xl font-bold">MinRisk</h1>
                 <p className="text-sm text-gray-500">
-                    Version 1.6.1 (Final) • Role: <span className="font-semibold capitalize">{userRole === 'view_only' ? 'View Only' : userRole}</span>
+                    Version 1.6.1 (Final) • Role: <span className="font-semibold capitalize">{isSuperAdmin ? 'Super Admin' : userRole === 'view_only' ? 'View Only' : userRole}</span>
                 </p>
             </div>
             <div className="flex items-center gap-2">
-                {isAdmin && <Button variant="outline" onClick={handleClearAllData}><Trash2 className="mr-2 h-4 w-4" />Clear All</Button>}
-                {isAdmin && <Button variant="outline" onClick={handleResetDemo}><RefreshCw className="mr-2 h-4 w-4" />Reset Demo</Button>}
-                {isAdmin && <ConfigDialog config={config} onSave={handleSaveConfig} />}
+                {isAdmin && !isSuperAdmin && <Button variant="outline" onClick={handleClearAllData}><Trash2 className="mr-2 h-4 w-4" />Clear All</Button>}
+                {isAdmin && !isSuperAdmin && <Button variant="outline" onClick={handleResetDemo}><RefreshCw className="mr-2 h-4 w-4" />Reset Demo</Button>}
+                {isAdmin && !isSuperAdmin && <ConfigDialog config={config} onSave={handleSaveConfig} />}
                 <UserMenu />
             </div>
         </div>
 
         {/* Active Period Management */}
-        {userStatus === 'approved' && (
+        {userStatus === 'approved' && !isSuperAdmin && (
             <div className="mb-4 p-4 rounded-xl border bg-white">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -835,20 +857,20 @@ export default function MinRiskLatest() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="mb-4">
-                <TabsTrigger value="dashboard">📊 Dashboard</TabsTrigger>
-                <TabsTrigger value="register">📋 Risk Register</TabsTrigger>
-                <TabsTrigger value="analytics">📈 Analytics & Reports</TabsTrigger>
-                {isAdmin && (
+                {!isSuperAdmin && <TabsTrigger value="dashboard">📊 Dashboard</TabsTrigger>}
+                {!isSuperAdmin && <TabsTrigger value="register">📋 Risk Register</TabsTrigger>}
+                {!isSuperAdmin && <TabsTrigger value="analytics">📈 Analytics & Reports</TabsTrigger>}
+                {!isSuperAdmin && isAdmin && (
                   <TabsTrigger value="reports">
                     <FileText className="mr-2 h-4 w-4" />
                     ERM Reports
                   </TabsTrigger>
                 )}
-                <TabsTrigger value="operations">🚨 Operations</TabsTrigger>
-                <TabsTrigger value="kri">📉 KRI Monitoring</TabsTrigger>
-                <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger>
-                {isAdmin && <TabsTrigger value="admin">⚙️ Admin</TabsTrigger>}
-                <TabsTrigger value="superadmin">🛡️ Super Admin</TabsTrigger>
+                {!isSuperAdmin && <TabsTrigger value="operations">🚨 Operations</TabsTrigger>}
+                {!isSuperAdmin && <TabsTrigger value="kri">📉 KRI Monitoring</TabsTrigger>}
+                {!isSuperAdmin && <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger>}
+                {!isSuperAdmin && isAdmin && <TabsTrigger value="admin">⚙️ Admin</TabsTrigger>}
+                {isSuperAdmin && <TabsTrigger value="superadmin">🛡️ Super Admin</TabsTrigger>}
             </TabsList>
 
             <TabsContent value="dashboard">
