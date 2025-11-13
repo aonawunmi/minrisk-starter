@@ -28,6 +28,7 @@ import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 const IncidentLogTab = React.lazy(() => import("@/components/incidents/IncidentLogTab").then(m => ({ default: m.IncidentLogTab })));
 import { IntelligenceDashboard } from "@/components/intelligence/IntelligenceDashboard";
 import { ReportsContainer } from "@/components/reports/ReportsContainer";
+import { SuperAdminPanel } from "@/components/SuperAdminPanel";
 // FORCE CACHE BUST - NEW CODE v2.0
 console.log('🔥🔥🔥 APP.TSX LOADED - NEW VERSION 2.0 🔥🔥🔥');
 import { loadRisks, createRisk, updateRisk, deleteRisk, loadConfig, saveConfig as saveConfigToDb } from '@/lib/database';
@@ -847,6 +848,7 @@ export default function MinRiskLatest() {
                 <TabsTrigger value="kri">📉 KRI Monitoring</TabsTrigger>
                 <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger>
                 {isAdmin && <TabsTrigger value="admin">⚙️ Admin</TabsTrigger>}
+                <TabsTrigger value="superadmin">🛡️ Super Admin</TabsTrigger>
             </TabsList>
 
             <TabsContent value="dashboard">
@@ -936,6 +938,10 @@ export default function MinRiskLatest() {
                     <AdminDashboard config={config} showToast={showToast} />
                 </TabsContent>
             )}
+
+            <TabsContent value="superadmin">
+                <SuperAdminPanel />
+            </TabsContent>
         </Tabs>
         
         {editingRisk && (

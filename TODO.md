@@ -318,11 +318,55 @@ Implement a "Commit" button in the risk register interface for risk managers to 
 
 ---
 
+## 🚢 Deployment Information
+
+### Production Deployment
+**Platform:** Render (https://render.com)
+**Live URL:** https://minrisk-starter.onrender.com
+**Status:** ✅ Deployed (November 13, 2025)
+**GitHub Repo:** https://github.com/aonawunmi/minrisk-starter
+
+### Docker Configuration
+**Docker Image:** Built using multi-stage build (Node 18 Alpine + nginx Alpine)
+**Multi-Tenant Architecture:** Database-Level Multi-Tenancy (One container, one database, RLS isolation)
+**Container Status:** Production-ready, ~50MB optimized image
+
+### Password Protection Status
+**Current Status:** Password protection temporarily disabled (commit a82ec07)
+**File Modified:** src/main.tsx:5,11
+
+**To Restore Password Protection:**
+1. Edit `src/main.tsx` line 5 - uncomment the PasswordGate import:
+   ```typescript
+   import PasswordGate from './PasswordGate'  // Remove comment
+   ```
+2. Edit `src/main.tsx` line 11 - wrap `<AuthGate>` with `<PasswordGate>`:
+   ```typescript
+   <PasswordGate>
+     <AuthGate>
+       <App />
+       <AskAI />
+     </AuthGate>
+   </PasswordGate>
+   ```
+3. In Render dashboard (https://dashboard.render.com):
+   - Go to Environment settings
+   - Add environment variable: `VITE_APP_PASSWORD` with your desired password
+   - Save changes
+4. Trigger rebuild:
+   - Click "Manual Deploy" → "Clear build cache & deploy"
+   - Wait 3-5 minutes for rebuild to complete
+5. Test the password protection at the live URL
+
+**Note:** Vite environment variables are baked into the build at build time, so you must rebuild after setting the password.
+
+---
+
 ## 📝 Notes
 
-**Last Updated:** October 9, 2025 (Updated after Phase 3 VaR Analysis completion)
+**Last Updated:** November 13, 2025 (Updated after production deployment to Render)
 **Status:** Phase 1, 2A, 2B, 2C, and 3 complete and deployed to production.
-**Production Status:** All Phase 1-3 features live in production.
+**Production Status:** All Phase 1-3 features live in production at https://minrisk-starter.onrender.com
 
 **Known Issues:**
 - None
