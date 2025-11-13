@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Shield, Plus, Building2, Users, FileText, RefreshCw, ToggleLeft, ToggleRight, AlertCircle } from 'lucide-react';
+import { Shield, Plus, Building2, Users, FileText, RefreshCw, ToggleLeft, ToggleRight, AlertCircle, Eye, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 type Organization = {
@@ -24,9 +24,12 @@ export function SuperAdminPanel() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const [newOrgName, setNewOrgName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Load organizations with admin details
   const loadOrganizations = async () => {
@@ -153,6 +156,39 @@ export function SuperAdminPanel() {
     }
   };
 
+  // View organization details
+  const viewOrganizationDetails = (org: Organization) => {
+    setSelectedOrg(org);
+    setIsDetailsDialogOpen(true);
+  };
+
+  // Delete organization
+  const deleteOrganization = async (org: Organization) => {
+    if (!confirm(`⚠️ Are you sure you want to delete "${org.name}"?\n\nThis will:\n- Remove the organization\n- Remove all associated data (risks, users, etc.)\n\nThis action CANNOT be undone!`)) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .delete()
+        .eq('id', org.id);
+
+      if (error) throw error;
+
+      alert(`✅ Organization Deleted!\n\n"${org.name}" has been permanently removed.`);
+
+      // Reload organizations
+      loadOrganizations();
+    } catch (error: any) {
+      console.error('Error deleting organization:', error);
+      alert(`Error: ${error.message || 'Failed to delete organization.'}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -268,6 +304,96 @@ export function SuperAdminPanel() {
             </Dialog>
           </div>
         </CardHeader>
+        {/* Organization Details Dialog */}
+        <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Organization Details</DialogTitle>
+              <DialogDescription>
+                View detailed information about this organization
+              </DialogDescription>
+            </DialogHeader>
+            {selectedOrg && (
+              <div className="space-y-6 py-4">
+                {/* Organization Info */}
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg flex items-center gap-2">
+                    <Building2 className="h-5 w-5" />
+                    Organization Information
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Name</Label>
+                      <p className="font-medium">{selectedOrg.name}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Status</Label>
+                      <div className="mt-1">
+                        {selectedOrg.active ? (
+                          <Badge variant="default" className="bg-green-600">Active</Badge>
+                        ) : (
+                          <Badge variant="secondary">Inactive</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Created</Label>
+                      <p className="font-medium">{new Date(selectedOrg.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Total Risks</Label>
+                      <p className="font-medium">{selectedOrg.risk_count || 0}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Primary Admin Info */}
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Primary Admin
+                  </h3>
+                  <div className="p-4 bg-muted/50 rounded-lg">
+                    {selectedOrg.primary_admin_email ? (
+                      <div className="space-y-2">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Name</Label>
+                          <p className="font-medium">{selectedOrg.primary_admin_name || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Email</Label>
+                          <p className="font-medium">{selectedOrg.primary_admin_email}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No Primary Admin assigned yet</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Secondary Admins Info */}
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Secondary Admins
+                  </h3>
+                  <div className="p-4 bg-muted/50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-muted-foreground">Count</Label>
+                      <Badge variant="outline">
+                        {selectedOrg.secondary_admin_count || 0} / 3
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button onClick={() => setIsDetailsDialogOpen(false)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        {/* End Organization Details Dialog */}
         <CardContent>
           {loading ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -334,23 +460,38 @@ export function SuperAdminPanel() {
                       {new Date(org.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => toggleOrganizationStatus(org)}
-                      >
-                        {org.active ? (
-                          <>
-                            <ToggleRight className="h-4 w-4 mr-1" />
-                            Disable
-                          </>
-                        ) : (
-                          <>
-                            <ToggleLeft className="h-4 w-4 mr-1" />
-                            Enable
-                          </>
-                        )}
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => viewOrganizationDetails(org)}
+                          title="View Details"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleOrganizationStatus(org)}
+                          title={org.active ? 'Disable Organization' : 'Enable Organization'}
+                        >
+                          {org.active ? (
+                            <ToggleRight className="h-4 w-4" />
+                          ) : (
+                            <ToggleLeft className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteOrganization(org)}
+                          disabled={deleting}
+                          className="text-destructive hover:text-destructive"
+                          title="Delete Organization"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
