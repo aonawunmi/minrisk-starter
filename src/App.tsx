@@ -968,7 +968,7 @@ export default function MinRiskLatest() {
 
             {(isAdmin || isSuperAdmin) && (
                 <TabsContent value="admin">
-                    <AdminDashboard config={config} showToast={showToast} />
+                    <AdminDashboard config={config} showToast={showToast} isSuperAdmin={isSuperAdmin} />
                 </TabsContent>
             )}
 

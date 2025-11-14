@@ -35,9 +35,10 @@ type UserData = {
 type AdminDashboardProps = {
   config: AppConfig;
   showToast: (message: string, type?: 'success' | 'error') => void;
+  isSuperAdmin?: boolean; // Hide config/edit tabs for Super Admin
 };
 
-export default function AdminDashboard({ config, showToast }: AdminDashboardProps) {
+export default function AdminDashboard({ config, showToast, isSuperAdmin = false }: AdminDashboardProps) {
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -251,31 +252,41 @@ export default function AdminDashboard({ config, showToast }: AdminDashboardProp
 
   return (
     <Tabs defaultValue="users" className="space-y-6">
-      <TabsList className="grid w-full grid-cols-8 max-w-6xl">
+      <TabsList className={`grid w-full ${isSuperAdmin ? 'grid-cols-3' : 'grid-cols-8'} max-w-6xl`}>
         <TabsTrigger value="users">
           <Users className="h-4 w-4 mr-2" />
           Users
         </TabsTrigger>
-        <TabsTrigger value="organization">
-          <Building2 className="h-4 w-4 mr-2" />
-          Organization
-        </TabsTrigger>
-        <TabsTrigger value="appetite">
-          <Shield className="h-4 w-4 mr-2" />
-          Risk Appetite
-        </TabsTrigger>
-        <TabsTrigger value="kri">
-          <Activity className="h-4 w-4 mr-2" />
-          KRI Module
-        </TabsTrigger>
-        <TabsTrigger value="var_config">
-          <TrendingUp className="h-4 w-4 mr-2" />
-          VaR Config
-        </TabsTrigger>
-        <TabsTrigger value="archive">
-          <Archive className="h-4 w-4 mr-2" />
-          Archive
-        </TabsTrigger>
+        {!isSuperAdmin && (
+          <TabsTrigger value="organization">
+            <Building2 className="h-4 w-4 mr-2" />
+            Organization
+          </TabsTrigger>
+        )}
+        {!isSuperAdmin && (
+          <TabsTrigger value="appetite">
+            <Shield className="h-4 w-4 mr-2" />
+            Risk Appetite
+          </TabsTrigger>
+        )}
+        {!isSuperAdmin && (
+          <TabsTrigger value="kri">
+            <Activity className="h-4 w-4 mr-2" />
+            KRI Module
+          </TabsTrigger>
+        )}
+        {!isSuperAdmin && (
+          <TabsTrigger value="var_config">
+            <TrendingUp className="h-4 w-4 mr-2" />
+            VaR Config
+          </TabsTrigger>
+        )}
+        {!isSuperAdmin && (
+          <TabsTrigger value="archive">
+            <Archive className="h-4 w-4 mr-2" />
+            Archive
+          </TabsTrigger>
+        )}
         <TabsTrigger value="audit">
           <FileText className="h-4 w-4 mr-2" />
           Audit Trail
@@ -568,46 +579,56 @@ export default function AdminDashboard({ config, showToast }: AdminDashboardProp
       </Card>
       </TabsContent>
 
-      <TabsContent value="organization" className="space-y-6">
-        <OrganizationSettings
-          organizationId={config.organizationId}
-          organizationName={config.organizationName || 'MinRisk Organization'}
-          userEmail={config.userEmail}
-        />
-      </TabsContent>
+      {!isSuperAdmin && (
+        <TabsContent value="organization" className="space-y-6">
+          <OrganizationSettings
+            organizationId={config.organizationId}
+            organizationName={config.organizationName || 'MinRisk Organization'}
+            userEmail={config.userEmail}
+          />
+        </TabsContent>
+      )}
 
-      <TabsContent value="appetite" className="space-y-6">
-        <Tabs defaultValue="config">
-          <TabsList>
-            <TabsTrigger value="config">Configuration</TabsTrigger>
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          </TabsList>
+      {!isSuperAdmin && (
+        <TabsContent value="appetite" className="space-y-6">
+          <Tabs defaultValue="config">
+            <TabsList>
+              <TabsTrigger value="config">Configuration</TabsTrigger>
+              <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="config">
-            <AppetiteConfigManager config={config} showToast={showToast} />
-          </TabsContent>
+            <TabsContent value="config">
+              <AppetiteConfigManager config={config} showToast={showToast} />
+            </TabsContent>
 
-          <TabsContent value="dashboard">
-            <AppetiteDashboard showToast={showToast} />
-          </TabsContent>
-        </Tabs>
-      </TabsContent>
+            <TabsContent value="dashboard">
+              <AppetiteDashboard showToast={showToast} />
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+      )}
 
-      <TabsContent value="kri" className="space-y-6">
-        <KRITabGroup showToast={showToast} />
-      </TabsContent>
+      {!isSuperAdmin && (
+        <TabsContent value="kri" className="space-y-6">
+          <KRITabGroup showToast={showToast} />
+        </TabsContent>
+      )}
 
-      <TabsContent value="archive">
-        <ArchiveManagement />
-      </TabsContent>
+      {!isSuperAdmin && (
+        <TabsContent value="archive">
+          <ArchiveManagement />
+        </TabsContent>
+      )}
 
       <TabsContent value="audit">
         <AuditTrail />
       </TabsContent>
 
-      <TabsContent value="var_config">
-        <VarScaleConfig showToast={showToast} matrixSize={config.matrixSize} />
-      </TabsContent>
+      {!isSuperAdmin && (
+        <TabsContent value="var_config">
+          <VarScaleConfig showToast={showToast} matrixSize={config.matrixSize} />
+        </TabsContent>
+      )}
 
       <TabsContent value="help">
         <HelpTab />
