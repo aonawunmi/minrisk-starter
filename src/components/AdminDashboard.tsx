@@ -620,9 +620,10 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
                       <span className={`text-xs font-medium px-2 py-1 rounded ${
                         user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
                         user.role === 'edit' ? 'bg-blue-100 text-blue-800' :
+                        user.role === null ? 'bg-green-100 text-green-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {user.role === 'view_only' ? 'View Only' : user.role.toUpperCase()}
+                        {user.role === null ? 'SUPER ADMIN' : user.role === 'view_only' ? 'View Only' : user.role.toUpperCase()}
                       </span>
                     </td>
                     <td className="p-2 text-right font-medium">{user.risk_count}</td>
