@@ -7,18 +7,20 @@ type AnalyticsTabGroupProps = {
   AnalyticsContent: React.ReactNode;
   VarSandboxContent: React.ReactNode;
   RiskReportContent: React.ReactNode;
+  isSuperAdmin?: boolean; // Hide VaR Sandbox for Super Admin
 };
 
 export function AnalyticsTabGroup({
   AnalyticsContent,
   VarSandboxContent,
   RiskReportContent,
+  isSuperAdmin = false,
 }: AnalyticsTabGroupProps) {
   return (
     <Tabs defaultValue="analytics" className="w-full">
       <TabsList>
         <TabsTrigger value="analytics">📊 Analytics</TabsTrigger>
-        <TabsTrigger value="var">📈 VaR Sandbox</TabsTrigger>
+        {!isSuperAdmin && <TabsTrigger value="var">📈 VaR Sandbox</TabsTrigger>}
         <TabsTrigger value="reports">📋 Reports</TabsTrigger>
       </TabsList>
 
@@ -26,9 +28,11 @@ export function AnalyticsTabGroup({
         {AnalyticsContent}
       </TabsContent>
 
-      <TabsContent value="var" className="space-y-4">
-        {VarSandboxContent}
-      </TabsContent>
+      {!isSuperAdmin && (
+        <TabsContent value="var" className="space-y-4">
+          {VarSandboxContent}
+        </TabsContent>
+      )}
 
       <TabsContent value="reports" className="space-y-4">
         {RiskReportContent}

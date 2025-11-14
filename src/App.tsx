@@ -919,6 +919,7 @@ export default function MinRiskLatest() {
 
             <TabsContent value="analytics">
                 <AnalyticsTabGroup
+                    isSuperAdmin={isSuperAdmin}
                     AnalyticsContent={
                         <AnalyticsDashboard risks={processedData} incidents={incidents} selectedPeriod={filters.periods} />
                     }
