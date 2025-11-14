@@ -10,17 +10,51 @@ import { User, LogOut, Mail } from 'lucide-react';
 
 export default function UserMenu() {
   const [user, setUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string>('user');
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     // Get current user
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       setUser(user);
+
+      if (user) {
+        // Check if Super Admin
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('is_super_admin, role')
+          .eq('id', user.id)
+          .single();
+
+        if (profile?.is_super_admin) {
+          setIsSuperAdmin(true);
+          setUserRole('super_admin');
+        } else if (profile?.role) {
+          setUserRole(profile.role);
+        }
+      }
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user || null);
+
+      if (session?.user) {
+        // Check if Super Admin
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('is_super_admin, role')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile?.is_super_admin) {
+          setIsSuperAdmin(true);
+          setUserRole('super_admin');
+        } else if (profile?.role) {
+          setUserRole(profile.role);
+        }
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -45,12 +79,21 @@ export default function UserMenu() {
   const userEmail = user.email || 'Guest User';
   const userName = user.user_metadata?.full_name || userEmail.split('@')[0];
 
+  // Format role for display
+  const getRoleDisplay = () => {
+    if (isSuperAdmin) return 'Super Admin';
+    if (userRole === 'primary_admin') return 'Primary Admin';
+    if (userRole === 'secondary_admin') return 'Secondary Admin';
+    if (userRole === 'user') return 'User';
+    return 'User';
+  };
+
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <User className="h-4 w-4" />
-          <span className="hidden md:inline">{userName}</span>
+          <span className="hidden md:inline">{userName} - {getRoleDisplay()}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72" align="end">
