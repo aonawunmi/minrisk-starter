@@ -10,6 +10,8 @@ export default function AuthScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
 
   // Login state
   const [loginEmail, setLoginEmail] = useState('');
@@ -112,6 +114,33 @@ export default function AuthScreen() {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setIsLoading(true);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+      });
+
+      if (error) {
+        setError(error.message);
+      } else {
+        setSuccess('Password reset email sent! Check your inbox.');
+        setResetEmail('');
+        setTimeout(() => {
+          setShowForgotPassword(false);
+        }, 3000);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to send reset email');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-6">
       <Card className="w-full max-w-md shadow-lg">
@@ -128,48 +157,58 @@ export default function AuthScreen() {
 
             {/* Login Tab */}
             <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
-                  <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Password</Label>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-
-                {error && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                    {error}
+              {!showForgotPassword ? (
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-email">Email</Label>
+                    <Input
+                      id="login-email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      required
+                      disabled={isLoading}
+                    />
                   </div>
-                )}
 
-                {success && (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
-                    {success}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="login-password">Password</Label>
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotPassword(true)}
+                        className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                    <Input
+                      id="login-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      required
+                      disabled={isLoading}
+                    />
                   </div>
-                )}
 
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Logging in...' : 'Login'}
-                </Button>
+                  {error && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                      {error}
+                    </div>
+                  )}
+
+                  {success && (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                      {success}
+                    </div>
+                  )}
+
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? 'Logging in...' : 'Login'}
+                  </Button>
 
                 <div className="relative my-4">
                   <div className="absolute inset-0 flex items-center">
@@ -180,16 +219,61 @@ export default function AuthScreen() {
                   </div>
                 </div>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleAnonymousSignIn}
-                  disabled={isLoading}
-                >
-                  Continue as Guest
-                </Button>
-              </form>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleAnonymousSignIn}
+                    disabled={isLoading}
+                  >
+                    Continue as Guest
+                  </Button>
+                </form>
+              ) : (
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div className="mb-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPassword(false)}
+                      className="text-sm text-gray-600 hover:text-gray-800 flex items-center gap-1"
+                    >
+                      ← Back to login
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="reset-email">Email</Label>
+                    <Input
+                      id="reset-email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      required
+                      disabled={isLoading}
+                    />
+                    <p className="text-xs text-gray-500">
+                      We'll send you a link to reset your password
+                    </p>
+                  </div>
+
+                  {error && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                      {error}
+                    </div>
+                  )}
+
+                  {success && (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                      {success}
+                    </div>
+                  )}
+
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? 'Sending...' : 'Send Reset Link'}
+                  </Button>
+                </form>
+              )}
             </TabsContent>
 
             {/* Signup Tab */}

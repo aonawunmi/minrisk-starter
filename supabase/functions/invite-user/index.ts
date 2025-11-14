@@ -40,16 +40,31 @@ serve(async (req) => {
       throw new Error('Not authenticated');
     }
 
-    // Check if user is super admin
+    // Check if user is super admin, primary admin, or secondary admin
     const { data: profile, error: profileError } = await supabaseClient
       .from('user_profiles')
-      .select('is_super_admin')
+      .select('is_super_admin, role, organization_id')
       .eq('id', user.id)
       .single();
 
-    if (profileError || !profile?.is_super_admin) {
+    if (profileError || !profile) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized: Only Super Admins can invite users' }),
+        JSON.stringify({ error: 'Unauthorized: Unable to verify user profile' }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    const isSuperAdmin = profile.is_super_admin;
+    const isPrimaryAdmin = profile.role === 'primary_admin';
+    const isSecondaryAdmin = profile.role === 'secondary_admin';
+
+    // Only Super Admin, Primary Admin, or Secondary Admin can invite users
+    if (!isSuperAdmin && !isPrimaryAdmin && !isSecondaryAdmin) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: Only Admins can invite users' }),
         {
           status: 403,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -58,10 +73,57 @@ serve(async (req) => {
     }
 
     // Get request body
-    const { email, organization_id, organization_name, redirect_to } = await req.json();
+    const { email, organization_id, organization_name, redirect_to, role } = await req.json();
 
     if (!email || !organization_id || !organization_name) {
       throw new Error('Missing required fields: email, organization_id, organization_name');
+    }
+
+    // Validate role parameter
+    const inviteRole = role || 'user'; // Default to 'user' if not specified
+    const validRoles = ['user', 'secondary_admin', 'primary_admin'];
+
+    if (!validRoles.includes(inviteRole)) {
+      return new Response(
+        JSON.stringify({ error: `Invalid role: ${inviteRole}. Must be one of: ${validRoles.join(', ')}` }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Secondary Admins can only create regular users
+    if (isSecondaryAdmin && inviteRole !== 'user') {
+      return new Response(
+        JSON.stringify({ error: 'Secondary Admins can only invite regular users' }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Primary Admins can create secondary admins and users (not other primary admins)
+    if (isPrimaryAdmin && inviteRole === 'primary_admin') {
+      return new Response(
+        JSON.stringify({ error: 'Primary Admins cannot create other Primary Admins' }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Non-Super Admins must invite users to their own organization
+    if (!isSuperAdmin && profile.organization_id !== organization_id) {
+      return new Response(
+        JSON.stringify({ error: 'You can only invite users to your own organization' }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     // Create a Supabase Admin client to invite the user
@@ -71,14 +133,19 @@ serve(async (req) => {
     );
 
     // Invite the user
+    // Redirect to password setup page in the app
+    const appUrl = Deno.env.get('APP_URL') || 'http://localhost:5173';
+    const defaultRedirect = `${appUrl}/password-setup`;
+
     const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       email,
       {
         data: {
           organization_id,
           organization_name,
+          role: inviteRole,
         },
-        redirectTo: redirect_to || `${Deno.env.get('SUPABASE_URL')}/auth/v1/verify`,
+        redirectTo: redirect_to || defaultRedirect,
       }
     );
 
@@ -95,7 +162,7 @@ serve(async (req) => {
             .from('user_profiles')
             .update({
               organization_id,
-              role: 'primary_admin',
+              role: inviteRole,
             })
             .eq('id', user.id);
 

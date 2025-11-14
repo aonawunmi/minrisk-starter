@@ -81,7 +81,7 @@ serve(async (req) => {
       throw new Error('Organization not found');
     }
 
-    // Step 1: Get all users associated with this organization
+    // Step 1: Get all users associated with this organization from user_profiles
     const { data: orgUsers, error: usersError } = await supabaseAdmin
       .from('user_profiles')
       .select('id')
@@ -91,7 +91,15 @@ serve(async (req) => {
       console.error('Error fetching org users:', usersError);
     }
 
-    // Step 2: Delete the organization (CASCADE will handle related data)
+    // Step 2: Get invited users (who haven't completed signup) from auth.users metadata
+    const { data: allAuthUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const invitedUsers = allAuthUsers?.users.filter(
+      (user) => user.raw_user_meta_data?.organization_id === organization_id
+    ) || [];
+
+    console.log(`Found ${orgUsers?.length || 0} users in user_profiles and ${invitedUsers.length} invited users`);
+
+    // Step 3: Delete the organization (CASCADE will handle related data)
     const { error: deleteError } = await supabaseAdmin
       .from('organizations')
       .delete()
@@ -101,7 +109,7 @@ serve(async (req) => {
       throw deleteError;
     }
 
-    // Step 3: Delete auth users if they were only associated with this organization
+    // Step 4: Delete auth users from user_profiles
     if (orgUsers && orgUsers.length > 0) {
       for (const orgUser of orgUsers) {
         // Check if this user has other organization associations
@@ -112,9 +120,16 @@ serve(async (req) => {
 
         // If no other org associations, delete the auth user
         if (!otherOrgs || otherOrgs.length === 0) {
+          console.log(`Deleting auth user from user_profiles: ${orgUser.id}`);
           await supabaseAdmin.auth.admin.deleteUser(orgUser.id);
         }
       }
+    }
+
+    // Step 5: Delete invited users who haven't completed signup
+    for (const invitedUser of invitedUsers) {
+      console.log(`Deleting invited auth user: ${invitedUser.id} (${invitedUser.email})`);
+      await supabaseAdmin.auth.admin.deleteUser(invitedUser.id);
     }
 
     return new Response(
