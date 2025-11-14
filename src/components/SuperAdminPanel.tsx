@@ -28,7 +28,6 @@ export function SuperAdminPanel() {
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const [newOrgName, setNewOrgName] = useState('');
   const [newOrgIdentifier, setNewOrgIdentifier] = useState(''); // Unique identifier (reg number, tax ID, etc.)
-  const [adminEmail, setAdminEmail] = useState('');
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -54,21 +53,16 @@ export function SuperAdminPanel() {
     loadOrganizations();
   }, []);
 
-  // Create organization with automatic user invitation
+  // Create organization (without Primary Admin - users will be invited via Admin tab)
   const handleCreateOrganization = async () => {
     if (!newOrgName.trim()) {
       alert('Validation Error: Please enter an organization name.');
       return;
     }
 
-    if (!adminEmail.trim() || !adminEmail.includes('@')) {
-      alert('Validation Error: Please enter a valid admin email address.');
-      return;
-    }
-
     setCreating(true);
     try {
-      // Step 1: Create organization
+      // Create organization
       const { data: org, error: orgError } = await supabase
         .from('organizations')
         .insert([{ name: newOrgName.trim(), active: true }])
@@ -77,43 +71,10 @@ export function SuperAdminPanel() {
 
       if (orgError) throw orgError;
 
-      // Step 2: Invite user via Edge Function
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session) {
-        throw new Error('Not authenticated');
-      }
-
-      const inviteResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-user`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: adminEmail.trim(),
-          organization_id: org.id,
-          organization_name: newOrgName.trim(),
-          redirect_to: `${window.location.origin}/auth/callback`,
-        }),
-      });
-
-      const inviteResult = await inviteResponse.json();
-
-      if (!inviteResponse.ok) {
-        throw new Error(inviteResult.error || 'Failed to invite user');
-      }
-
-      if (inviteResult.success) {
-        if (inviteResult.message.includes('already exists')) {
-          alert(`✅ Organization Created!\n\nUser "${adminEmail}" already exists and has been assigned as Primary Admin of "${newOrgName}".`);
-        } else {
-          alert(`✅ Organization Created Successfully!\n\nOrganization: "${newOrgName}"\nAdmin Email: ${adminEmail}\n\nAn invitation email has been sent to ${adminEmail}.\n\nThey will be automatically assigned as Primary Admin when they accept the invitation.`);
-        }
-      }
+      alert(`✅ Organization Created Successfully!\n\nOrganization: "${newOrgName}"\n\nYou can now invite the Primary Admin via the Admin tab.`);
 
       // Reset form and close dialog
       setNewOrgName('');
-      setAdminEmail('');
       setIsCreateDialogOpen(false);
 
       // Reload organizations
@@ -284,18 +245,8 @@ export function SuperAdminPanel() {
                       value={newOrgName}
                       onChange={(e) => setNewOrgName(e.target.value)}
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="admin-email">Primary Admin Email</Label>
-                    <Input
-                      id="admin-email"
-                      type="email"
-                      placeholder="admin@abcbank.com"
-                      value={adminEmail}
-                      onChange={(e) => setAdminEmail(e.target.value)}
-                    />
                     <p className="text-xs text-muted-foreground">
-                      This user will be the Primary Admin who can create up to 3 Secondary Admins.
+                      After creating the organization, you can invite the Primary Admin via the Admin tab.
                     </p>
                   </div>
                 </div>
@@ -520,12 +471,12 @@ export function SuperAdminPanel() {
           <p><strong>To add a new organization:</strong></p>
           <ol className="list-decimal list-inside space-y-1 ml-2">
             <li>Click "Add Organization" button above</li>
-            <li>Enter the organization name and Primary Admin email</li>
-            <li>Click "Create Organization" - the system automatically sends an invitation email</li>
-            <li>The admin receives an email to verify and set their password</li>
-            <li>Once verified, they're automatically assigned as Primary Admin</li>
+            <li>Enter the organization name</li>
+            <li>Click "Create Organization" to create an empty organization</li>
+            <li>Go to the Admin tab to invite users (including the Primary Admin)</li>
+            <li>Select the organization when inviting users</li>
           </ol>
-          <p className="mt-3"><strong>To disable an organization:</strong> Click the "Disable" button. Users from that organization won't be able to access the system.</p>
+          <p className="mt-3"><strong>To disable an organization:</strong> Click the toggle button. Users from that organization won't be able to access the system.</p>
         </CardContent>
       </Card>
     </div>
