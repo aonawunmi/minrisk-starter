@@ -799,7 +799,8 @@ export default function MinRiskLatest() {
 
     // Check if user needs approval
     const needsApproval = userStatus === 'pending' || userStatus === 'rejected';
-    const canEdit = userRole === 'edit' && !isSuperAdmin; // Only 'edit' role can modify data, Super Admin is read-only
+    // ENABLE EDITING FOR ALL AUTHENTICATED USERS (except super admin who is read-only)
+    const canEdit = !isSuperAdmin; // All users can edit (primary_admin, secondary_admin, user) - Super Admin is read-only
     const isAdmin = userRole === 'primary_admin' || userRole === 'secondary_admin'; // Primary/Secondary Admins have full access
 
     if (needsApproval) {
