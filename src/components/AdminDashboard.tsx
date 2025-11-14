@@ -24,7 +24,7 @@ type UserData = {
   id: string;
   email: string | null;
   full_name: string | null;
-  role: 'admin' | 'edit' | 'view_only';
+  role: 'primary_admin' | 'secondary_admin' | 'user';
   status: 'pending' | 'approved' | 'rejected';
   organization_id: string;
   risk_count: number;
@@ -119,7 +119,7 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
     }
   };
 
-  const approveUser = async (userId: string, role: 'admin' | 'edit' | 'view_only') => {
+  const approveUser = async (userId: string, role: 'primary_admin' | 'secondary_admin' | 'user') => {
     try {
       const { error } = await supabase.rpc('approve_user', {
         target_user_id: userId,
@@ -152,7 +152,7 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
     }
   };
 
-  const changeUserRole = async (userId: string, newRole: 'admin' | 'edit' | 'view_only') => {
+  const changeUserRole = async (userId: string, newRole: 'primary_admin' | 'secondary_admin' | 'user') => {
     try {
       const { error } = await supabase.rpc('change_user_role', {
         target_user_id: userId,
