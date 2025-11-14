@@ -125,9 +125,16 @@ function appToDbRisk(risk: Omit<RiskRow, 'controls'>, userId: string, orgId: str
 
 /**
  * Get or create user profile
+ *
+ * PRODUCTION-GRADE DESIGN:
+ * - Reads invitation metadata from user_metadata (set by invite-user Edge Function)
+ * - Falls back to "pending approval" state if no metadata exists
+ * - Single source of truth: user_metadata from Supabase Auth
+ * - Handles race conditions gracefully
  */
-export async function getOrCreateUserProfile(userId: string) {
+export async function getOrCreateUserProfile(userId: string, userMetadata?: any) {
   console.log('Checking/creating user profile for:', userId);
+  console.log('User metadata:', userMetadata);
 
   // Check if profile exists
   const { data: profile, error: fetchError } = await supabase
@@ -147,13 +154,30 @@ export async function getOrCreateUserProfile(userId: string) {
   }
 
   console.log('No profile found, creating new user profile...');
+
+  // Extract invitation metadata (set by invite-user Edge Function)
+  const inviteOrgId = userMetadata?.organization_id;
+  const inviteRole = userMetadata?.role;
+
+  // Build profile data based on invitation metadata
+  const profileData: any = {
+    id: userId,
+    organization_id: inviteOrgId || '00000000-0000-0000-0000-000000000001', // Default org if no invitation
+    role: inviteRole || 'user', // Default role if no invitation
+    status: inviteOrgId ? 'approved' : 'pending', // Auto-approve if invited, otherwise pending
+  };
+
+  // Add approved_at timestamp if auto-approved
+  if (inviteOrgId) {
+    profileData.approved_at = new Date().toISOString();
+  }
+
+  console.log('Creating profile with data:', profileData);
+
   // Create profile if doesn't exist
   const { data: newProfile, error: createError } = await supabase
     .from('user_profiles')
-    .insert({
-      id: userId,
-      organization_id: '00000000-0000-0000-0000-000000000001', // Demo org
-    })
+    .insert(profileData)
     .select()
     .single();
 

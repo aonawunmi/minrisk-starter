@@ -411,7 +411,7 @@ export default function MinRiskLatest() {
                     } else {
                         // Ensure user profile exists (creates if doesn't exist)
                         console.log('📝 Creating/checking user profile...');
-                        const profileResult = await getOrCreateUserProfile(user.id);
+                        const profileResult = await getOrCreateUserProfile(user.id, user.user_metadata);
                         console.log('📝 Profile result:', profileResult);
 
                         // Load user role, status, and active period
