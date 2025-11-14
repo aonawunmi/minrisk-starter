@@ -29,8 +29,9 @@ const IncidentLogTab = React.lazy(() => import("@/components/incidents/IncidentL
 import { IntelligenceDashboard } from "@/components/intelligence/IntelligenceDashboard";
 import { ReportsContainer } from "@/components/reports/ReportsContainer";
 import { SuperAdminPanel } from "@/components/SuperAdminPanel";
-// FORCE CACHE BUST - NEW CODE v2.0
-console.log('🔥🔥🔥 APP.TSX LOADED - NEW VERSION 2.0 🔥🔥🔥');
+// FORCE CACHE BUST - METADATA FIX - v2025-11-14-PHASE5
+console.log('🔥🔥🔥 APP.TSX LOADED - METADATA FIX VERSION - 2025-11-14-PHASE5 🔥🔥🔥');
+console.log('✅ This version INCLUDES metadata-driven profile creation fix');
 import { loadRisks, createRisk, updateRisk, deleteRisk, loadConfig, saveConfig as saveConfigToDb } from '@/lib/database';
 import { loadIncidents, type Incident } from '@/lib/incidents';
 import { loadAppetiteConfigs, type RiskAppetiteConfig } from '@/lib/risk-appetite';
