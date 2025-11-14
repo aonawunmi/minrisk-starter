@@ -876,8 +876,8 @@ export default function MinRiskLatest() {
                   </TabsTrigger>
                 )}
                 <TabsTrigger value="operations">🚨 Operations</TabsTrigger>
-                <TabsTrigger value="kri">📉 KRI Monitoring</TabsTrigger>
-                <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger>
+                {!isSuperAdmin && <TabsTrigger value="kri">📉 KRI Monitoring</TabsTrigger>}
+                {!isSuperAdmin && <TabsTrigger value="ai_assistant">✨ AI Assistant</TabsTrigger>}
                 {(isAdmin || isSuperAdmin) && <TabsTrigger value="admin">⚙️ Admin</TabsTrigger>}
                 {isSuperAdmin && <TabsTrigger value="superadmin">🛡️ Super Admin</TabsTrigger>}
             </TabsList>
@@ -933,6 +933,7 @@ export default function MinRiskLatest() {
 
             <TabsContent value="operations">
                 <OperationsTabGroup
+                    isSuperAdmin={isSuperAdmin}
                     IncidentsContent={
                         <React.Suspense fallback={<div className="flex items-center justify-center p-8"><div className="h-8 w-8 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin" /></div>}>
                             <IncidentLogTab onRisksUpdate={loadRisksFromDB} isAdmin={isAdmin} />
@@ -964,7 +965,7 @@ export default function MinRiskLatest() {
                 />
             </TabsContent>
 
-            {isAdmin && (
+            {(isAdmin || isSuperAdmin) && (
                 <TabsContent value="admin">
                     <AdminDashboard config={config} showToast={showToast} />
                 </TabsContent>
