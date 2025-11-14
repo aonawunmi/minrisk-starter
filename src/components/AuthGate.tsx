@@ -7,12 +7,20 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [needsPasswordSetup, setNeedsPasswordSetup] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     console.log('🔐 AuthGate: Checking session...');
 
     // Check current session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('🔐 AuthGate: Session check error:', error);
+        setError('Failed to check authentication status. Please refresh the page.');
+        setLoading(false);
+        return;
+      }
+
       console.log('🔐 AuthGate: Session result:', session ? 'Logged in' : 'Not logged in');
 
       if (session) {
@@ -85,6 +93,28 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     // Reload to trigger full app initialization
     window.location.href = '/';
   };
+
+  if (error) {
+    return (
+      <div className="min-h-screen w-full bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md">
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
+              <span className="text-red-600 text-2xl">⚠️</span>
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Authentication Error</h2>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+            >
+              Reload Page
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

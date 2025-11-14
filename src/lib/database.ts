@@ -184,7 +184,7 @@ export async function getOrCreateUserProfile(userId: string, userMetadata?: any)
   if (createError) {
     // If duplicate key error (profile was created between check and insert), fetch it
     if (createError.code === '23505') {
-      console.log('Profile already exists (race condition), fetching...');
+      console.log('✅ Profile already exists (race condition), fetching...');
       const { data: existingProfile } = await supabase
         .from('user_profiles')
         .select('*')
@@ -192,7 +192,28 @@ export async function getOrCreateUserProfile(userId: string, userMetadata?: any)
         .single();
       return { data: existingProfile, error: null };
     }
-    console.error('Error creating user profile:', createError);
+
+    // Check for foreign key constraint violations
+    if (createError.code === '23503') {
+      console.error('❌ Foreign key constraint error - organization may not exist:', createError);
+      const friendlyError = {
+        ...createError,
+        message: 'The organization for this user no longer exists. Please contact support.',
+      };
+      return { data: null, error: friendlyError };
+    }
+
+    // Check for check constraint violations
+    if (createError.code === '23514') {
+      console.error('❌ Check constraint error - invalid role value:', createError);
+      const friendlyError = {
+        ...createError,
+        message: 'Invalid user role specified. Please contact support.',
+      };
+      return { data: null, error: friendlyError };
+    }
+
+    console.error('❌ Error creating user profile:', createError);
     return { data: null, error: createError };
   }
 
