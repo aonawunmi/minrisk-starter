@@ -25,7 +25,7 @@ export function RiskRegisterTabGroup({
         <TabsTrigger value="register">📋 Register</TabsTrigger>
         <TabsTrigger value="controls">🛡️ Controls</TabsTrigger>
         <TabsTrigger value="heatmap">🔥 Heat Map</TabsTrigger>
-        {canEdit && <TabsTrigger value="import">📥 Import</TabsTrigger>}
+        <TabsTrigger value="import">📥 Import</TabsTrigger>
       </TabsList>
 
       <TabsContent value="register" className="space-y-4">
@@ -40,11 +40,9 @@ export function RiskRegisterTabGroup({
         {HeatMapContent}
       </TabsContent>
 
-      {canEdit && (
-        <TabsContent value="import" className="space-y-4">
-          {ImportContent}
-        </TabsContent>
-      )}
+      <TabsContent value="import" className="space-y-4">
+        {ImportContent}
+      </TabsContent>
     </Tabs>
   );
 }
