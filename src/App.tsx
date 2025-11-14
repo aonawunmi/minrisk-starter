@@ -393,9 +393,13 @@ export default function MinRiskLatest() {
                     console.log('🛡️ Profile data:', profileData);
                     console.log('🛡️ Profile error:', profileError);
 
-                    // If Super Admin, set active tab and skip normal profile loading
+                    // If Super Admin, give them access but don't force them to any specific tab
                     if (isSuperAdminFlag) {
-                        setActiveTab('superadmin');
+                        // Don't force activeTab - let them navigate freely
+                        // Set activeTab to dashboard by default instead of locking to superadmin
+                        if (activeTab === 'admin') {
+                            setActiveTab('dashboard'); // Start on dashboard
+                        }
                         setUserRole('admin'); // Give admin role for any residual permissions
                         setUserStatus('approved');
                         setCurrentUser({
@@ -794,8 +798,8 @@ export default function MinRiskLatest() {
 
     // Check if user needs approval
     const needsApproval = userStatus === 'pending' || userStatus === 'rejected';
-    const canEdit = userRole === 'edit'; // Only 'edit' role can modify data
-    const isAdmin = userRole === 'admin'; // Admin can view all but not edit data
+    const canEdit = userRole === 'edit' && !isSuperAdmin; // Only 'edit' role can modify data, Super Admin is read-only
+    const isAdmin = userRole === 'primary_admin' || userRole === 'secondary_admin'; // Primary/Secondary Admins have full access
 
     if (needsApproval) {
         return <div className="min-h-screen w-full bg-gray-50 p-6 flex items-center justify-center">

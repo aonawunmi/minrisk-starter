@@ -27,6 +27,7 @@ export function SuperAdminPanel() {
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const [newOrgName, setNewOrgName] = useState('');
+  const [newOrgIdentifier, setNewOrgIdentifier] = useState(''); // Unique identifier (reg number, tax ID, etc.)
   const [adminEmail, setAdminEmail] = useState('');
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
