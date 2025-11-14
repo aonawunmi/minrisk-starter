@@ -229,7 +229,9 @@ export default function AppetiteDashboard({ showToast }: AppetiteDashboardProps)
             <CardDescription>Average Risk Score</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-orange-700">{utilization.avg_score.toFixed(1)}</div>
+            <div className="text-3xl font-bold text-orange-700">
+              {utilization.avg_score != null ? utilization.avg_score.toFixed(1) : '0.0'}
+            </div>
             <p className="text-xs text-gray-600 mt-1">Out of 30.0</p>
           </CardContent>
         </Card>
