@@ -170,16 +170,31 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
   };
 
   const deleteUser = async (userId: string, userEmail: string) => {
-    if (!confirm(`Are you sure you want to delete user ${userEmail}? This will delete all their risks and controls. This action cannot be undone.`)) {
+    if (!confirm(`Are you sure you want to delete user ${userEmail}? This will completely remove them from the system. This action cannot be undone.`)) {
       return;
     }
 
     try {
-      const { error } = await supabase.rpc('delete_user', {
-        target_user_id: userId,
-      });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
 
-      if (error) throw error;
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ user_id: userId }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete user');
+      }
 
       console.log('✅ User deleted:', userId);
       await loadAdminData();

@@ -105,7 +105,8 @@ serve(async (req) => {
     }
 
     // Primary Admins can create secondary admins and users (not other primary admins)
-    if (isPrimaryAdmin && inviteRole === 'primary_admin') {
+    // BUT Super Admins can create anyone (including Primary Admins)
+    if (!isSuperAdmin && isPrimaryAdmin && inviteRole === 'primary_admin') {
       return new Response(
         JSON.stringify({ error: 'Primary Admins cannot create other Primary Admins' }),
         {
