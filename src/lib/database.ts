@@ -378,6 +378,12 @@ export async function loadRisks(): Promise<RiskRow[]> {
   const isSuperAdmin = profile.is_super_admin === true;
   const isAdmin = profile.role === 'primary_admin' || profile.role === 'secondary_admin' || profile.role === 'admin';
 
+  // DEBUG: Log the profile data to see what we got
+  console.log('🔍 DEBUG loadRisks - Profile data:', profile);
+  console.log('🔍 DEBUG loadRisks - Role:', profile.role, 'Type:', typeof profile.role);
+  console.log('🔍 DEBUG loadRisks - isSuperAdmin:', isSuperAdmin);
+  console.log('🔍 DEBUG loadRisks - isAdmin:', isAdmin);
+
   // SUPER ADMIN: Load ALL risks from ALL organizations (consolidated read-only view)
   // ADMIN: Load ALL risks for organization (cross-user visibility)
   // REGULAR USER: Load ONLY their own risks (user-level isolation)
