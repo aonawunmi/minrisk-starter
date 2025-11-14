@@ -163,6 +163,7 @@ serve(async (req) => {
             .update({
               organization_id,
               role: inviteRole,
+              status: 'approved', // Ensure status is approved
             })
             .eq('id', user.id);
 
@@ -184,6 +185,23 @@ serve(async (req) => {
       }
 
       throw inviteError;
+    }
+
+    // IMPORTANT: Update the user profile to set status as 'approved'
+    // Invited users should be auto-approved, not pending
+    if (inviteData.user) {
+      const { error: profileError } = await supabaseAdmin
+        .from('user_profiles')
+        .update({
+          status: 'approved',
+          approved_at: new Date().toISOString(),
+        })
+        .eq('id', inviteData.user.id);
+
+      if (profileError) {
+        console.error('Error updating profile status:', profileError);
+        // Don't throw - the invitation was sent, just log the error
+      }
     }
 
     return new Response(

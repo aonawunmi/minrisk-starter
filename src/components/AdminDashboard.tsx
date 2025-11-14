@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { RefreshCw, Users, FileText, Shield, AlertTriangle, Check, X, UserCheck, UserX, Archive, BookOpen, TrendingUp, Trash2, Loader2, Activity, Building2 } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { RefreshCw, Users, FileText, Shield, AlertTriangle, Check, X, UserCheck, UserX, Archive, BookOpen, TrendingUp, Trash2, Loader2, Activity, Building2, UserPlus, Mail } from 'lucide-react';
 import { clearAllOrganizationData, clearRiskRegisterData } from '@/lib/admin';
 import ArchiveManagement from './ArchiveManagement';
 import AuditTrail from './AuditTrail';
@@ -39,6 +40,9 @@ type AdminDashboardProps = {
 };
 
 export default function AdminDashboard({ config, showToast, isSuperAdmin = false }: AdminDashboardProps) {
+  // DEBUG: Log isSuperAdmin prop value
+  console.log('🛡️ AdminDashboard - isSuperAdmin prop:', isSuperAdmin);
+
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -56,6 +60,14 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
   const [clearRisksMessage, setClearRisksMessage] = useState('');
   const [showClearRisksDialog, setShowClearRisksDialog] = useState(false);
   const [confirmRisksText, setConfirmRisksText] = useState('');
+
+  // Invite user state
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'user' | 'secondary_admin' | 'primary_admin'>('user');
+  const [inviting, setInviting] = useState(false);
+  const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>([]);
+  const [selectedOrgId, setSelectedOrgId] = useState<string>('');
 
   const loadAdminData = async () => {
     setLoading(true);
@@ -174,6 +186,94 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
     } catch (error: any) {
       console.error('❌ Failed to delete user:', error);
       alert('Failed to delete user: ' + error.message);
+    }
+  };
+
+  const loadOrganizations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('id, name')
+        .order('name');
+
+      if (error) {
+        console.error('Error loading organizations:', error);
+        return;
+      }
+
+      setOrganizations(data || []);
+    } catch (error: any) {
+      console.error('Failed to load organizations:', error);
+    }
+  };
+
+  const inviteUser = async () => {
+    if (!inviteEmail || !inviteEmail.includes('@')) {
+      showToast('Please enter a valid email address', 'error');
+      return;
+    }
+
+    if (!selectedOrgId) {
+      showToast('Please select an organization', 'error');
+      return;
+    }
+
+    setInviting(true);
+
+    // Find the organization name from the selected ID
+    const selectedOrg = organizations.find(org => org.id === selectedOrgId);
+    const orgName = selectedOrg?.name || 'MinRisk Organization';
+
+    console.log('📧 Inviting user:', inviteEmail, 'to org:', orgName, 'with role:', inviteRole);
+
+    try {
+      // Get the current user's auth token
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        throw new Error('No active session');
+      }
+
+      // Call the invite-user edge function
+      const response = await fetch(
+        `${supabase.supabaseUrl}/functions/v1/invite-user`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: inviteEmail,
+            organization_id: selectedOrgId,
+            organization_name: orgName,
+            role: inviteRole,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to invite user');
+      }
+
+      console.log('✅ User invited successfully:', result);
+      showToast(`Invitation sent to ${inviteEmail}`, 'success');
+
+      // Reset form and close dialog
+      setInviteEmail('');
+      setInviteRole('user');
+      setSelectedOrgId('');
+      setShowInviteDialog(false);
+
+      // Reload admin data
+      await loadAdminData();
+    } catch (error: any) {
+      console.error('❌ Failed to invite user:', error);
+      showToast(`Failed to invite user: ${error.message}`, 'error');
+    } finally {
+      setInviting(false);
     }
   };
 
@@ -433,10 +533,25 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
               <CardTitle>All Users</CardTitle>
               <CardDescription>Manage and view all registered users</CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={loadAdminData}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
+            <div className="flex gap-2">
+              {isSuperAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowInviteDialog(true);
+                    loadOrganizations();
+                  }}
+                >
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Invite User
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={loadAdminData}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -723,6 +838,113 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
               disabled={confirmRisksText !== 'DELETE RISKS'}
             >
               Confirm Deletion
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invite User Dialog */}
+      <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite New User</DialogTitle>
+            <DialogDescription>
+              Send an email invitation to a new user. They will receive a link to set up their password and join the organization.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="inviteOrganization">Organization</Label>
+              <Select
+                value={selectedOrgId}
+                onValueChange={setSelectedOrgId}
+                disabled={inviting}
+              >
+                <SelectTrigger id="inviteOrganization">
+                  <SelectValue placeholder="Select an organization" />
+                </SelectTrigger>
+                <SelectContent>
+                  {organizations.map((org) => (
+                    <SelectItem key={org.id} value={org.id}>
+                      {org.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500">
+                The user will be assigned to this organization
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="inviteEmail">Email Address</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  id="inviteEmail"
+                  type="email"
+                  placeholder="user@example.com"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  className="pl-10"
+                  disabled={inviting}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="inviteRole">User Role</Label>
+              <Select
+                value={inviteRole}
+                onValueChange={(value) => setInviteRole(value as typeof inviteRole)}
+                disabled={inviting}
+              >
+                <SelectTrigger id="inviteRole">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">Regular User</SelectItem>
+                  <SelectItem value="secondary_admin">Secondary Admin</SelectItem>
+                  <SelectItem value="primary_admin">Primary Admin</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500">
+                {inviteRole === 'user' && 'Can create and manage their own risks and controls'}
+                {inviteRole === 'secondary_admin' && 'Can invite regular users and manage organization data'}
+                {inviteRole === 'primary_admin' && 'Can invite admins and users, full organization access'}
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowInviteDialog(false);
+                setInviteEmail('');
+                setInviteRole('user');
+                setSelectedOrgId('');
+              }}
+              disabled={inviting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={inviteUser}
+              disabled={inviting || !inviteEmail || !inviteEmail.includes('@') || !selectedOrgId}
+            >
+              {inviting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Mail className="h-4 w-4 mr-2" />
+                  Send Invitation
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
