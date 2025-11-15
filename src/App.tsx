@@ -2984,3 +2984,4 @@ function AIAssistantTab({ onAddMultipleRisks, config, onSwitchTab }: { onAddMult
     );
 }
 
+// Version: RLS-FIX-20251115-134637
