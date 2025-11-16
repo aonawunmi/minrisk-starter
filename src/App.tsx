@@ -299,7 +299,7 @@ export default function MinRiskLatest() {
     const [activeTab, setActiveTab] = useState("dashboard");
     const [editingRisk, setEditingRisk] = useState<ProcessedRisk | null>(null);
     const [currentUser, setCurrentUser] = useState<{id: string; email: string; organization_id: string} | null>(null);
-    const [userRole, setUserRole] = useState<'admin' | 'edit' | 'view_only' | null>(null);
+    const [userRole, setUserRole] = useState<'primary_admin' | 'secondary_admin' | 'admin' | 'user' | 'edit' | 'view_only' | null>(null);
     const [userStatus, setUserStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null);
     const [isSuperAdmin, setIsSuperAdmin] = useState(false);
     const [activePeriod, setActivePeriod] = useState<string | null>(null);
@@ -964,7 +964,7 @@ export default function MinRiskLatest() {
                     organizationId={currentUser?.organization_id || ''}
                     userId={currentUser?.id || ''}
                     userEmail={currentUser?.email || ''}
-                    userRole={userRole || 'view_only'}
+                    userRole={(userRole === 'primary_admin' || userRole === 'secondary_admin') ? 'admin' : userRole === 'user' ? 'edit' : (userRole as 'admin' | 'view_only' | 'edit') || 'view_only'}
                 />
             </TabsContent>
 

@@ -74,7 +74,7 @@ export async function generateReportDraft(
       sections.push({
         id: crypto.randomUUID(),
         title: sectionTemplate.title,
-        section_order: sectionTemplate.order,
+        order: sectionTemplate.order,
         included: sectionTemplate.default_included,
         content_type: sectionTemplate.content_type,
         narrative,

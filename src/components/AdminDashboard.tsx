@@ -251,7 +251,7 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
 
       // Call the invite-user edge function
       const response = await fetch(
-        `${supabase.supabaseUrl}/functions/v1/invite-user`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-user`,
         {
           method: 'POST',
           headers: {
@@ -618,12 +618,11 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
                     </td>
                     <td className="p-2">
                       <span className={`text-xs font-medium px-2 py-1 rounded ${
-                        user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
-                        user.role === 'edit' ? 'bg-blue-100 text-blue-800' :
-                        user.role === null ? 'bg-green-100 text-green-800' :
+                        user.role === 'primary_admin' || user.role === 'secondary_admin' ? 'bg-purple-100 text-purple-800' :
+                        user.role === 'user' ? 'bg-blue-100 text-blue-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {user.role === null ? 'SUPER ADMIN' : user.role === 'view_only' ? 'View Only' : user.role.toUpperCase()}
+                        {user.role?.toUpperCase() || 'USER'}
                       </span>
                     </td>
                     <td className="p-2 text-right font-medium">{user.risk_count}</td>
@@ -713,9 +712,9 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
       {!isSuperAdmin && (
         <TabsContent value="organization" className="space-y-6">
           <OrganizationSettings
-            organizationId={config.organizationId}
-            organizationName={config.organizationName || 'MinRisk Organization'}
-            userEmail={config.userEmail}
+            organizationId={''}
+            organizationName={'MinRisk Organization'}
+            userEmail={''}
           />
         </TabsContent>
       )}

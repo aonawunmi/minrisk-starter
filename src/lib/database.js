@@ -60,9 +60,16 @@ function appToDbRisk(risk, userId, orgId) {
 // =====================================================
 /**
  * Get or create user profile
+ *
+ * PRODUCTION-GRADE DESIGN:
+ * - Reads invitation metadata from user_metadata (set by invite-user Edge Function)
+ * - Falls back to "pending approval" state if no metadata exists
+ * - Single source of truth: user_metadata from Supabase Auth
+ * - Handles race conditions gracefully
  */
-export async function getOrCreateUserProfile(userId) {
+export async function getOrCreateUserProfile(userId, userMetadata) {
     console.log('Checking/creating user profile for:', userId);
+    console.log('User metadata:', userMetadata);
     // Check if profile exists
     const { data: profile, error: fetchError } = await supabase
         .from('user_profiles')
@@ -78,19 +85,31 @@ export async function getOrCreateUserProfile(userId) {
         return { data: profile, error: null };
     }
     console.log('No profile found, creating new user profile...');
+    // Extract invitation metadata (set by invite-user Edge Function)
+    const inviteOrgId = userMetadata?.organization_id;
+    const inviteRole = userMetadata?.role;
+    // Build profile data based on invitation metadata
+    const profileData = {
+        id: userId,
+        organization_id: inviteOrgId || '00000000-0000-0000-0000-000000000001', // Default org if no invitation
+        role: inviteRole || 'user', // Default role if no invitation
+        status: inviteOrgId ? 'approved' : 'pending', // Auto-approve if invited, otherwise pending
+    };
+    // Add approved_at timestamp if auto-approved
+    if (inviteOrgId) {
+        profileData.approved_at = new Date().toISOString();
+    }
+    console.log('Creating profile with data:', profileData);
     // Create profile if doesn't exist
     const { data: newProfile, error: createError } = await supabase
         .from('user_profiles')
-        .insert({
-        id: userId,
-        organization_id: '00000000-0000-0000-0000-000000000001', // Demo org
-    })
+        .insert(profileData)
         .select()
         .single();
     if (createError) {
         // If duplicate key error (profile was created between check and insert), fetch it
         if (createError.code === '23505') {
-            console.log('Profile already exists (race condition), fetching...');
+            console.log('✅ Profile already exists (race condition), fetching...');
             const { data: existingProfile } = await supabase
                 .from('user_profiles')
                 .select('*')
@@ -98,7 +117,25 @@ export async function getOrCreateUserProfile(userId) {
                 .single();
             return { data: existingProfile, error: null };
         }
-        console.error('Error creating user profile:', createError);
+        // Check for foreign key constraint violations
+        if (createError.code === '23503') {
+            console.error('❌ Foreign key constraint error - organization may not exist:', createError);
+            const friendlyError = {
+                ...createError,
+                message: 'The organization for this user no longer exists. Please contact support.',
+            };
+            return { data: null, error: friendlyError };
+        }
+        // Check for check constraint violations
+        if (createError.code === '23514') {
+            console.error('❌ Check constraint error - invalid role value:', createError);
+            const friendlyError = {
+                ...createError,
+                message: 'Invalid user role specified. Please contact support.',
+            };
+            return { data: null, error: friendlyError };
+        }
+        console.error('❌ Error creating user profile:', createError);
         return { data: null, error: createError };
     }
     console.log('User profile created:', newProfile);
@@ -225,24 +262,35 @@ export async function loadRisks() {
         console.log('❌ No user found in loadRisks');
         return [];
     }
-    // Get user profile to check role
+    // Get user profile to check role and Super Admin status
     const { data: profile } = await supabase
         .from('user_profiles')
-        .select('role, organization_id')
+        .select('role, organization_id, is_super_admin')
         .eq('id', user.id)
         .single();
     if (!profile) {
         console.log('❌ No user profile found in loadRisks');
         return [];
     }
-    const isAdmin = profile.role === 'admin';
+    const isSuperAdmin = profile.is_super_admin === true;
+    const isAdmin = profile.role === 'primary_admin' || profile.role === 'secondary_admin' || profile.role === 'admin';
+    // DEBUG: Log the profile data to see what we got
+    console.log('🔍 DEBUG loadRisks - Profile data:', profile);
+    console.log('🔍 DEBUG loadRisks - Role:', profile.role, 'Type:', typeof profile.role);
+    console.log('🔍 DEBUG loadRisks - isSuperAdmin:', isSuperAdmin);
+    console.log('🔍 DEBUG loadRisks - isAdmin:', isAdmin);
+    // SUPER ADMIN: Load ALL risks from ALL organizations (consolidated read-only view)
     // ADMIN: Load ALL risks for organization (cross-user visibility)
     // REGULAR USER: Load ONLY their own risks (user-level isolation)
-    console.log(`📡 Fetching risks from Supabase for user ${user.id} (${isAdmin ? 'ADMIN - org-wide' : 'USER - personal only'})...`);
+    console.log(`📡 Fetching risks from Supabase for user ${user.id} (${isSuperAdmin ? 'SUPER ADMIN - all orgs' : isAdmin ? 'ADMIN - org-wide' : 'USER - personal only'})...`);
     let query = supabase
         .from('risks')
         .select('*');
-    if (isAdmin) {
+    if (isSuperAdmin) {
+        // Super Admin: Load ALL risks from ALL organizations (no filter)
+        console.log('🛡️ Super Admin: Loading all risks from all organizations');
+    }
+    else if (isAdmin) {
         // Admin: Load all risks for the organization
         query = query.eq('organization_id', profile.organization_id);
     }
