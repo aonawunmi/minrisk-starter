@@ -238,19 +238,16 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
         return;
       }
 
-      // Call backend API endpoint instead of running scanner in browser
-      const response = await fetch('/api/scan-news', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
+      // Call Supabase Edge Function instead of Vercel API
+      const { data: result, error } = await supabase.functions.invoke('scan-news', {
+        body: {
           selectedKeywords: keywordsToUse,
-        }),
+        },
       });
 
-      const result = await response.json();
+      if (error) {
+        throw error;
+      }
 
       if (result.success) {
         // Store scan results and stats
@@ -290,26 +287,10 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
 
   const handleRetainEvent = async (item: any): Promise<boolean> => {
     try {
-      const response = await fetch('/api/scan-news', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'retain',
-          eventData: item,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        setScanMessage('✅ Event saved successfully!');
-        setTimeout(() => setScanMessage(''), 3000);
-        return true;
-      } else {
-        setScanMessage(`❌ Failed to save event: ${result.error}`);
-        setTimeout(() => setScanMessage(''), 5000);
-        return false;
-      }
+      // Note: Retain functionality not yet implemented in Edge Function
+      setScanMessage('⚠️ Manual event retention coming soon!');
+      setTimeout(() => setScanMessage(''), 3000);
+      return false;
     } catch (error) {
       console.error('Error retaining event:', error);
       setScanMessage('❌ Error saving event. Check console for details.');
@@ -331,18 +312,15 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
         return;
       }
 
-      const response = await fetch('/api/scan-news', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
+      const { data: result, error } = await supabase.functions.invoke('scan-news', {
+        body: {
           action: 'analyzeExisting',
-        }),
+        },
       });
 
-      const result = await response.json();
+      if (error) {
+        throw error;
+      }
 
       if (result.success) {
         setAnalyzeMessage(
@@ -387,18 +365,15 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
         return;
       }
 
-      const response = await fetch('/api/scan-news', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
+      const { data: result, error } = await supabase.functions.invoke('scan-news', {
+        body: {
           action: 'resetAnalysis',
-        }),
+        },
       });
 
-      const result = await response.json();
+      if (error) {
+        throw error;
+      }
 
       if (result.success) {
         setResetMessage(`✅ Reset ${result.events_reset} events. Click "Analyze Events" to re-analyze.`);

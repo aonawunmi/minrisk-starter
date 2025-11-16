@@ -1514,7 +1514,7 @@ function HeatmapTab({ processedData, allRows, uniquePeriods, heatMapView, setHea
             const { data, error } = await supabase
                 .from('risk_history')
                 .select('*')
-                .order('committed_date', { ascending: false });
+                .order('archived_at', { ascending: false });
 
             if (error) throw error;
             setHistoryData(data || []);
@@ -2057,7 +2057,7 @@ function RiskHistoryTab({ config, showToast, isAdmin }: { config: AppConfig; sho
             const { data, error } = await supabase
                 .from('risk_history')
                 .select('*')
-                .order('committed_date', { ascending: false });
+                .order('archived_at', { ascending: false });
 
             if (error) throw error;
             setHistoryData(data || []);
@@ -2358,7 +2358,7 @@ function RiskHistoryTab({ config, showToast, isAdmin }: { config: AppConfig; sho
                                                 </span>
                                             </td>
                                             <td className="px-3 py-2">{risk.status}</td>
-                                            <td className="px-3 py-2 text-xs">{new Date(risk.committed_date).toLocaleDateString()}</td>
+                                            <td className="px-3 py-2 text-xs">{new Date(risk.archived_at).toLocaleDateString()}</td>
                                         </tr>
                                     );
                                 })}
