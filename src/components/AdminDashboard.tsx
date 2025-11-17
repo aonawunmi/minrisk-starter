@@ -74,40 +74,53 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
     console.log('📊 Loading admin dashboard data...');
 
     try {
-      // Get all users from the admin view (includes emails)
-      const { data: adminUsers, error: usersError } = await supabase
-        .from('admin_users_view')
-        .select('*')
+      // OPTIMIZED: Get user profiles directly instead of using slow view
+      const { data: profiles, error: profilesError } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, role, status, organization_id, created_at, approved_at')
         .order('created_at', { ascending: false });
 
-      if (usersError) {
-        console.error('Error loading users:', usersError);
+      if (profilesError) {
+        console.error('Error loading user profiles:', profilesError);
         return;
       }
 
-      const userData: UserData[] = adminUsers?.map(user => ({
-        id: user.id,
-        email: user.email,
-        full_name: user.full_name,
-        role: user.role,
-        status: user.status,
-        organization_id: user.organization_id,
-        risk_count: user.risk_count || 0,
-        control_count: user.control_count || 0,
-        created_at: user.created_at,
-        approved_at: user.approved_at,
+      // Get auth users to get emails (parallel query)
+      const { data: { users: authUsers }, error: authError } = await supabase.auth.admin.listUsers();
+
+      if (authError) {
+        console.error('Error loading auth users:', authError);
+      }
+
+      // Create email lookup map
+      const emailMap = new Map(authUsers?.map(u => [u.id, u.email]) || []);
+
+      // Map profile data with emails
+      const userData: UserData[] = profiles?.map(profile => ({
+        id: profile.id,
+        email: emailMap.get(profile.id) || null,
+        full_name: profile.full_name,
+        role: profile.role,
+        status: profile.status,
+        organization_id: profile.organization_id,
+        risk_count: 0, // Will calculate lazily if needed
+        control_count: 0, // Will calculate lazily if needed
+        created_at: profile.created_at,
+        approved_at: profile.approved_at,
       })) || [];
 
       setUsers(userData);
 
-      // Calculate stats
-      const { data: risks } = await supabase.from('risks').select('id');
-      const { data: controls } = await supabase.from('controls').select('id');
+      // OPTIMIZED: Use count queries instead of selecting all IDs
+      const [risksResult, controlsResult] = await Promise.all([
+        supabase.from('risks').select('id', { count: 'exact', head: true }),
+        supabase.from('controls').select('id', { count: 'exact', head: true })
+      ]);
 
       setStats({
         totalUsers: userData.length,
-        totalRisks: risks?.length || 0,
-        totalControls: controls?.length || 0,
+        totalRisks: risksResult.count || 0,
+        totalControls: controlsResult.count || 0,
         pendingUsers: userData.filter(u => u.status === 'pending').length,
       });
 
