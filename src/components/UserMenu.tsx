@@ -63,14 +63,25 @@ export default function UserMenu() {
   const handleLogout = async () => {
     setLoading(true);
     console.log('🔓 Logging out...');
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Logout error:', error);
-      alert('Failed to logout: ' + error.message);
-    } else {
-      console.log('✅ Logged out successfully');
+
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Logout error:', error);
+        alert('Failed to logout: ' + error.message);
+        setLoading(false);
+      } else {
+        console.log('✅ Logged out successfully');
+        // Force reload after successful logout to clear all state
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 100);
+      }
+    } catch (err) {
+      console.error('Logout exception:', err);
+      alert('Failed to logout');
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   if (!user) return null;
