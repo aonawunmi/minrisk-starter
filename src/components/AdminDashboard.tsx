@@ -120,37 +120,34 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
       });
 
       // Fetch per-user risk and control counts in parallel
-      // Uses GROUP BY to efficiently get counts for all users at once
-      // Note: Controls queries may fail if table doesn't exist - that's OK
-      const [risksPerUser, controlsPerUser, risksResult, controlsResult] = await Promise.all([
-        // Get risk counts grouped by user_id
-        supabase
-          .from('risks')
-          .select('user_id')
-          .eq('organization_id', currentProfile.organization_id),
-        // Get control counts grouped by user_id (may fail if table doesn't exist)
-        supabase
+      // Note: Controls table may not exist, so we wrap those queries to suppress errors
+      const risksPerUser = await supabase
+        .from('risks')
+        .select('user_id')
+        .eq('organization_id', currentProfile.organization_id);
+
+      const risksResult = await supabase
+        .from('risks')
+        .select('id', { count: 'exact', head: true })
+        .eq('organization_id', currentProfile.organization_id);
+
+      // Controls queries - may fail if table doesn't exist
+      let controlsPerUser = { data: null, error: null };
+      let controlsResult = { data: null, error: null, count: 0 };
+
+      try {
+        controlsPerUser = await supabase
           .from('controls')
           .select('user_id')
-          .eq('organization_id', currentProfile.organization_id)
-          .then(result => result)
-          .catch(err => {
-            console.warn('⚠️ Controls table query failed (table may not exist):', err.message);
-            return { data: null, error: err };
-          }),
-        // Total risk count for stats
-        supabase.from('risks').select('id', { count: 'exact', head: true }).eq('organization_id', currentProfile.organization_id),
-        // Total control count for stats (may fail if table doesn't exist)
-        supabase
+          .eq('organization_id', currentProfile.organization_id);
+
+        controlsResult = await supabase
           .from('controls')
           .select('id', { count: 'exact', head: true })
-          .eq('organization_id', currentProfile.organization_id)
-          .then(result => result)
-          .catch(err => {
-            console.warn('⚠️ Controls count query failed (table may not exist)');
-            return { data: null, error: err, count: 0 };
-          })
-      ]);
+          .eq('organization_id', currentProfile.organization_id);
+      } catch (err: any) {
+        console.warn('⚠️ Controls table not available:', err.message);
+      }
 
       // Create maps of user_id -> count
       const riskCountMap = new Map<string, number>();
