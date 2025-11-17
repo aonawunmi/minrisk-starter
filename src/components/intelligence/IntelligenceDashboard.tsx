@@ -100,14 +100,21 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
 
   const loadData = async () => {
     setLoading(true);
-    const { data, error } = await loadRiskAlerts(undefined, riskCode);
+    try {
+      const { data, error } = await loadRiskAlerts(undefined, riskCode);
 
-    if (!error && data) {
-      setAlerts(data);
-    } else {
-      console.error('Error loading alerts:', error);
+      if (!error && data) {
+        setAlerts(data);
+      } else {
+        console.error('Error loading alerts:', error);
+        setAlerts([]); // Set empty array on error
+      }
+    } catch (err) {
+      console.error('Exception loading alerts:', err);
+      setAlerts([]); // Set empty array on exception
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const loadStats = async () => {
@@ -768,6 +775,19 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
             </TabsList>
 
             <TabsContent value="alerts" className="mt-4 space-y-4">
+              {/* Info message about filtered alerts */}
+              {alerts.length < statistics.total && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <Brain className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-blue-900">
+                      <span className="font-medium">Showing {alerts.length} of {statistics.total} organization alerts.</span>
+                      <span className="text-blue-700"> You can only view and treat alerts for risks you have registered in your Risk Register.</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Alert Filters */}
               <Tabs value={activeFilter} onValueChange={(v) => setActiveFilter(v as typeof activeFilter)}>
                 <TabsList>

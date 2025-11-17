@@ -7,6 +7,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 }
 
 // Default risk-related keywords (fallback if database query fails)
@@ -338,7 +340,14 @@ async function storeEvents(
   console.log(`   🔁 Duplicates: ${duplicates}`)
   console.log(`   📊 Total processed: ${filteredOld + filteredNoKeywords + duplicates + stored}`)
 
-  return { stored, events: storedEvents, allItems }
+  return {
+    stored,
+    filteredOld,
+    filteredNoKeywords,
+    duplicates,
+    events: storedEvents,
+    allItems
+  }
 }
 
 /**
@@ -382,20 +391,15 @@ async function loadRisks(supabase: any, userId: string) {
     return []
   }
 
-  const isAdmin = profile.role === 'primary_admin' || profile.role === 'secondary_admin'
-
-  let query = supabase
+  // Intelligence module analyzes external events against ALL organization risks
+  // regardless of user role, since the events are organization-scoped
+  const query = supabase
     .from('risks')
     .select('risk_code, risk_title, risk_description, category, likelihood_inherent, impact_inherent')
+    .eq('organization_id', profile.organization_id)
     .order('risk_code')
 
-  if (isAdmin) {
-    query = query.eq('organization_id', profile.organization_id)
-    console.log(`📊 Loading risks for ADMIN user ${userId} (org-wide)`)
-  } else {
-    query = query.eq('user_id', userId)
-    console.log(`📊 Loading risks for user ${userId} (personal only)`)
-  }
+  console.log(`📊 Loading organization-wide risks for user ${userId}`)
 
   const { data, error } = await query
 
@@ -404,7 +408,7 @@ async function loadRisks(supabase: any, userId: string) {
     return []
   }
 
-  console.log(`📊 Loaded ${data?.length || 0} risks for user ${userId}`)
+  console.log(`📊 Loaded ${data?.length || 0} risks for organization ${profile.organization_id}`)
   return data || []
 }
 
@@ -874,6 +878,8 @@ serve(async (req) => {
       feeds_processed: parsedFeeds.events.length,
       events_found: parsedFeeds.totalItems,
       events_stored: storeResults.stored,
+      events_filtered: storeResults.filteredOld + storeResults.filteredNoKeywords,
+      events_duplicates: storeResults.duplicates,
       alerts_created: alertsCreated,
       max_age_days: maxAgeDays,
     }

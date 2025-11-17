@@ -282,57 +282,61 @@ export async function createRiskAlert(
  * Load risk intelligence alerts
  * USER-LEVEL FILTERING: Only loads alerts for the current user's risks
  */
-// Cache for user profile to prevent repeated database calls
-let cachedProfile: { organization_id: string; role: string; userId: string } | null = null;
-
 export async function loadRiskAlerts(
   status?: AlertStatus,
   risk_code?: string
 ): Promise<{ data: RiskAlertWithEvent[] | null; error: any }> {
+  const timeout = 15000; // 15 second timeout
+
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
+    console.log('🔍 loadRiskAlerts: Starting...');
 
-    if (!user) {
-      return { data: null, error: 'User not authenticated' };
-    }
+    // Wrap the entire operation in a timeout
+    const result = await Promise.race([
+      (async () => {
+        // Get current user
+        console.log('🔍 loadRiskAlerts: Getting user...');
+        const { data: { user } } = await supabase.auth.getUser();
 
-    // Use cached profile if available for same user
-    let profile: { organization_id: string; role: string };
-    if (cachedProfile && cachedProfile.userId === user.id) {
-      console.log('✅ loadRiskAlerts: Using cached profile');
-      profile = { organization_id: cachedProfile.organization_id, role: cachedProfile.role };
-    } else {
-      console.log('🔍 loadRiskAlerts: Fetching profile for user:', user.id);
-      // Get user's organization and role
-      const { data: fetchedProfile } = await supabase
-        .from('user_profiles')
-        .select('organization_id, role')
-        .eq('id', user.id)
-        .single();
+        if (!user) {
+          return { data: null, error: 'User not authenticated' };
+        }
 
-      if (!fetchedProfile) {
-        return { data: null, error: 'User profile not found' };
-      }
+        console.log('🔍 loadRiskAlerts: Fetching profile for user:', user.id);
+        // Get user's organization and role
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('organization_id, role')
+          .eq('id', user.id)
+          .single();
 
-      // Cache the profile
-      cachedProfile = { ...fetchedProfile, userId: user.id };
-      profile = fetchedProfile;
-    }
+        if (!profile) {
+          return { data: null, error: 'User profile not found' };
+        }
 
-    // Get risk codes for user's risks (or all org risks if admin)
-    let riskCodesQuery = supabase
-      .from('risks')
-      .select('risk_code')
-      .eq('organization_id', profile.organization_id);
+        console.log('🔍 loadRiskAlerts: Getting risks for org:', profile.organization_id);
+        // Get risk codes for user's risks (or all org risks if admin)
+        let riskCodesQuery = supabase
+          .from('risks')
+          .select('risk_code')
+          .eq('organization_id', profile.organization_id);
 
-    // Regular users: only their own risks
-    // Admin users: all org risks
-    if (profile.role !== 'admin') {
-      riskCodesQuery = riskCodesQuery.eq('user_id', user.id);
-    }
+        // Regular users: only their own risks
+        // Admin users: all org risks
+        if (profile.role !== 'admin') {
+          riskCodesQuery = riskCodesQuery.eq('user_id', user.id);
+        }
 
-    const { data: userRisks, error: risksError } = await riskCodesQuery;
+        const { data: userRisks, error: risksError } = await riskCodesQuery;
+
+        return { userRisks, risksError, profile, user };
+      })(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Query timeout after 15s')), timeout)
+      )
+    ]);
+
+    const { userRisks, risksError, profile, user } = result as any;
 
     if (risksError) {
       console.error('❌ Error loading risks for alerts:', risksError);
@@ -350,6 +354,7 @@ export async function loadRiskAlerts(
     const riskCodes = userRisks.map(r => r.risk_code);
     console.log(`📊 Loading alerts for ${riskCodes.length} risk codes:`, riskCodes.slice(0, 5));
 
+    console.log('🔍 loadRiskAlerts: Querying alerts table...');
     // Load alerts for these risk codes
     let query = supabase
       .from('risk_intelligence_alerts')
@@ -373,7 +378,7 @@ export async function loadRiskAlerts(
     if (error) {
       console.error('❌ Error loading alerts:', error);
     } else {
-      console.log(`📊 Loaded ${data?.length || 0} alerts from database`);
+      console.log(`✅ Loaded ${data?.length || 0} alerts from database`);
     }
 
     // Transform to include event object
@@ -382,9 +387,10 @@ export async function loadRiskAlerts(
       event: Array.isArray(alert.event) ? alert.event[0] : alert.event,
     })) as RiskAlertWithEvent[];
 
+    console.log('🔍 loadRiskAlerts: Completed successfully');
     return { data: transformedData, error };
   } catch (error) {
-    console.error('Error loading risk alerts:', error);
+    console.error('❌ loadRiskAlerts: Exception caught:', error);
     return { data: null, error };
   }
 }

@@ -130,51 +130,70 @@ export function NewsSourcesManager() {
     setSaving(true);
     setError(null);
 
+    const timeout = 10000; // 10 second timeout
+
     try {
-      // Get user's organization_id
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('organization_id')
-        .eq('id', (await supabase.auth.getUser()).data.user?.id)
-        .single();
+      console.log('💾 Starting save operation...');
 
-      if (profileError) throw profileError;
+      // Wrap the entire save operation in a timeout
+      await Promise.race([
+        (async () => {
+          console.log('💾 Getting user profile...');
+          // Get user's organization_id
+          const { data: profile, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('organization_id')
+            .eq('id', (await supabase.auth.getUser()).data.user?.id)
+            .single();
 
-      if (editingSource) {
-        // Update existing
-        const { error } = await supabase
-          .from('news_sources')
-          .update({
-            name: formData.name,
-            url: formData.url,
-            category: formData.category,
-            country: formData.country,
-          })
-          .eq('id', editingSource.id);
+          if (profileError) throw profileError;
 
-        if (error) throw error;
-      } else {
-        // Insert new
-        const { error } = await supabase
-          .from('news_sources')
-          .insert({
-            organization_id: profile.organization_id,
-            name: formData.name,
-            url: formData.url,
-            category: formData.category,
-            country: formData.country,
-            is_active: true,
-            is_default: false,
-          });
+          console.log('💾 Profile loaded, org_id:', profile.organization_id);
 
-        if (error) throw error;
-      }
+          if (editingSource) {
+            console.log('💾 Updating news source:', editingSource.id);
+            // Update existing
+            const { error } = await supabase
+              .from('news_sources')
+              .update({
+                name: formData.name,
+                url: formData.url,
+                category: formData.category,
+                country: formData.country,
+              })
+              .eq('id', editingSource.id);
+
+            if (error) throw error;
+            console.log('✅ News source updated successfully');
+          } else {
+            console.log('💾 Inserting new news source...');
+            // Insert new
+            const { error } = await supabase
+              .from('news_sources')
+              .insert({
+                organization_id: profile.organization_id,
+                name: formData.name,
+                url: formData.url,
+                category: formData.category,
+                country: formData.country,
+                is_active: true,
+                is_default: false,
+              });
+
+            if (error) throw error;
+            console.log('✅ News source inserted successfully');
+          }
+        })(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Save operation timeout after 10s')), timeout)
+        )
+      ]);
 
       setShowAddDialog(false);
       loadSources();
     } catch (err: any) {
-      console.error('Error saving source:', err);
-      setError(err.message);
+      console.error('❌ Error saving source:', err);
+      setError(err.message || 'Failed to save news source. Please try again.');
     } finally {
       setSaving(false);
     }
