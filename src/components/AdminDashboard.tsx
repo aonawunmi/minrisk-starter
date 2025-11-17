@@ -74,10 +74,30 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
     console.log('📊 Loading admin dashboard data...');
 
     try {
-      // OPTIMIZED: Get user profiles directly instead of using slow view
+      // Get current user to determine org_id
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.error('No authenticated user');
+        return;
+      }
+
+      // Get current user's profile to get organization_id
+      const { data: currentProfile } = await supabase
+        .from('user_profiles')
+        .select('organization_id')
+        .eq('id', user.id)
+        .single();
+
+      if (!currentProfile) {
+        console.error('No user profile found');
+        return;
+      }
+
+      // OPTIMIZED: Get only users from same organization
       const { data: profiles, error: profilesError } = await supabase
         .from('user_profiles')
-        .select('id, full_name, role, status, organization_id, created_at, approved_at')
+        .select('id, full_name, role, status, organization_id, created_at, approved_at, email')
+        .eq('organization_id', currentProfile.organization_id)
         .order('created_at', { ascending: false });
 
       if (profilesError) {
@@ -85,20 +105,10 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
         return;
       }
 
-      // Get auth users to get emails (parallel query)
-      const { data: { users: authUsers }, error: authError } = await supabase.auth.admin.listUsers();
-
-      if (authError) {
-        console.error('Error loading auth users:', authError);
-      }
-
-      // Create email lookup map
-      const emailMap = new Map(authUsers?.map(u => [u.id, u.email]) || []);
-
-      // Map profile data with emails
+      // Map profile data (email is now in user_profiles)
       const userData: UserData[] = profiles?.map(profile => ({
         id: profile.id,
-        email: emailMap.get(profile.id) || null,
+        email: profile.email || null,
         full_name: profile.full_name,
         role: profile.role,
         status: profile.status,
@@ -111,10 +121,10 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
 
       setUsers(userData);
 
-      // OPTIMIZED: Use count queries instead of selecting all IDs
+      // OPTIMIZED: Use count queries for org-specific stats
       const [risksResult, controlsResult] = await Promise.all([
-        supabase.from('risks').select('id', { count: 'exact', head: true }),
-        supabase.from('controls').select('id', { count: 'exact', head: true })
+        supabase.from('risks').select('id', { count: 'exact', head: true }).eq('organization_id', currentProfile.organization_id),
+        supabase.from('controls').select('id', { count: 'exact', head: true }).eq('organization_id', currentProfile.organization_id)
       ]);
 
       setStats({
