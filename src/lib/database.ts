@@ -221,6 +221,10 @@ export async function getOrCreateUserProfile(userId: string, userMetadata?: any)
   return { data: newProfile, error: null };
 }
 
+// Cache for user organization ID to prevent repeated database calls
+let cachedOrgId: string | null = null;
+let cachedUserId: string | null = null;
+
 /**
  * Get current user's organization ID
  */
@@ -229,6 +233,12 @@ export async function getUserOrganizationId(): Promise<string | null> {
   if (!user) {
     console.log('❌ getUserOrganizationId: No user authenticated');
     return null;
+  }
+
+  // Return cached value if same user
+  if (cachedUserId === user.id && cachedOrgId !== null) {
+    console.log('✅ getUserOrganizationId: Using cached org:', cachedOrgId);
+    return cachedOrgId;
   }
 
   console.log('🔍 getUserOrganizationId: Fetching profile for user:', user.id);
@@ -248,6 +258,10 @@ export async function getUserOrganizationId(): Promise<string | null> {
     console.log('❌ getUserOrganizationId: No profile found for user:', user.id);
     return null;
   }
+
+  // Cache the result
+  cachedUserId = user.id;
+  cachedOrgId = profile.organization_id;
 
   console.log('✅ getUserOrganizationId: Found org:', profile.organization_id);
   return profile.organization_id;

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Clear All Functionality</title>
+</head>
+<body>
+    <h1>Intelligence Module Test</h1>
+    <button id="clearAllBtn">Clear All Events</button>
+    <button id="scanNewsBtn">Scan News</button>
+    <pre id="output"></pre>
+
+    <script>
+        const output = document.getElementById('output');
+
+        function log(message) {
+            output.textContent += message + '\n';
+            console.log(message);
+        }
+
+        // Get auth token from localStorage
+        const authData = JSON.parse(localStorage.getItem('sb-cnywkjfkhnwptceluvzs-auth-token'));
+        const authToken = authData.access_token;
+
+        document.getElementById('clearAllBtn').addEventListener('click', async () => {
+            log('🗑️ Testing Clear All...');
+
+            try {
+                const response = await fetch('https://cnywkjfkhnwptceluvzs.supabase.co/functions/v1/scan-news', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`,
+                        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNueXdramZraG53cHRjZWx1dnpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzEzNDIyODEsImV4cCI6MjA0NjkxODI4MX0.KFkJ8iduQGCmLHzEqI6pLrDl_wgmBOVX2H5qcZg0Xcs'
+                    },
+                    body: JSON.stringify({ action: 'clearAll' })
+                });
+
+                const result = await response.json();
+                log('✅ Clear All Result: ' + JSON.stringify(result, null, 2));
+            } catch (error) {
+                log('❌ Error: ' + error.message);
+            }
+        });
+
+        document.getElementById('scanNewsBtn').addEventListener('click', async () => {
+            log('📰 Testing News Scan...');
+
+            try {
+                const response = await fetch('https://cnywkjfkhnwptceluvzs.supabase.co/functions/v1/scan-news', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`,
+                        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNueXdramZraG53cHRjZWx1dnpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzEzNDIyODEsImV4cCI6MjA0NjkxODI4MX0.KFkJ8iduQGCmLHzEqI6pLrDl_wgmBOVX2H5qcZg0Xcs'
+                    },
+                    body: JSON.stringify({ action: 'scan' })
+                });
+
+                const result = await response.json();
+                log('✅ Scan Result: ' + JSON.stringify(result, null, 2));
+            } catch (error) {
+                log('❌ Error: ' + error.message);
+            }
+        });
+    </script>
+</body>
+</html>
