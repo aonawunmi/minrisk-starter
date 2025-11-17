@@ -282,6 +282,9 @@ export async function createRiskAlert(
  * Load risk intelligence alerts
  * USER-LEVEL FILTERING: Only loads alerts for the current user's risks
  */
+// Cache for user profile to prevent repeated database calls
+let cachedProfile: { organization_id: string; role: string; userId: string } | null = null;
+
 export async function loadRiskAlerts(
   status?: AlertStatus,
   risk_code?: string
@@ -294,15 +297,27 @@ export async function loadRiskAlerts(
       return { data: null, error: 'User not authenticated' };
     }
 
-    // Get user's organization and role
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('organization_id, role')
-      .eq('id', user.id)
-      .single();
+    // Use cached profile if available for same user
+    let profile: { organization_id: string; role: string };
+    if (cachedProfile && cachedProfile.userId === user.id) {
+      console.log('✅ loadRiskAlerts: Using cached profile');
+      profile = { organization_id: cachedProfile.organization_id, role: cachedProfile.role };
+    } else {
+      console.log('🔍 loadRiskAlerts: Fetching profile for user:', user.id);
+      // Get user's organization and role
+      const { data: fetchedProfile } = await supabase
+        .from('user_profiles')
+        .select('organization_id, role')
+        .eq('id', user.id)
+        .single();
 
-    if (!profile) {
-      return { data: null, error: 'User profile not found' };
+      if (!fetchedProfile) {
+        return { data: null, error: 'User profile not found' };
+      }
+
+      // Cache the profile
+      cachedProfile = { ...fetchedProfile, userId: user.id };
+      profile = fetchedProfile;
     }
 
     // Get risk codes for user's risks (or all org risks if admin)
