@@ -96,7 +96,7 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
       // OPTIMIZED: Get only users from same organization
       const { data: profiles, error: profilesError } = await supabase
         .from('user_profiles')
-        .select('id, full_name, role, status, organization_id, created_at, approved_at, email')
+        .select('id, full_name, role, status, organization_id, created_at, approved_at')
         .eq('organization_id', currentProfile.organization_id)
         .order('created_at', { ascending: false });
 
@@ -105,10 +105,20 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
         return;
       }
 
-      // Map profile data (email is now in user_profiles)
+      // Fetch emails from auth.users for all profile IDs
+      const profileIds = profiles?.map(p => p.id) || [];
+      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+
+      // Create a map of user_id -> email
+      const emailMap = new Map<string, string>();
+      authUsers?.users?.forEach(user => {
+        emailMap.set(user.id, user.email || '');
+      });
+
+      // Map profile data with emails from auth
       const userData: UserData[] = profiles?.map(profile => ({
         id: profile.id,
-        email: profile.email || null,
+        email: emailMap.get(profile.id) || null,
         full_name: profile.full_name,
         role: profile.role,
         status: profile.status,
