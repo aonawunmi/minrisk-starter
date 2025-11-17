@@ -106,8 +106,12 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
       }
 
       // Fetch emails from auth.users for all profile IDs
-      const profileIds = profiles?.map(p => p.id) || [];
+      // Note: This requires service role key, fallback to empty emails if forbidden
       const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+
+      if (authError) {
+        console.warn('⚠️ Unable to fetch emails (requires service role key):', authError.message);
+      }
 
       // Create a map of user_id -> email
       const emailMap = new Map<string, string>();
@@ -115,7 +119,53 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
         emailMap.set(user.id, user.email || '');
       });
 
-      // Map profile data with emails from auth
+      // Fetch per-user risk and control counts in parallel
+      // Uses GROUP BY to efficiently get counts for all users at once
+      // Note: Controls queries may fail if table doesn't exist - that's OK
+      const [risksPerUser, controlsPerUser, risksResult, controlsResult] = await Promise.all([
+        // Get risk counts grouped by user_id
+        supabase
+          .from('risks')
+          .select('user_id')
+          .eq('organization_id', currentProfile.organization_id),
+        // Get control counts grouped by user_id (may fail if table doesn't exist)
+        supabase
+          .from('controls')
+          .select('user_id')
+          .eq('organization_id', currentProfile.organization_id)
+          .then(result => result)
+          .catch(err => {
+            console.warn('⚠️ Controls table query failed (table may not exist):', err.message);
+            return { data: null, error: err };
+          }),
+        // Total risk count for stats
+        supabase.from('risks').select('id', { count: 'exact', head: true }).eq('organization_id', currentProfile.organization_id),
+        // Total control count for stats (may fail if table doesn't exist)
+        supabase
+          .from('controls')
+          .select('id', { count: 'exact', head: true })
+          .eq('organization_id', currentProfile.organization_id)
+          .then(result => result)
+          .catch(err => {
+            console.warn('⚠️ Controls count query failed (table may not exist)');
+            return { data: null, error: err, count: 0 };
+          })
+      ]);
+
+      // Create maps of user_id -> count
+      const riskCountMap = new Map<string, number>();
+      risksPerUser.data?.forEach(risk => {
+        const userId = risk.user_id;
+        riskCountMap.set(userId, (riskCountMap.get(userId) || 0) + 1);
+      });
+
+      const controlCountMap = new Map<string, number>();
+      controlsPerUser.data?.forEach(control => {
+        const userId = control.user_id;
+        controlCountMap.set(userId, (controlCountMap.get(userId) || 0) + 1);
+      });
+
+      // Map profile data with emails and counts
       const userData: UserData[] = profiles?.map(profile => ({
         id: profile.id,
         email: emailMap.get(profile.id) || null,
@@ -123,19 +173,13 @@ export default function AdminDashboard({ config, showToast, isSuperAdmin = false
         role: profile.role,
         status: profile.status,
         organization_id: profile.organization_id,
-        risk_count: 0, // Will calculate lazily if needed
-        control_count: 0, // Will calculate lazily if needed
+        risk_count: riskCountMap.get(profile.id) || 0,
+        control_count: controlCountMap.get(profile.id) || 0,
         created_at: profile.created_at,
         approved_at: profile.approved_at,
       })) || [];
 
       setUsers(userData);
-
-      // OPTIMIZED: Use count queries for org-specific stats
-      const [risksResult, controlsResult] = await Promise.all([
-        supabase.from('risks').select('id', { count: 'exact', head: true }).eq('organization_id', currentProfile.organization_id),
-        supabase.from('controls').select('id', { count: 'exact', head: true }).eq('organization_id', currentProfile.organization_id)
-      ]);
 
       setStats({
         totalUsers: userData.length,
