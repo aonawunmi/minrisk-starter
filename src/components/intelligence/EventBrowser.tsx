@@ -166,36 +166,22 @@ export function EventBrowser() {
     setClearMessage('Clearing unanalyzed events...');
 
     try {
-      // Get auth session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setClearMessage('❌ Not authenticated. Please log in.');
-        setTimeout(() => setClearMessage(''), 5000);
-        setClearing(false);
-        return;
-      }
-
-      const response = await fetch('/api/scan-news', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
+      const { data: result, error } = await supabase.functions.invoke('scan-news', {
+        body: {
           action: 'clearUnanalyzed',
-        }),
+        },
       });
 
-      const result = await response.json();
+      if (error) throw error;
 
-      if (result.success) {
+      if (result?.success) {
         setClearMessage(`✅ Cleared ${result.events_cleared} unanalyzed events`);
         setTimeout(() => {
           loadEvents();
           setClearMessage('');
         }, 2000);
       } else {
-        setClearMessage(`❌ Failed: ${result.error}`);
+        setClearMessage(`❌ Failed: ${result?.error || 'Unknown error'}`);
         setTimeout(() => setClearMessage(''), 5000);
       }
     } catch (error) {
@@ -217,36 +203,22 @@ export function EventBrowser() {
     setClearMessage('Clearing all events...');
 
     try {
-      // Get auth session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setClearMessage('❌ Not authenticated. Please log in.');
-        setTimeout(() => setClearMessage(''), 5000);
-        setClearing(false);
-        return;
-      }
-
-      const response = await fetch('/api/scan-news', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
+      const { data: result, error } = await supabase.functions.invoke('scan-news', {
+        body: {
           action: 'clearAll',
-        }),
+        },
       });
 
-      const result = await response.json();
+      if (error) throw error;
 
-      if (result.success) {
+      if (result?.success) {
         setClearMessage(`✅ Cleared ${result.events_cleared} events`);
         setTimeout(() => {
           loadEvents();
           setClearMessage('');
         }, 2000);
       } else {
-        setClearMessage(`❌ Failed: ${result.error}`);
+        setClearMessage(`❌ Failed: ${result?.error || 'Unknown error'}`);
         setTimeout(() => setClearMessage(''), 5000);
       }
     } catch (error) {

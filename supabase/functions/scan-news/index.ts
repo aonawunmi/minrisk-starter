@@ -3,7 +3,6 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { DOMParser } from 'https://deno.land/x/deno_dom@v0.1.38/deno-dom-wasm.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,7 +23,29 @@ const DEFAULT_RISK_KEYWORDS = [
 ]
 
 /**
- * Parse RSS/Atom feed from URL
+ * Extract text content from XML tags using regex
+ */
+function extractTagContent(xml: string, tagName: string): string {
+  const regex = new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)<\/${tagName}>`, 'i')
+  const match = xml.match(regex)
+  if (!match) return ''
+
+  // Decode HTML entities and strip CDATA
+  let content = match[1]
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/<[^>]+>/g, '') // Strip HTML tags
+    .trim()
+
+  return content
+}
+
+/**
+ * Parse RSS/Atom feed from URL using regex (Deno-compatible)
  */
 async function parseRSSFeed(url: string): Promise<any[]> {
   try {
@@ -40,53 +61,64 @@ async function parseRSSFeed(url: string): Promise<any[]> {
     }
 
     const xmlText = await response.text()
-    const doc = new DOMParser().parseFromString(xmlText, 'text/xml')
-
-    if (!doc) {
-      throw new Error('Failed to parse XML')
-    }
-
     const items: any[] = []
 
-    // Try RSS 2.0 format
-    const rssItems = doc.querySelectorAll('item')
-    if (rssItems.length > 0) {
-      rssItems.forEach((item: any, index: number) => {
-        if (index < 10) { // Limit to 10 items per feed
-          items.push({
-            title: item.querySelector('title')?.textContent || 'Untitled',
-            description: item.querySelector('description')?.textContent ||
-                        item.querySelector('content:encoded')?.textContent || '',
-            link: item.querySelector('link')?.textContent ||
-                 item.querySelector('guid')?.textContent || '',
-            pubDate: item.querySelector('pubDate')?.textContent || new Date().toISOString(),
-          })
+    // Try RSS 2.0 format first
+    const rssItemRegex = /<item>([\s\S]*?)<\/item>/gi
+    const rssMatches = [...xmlText.matchAll(rssItemRegex)]
+
+    if (rssMatches.length > 0) {
+      console.log(`   📰 Found ${rssMatches.length} RSS items`)
+      for (let i = 0; i < Math.min(rssMatches.length, 10); i++) {
+        const itemXml = rssMatches[i][1]
+
+        const title = extractTagContent(itemXml, 'title')
+        const description = extractTagContent(itemXml, 'description') ||
+                          extractTagContent(itemXml, 'content:encoded')
+        const link = extractTagContent(itemXml, 'link') ||
+                    extractTagContent(itemXml, 'guid')
+        const pubDate = extractTagContent(itemXml, 'pubDate') || new Date().toISOString()
+
+        if (title && link) {
+          items.push({ title, description, link, pubDate })
         }
-      })
+      }
+      return items
     }
 
     // Try Atom format
-    const atomEntries = doc.querySelectorAll('entry')
-    if (atomEntries.length > 0) {
-      atomEntries.forEach((entry: any, index: number) => {
-        if (index < 10) {
-          const linkEl = entry.querySelector('link')
-          items.push({
-            title: entry.querySelector('title')?.textContent || 'Untitled',
-            description: entry.querySelector('summary')?.textContent ||
-                        entry.querySelector('content')?.textContent || '',
-            link: linkEl?.getAttribute('href') || linkEl?.textContent || '',
-            pubDate: entry.querySelector('published')?.textContent ||
-                    entry.querySelector('updated')?.textContent ||
-                    new Date().toISOString(),
-          })
+    const atomEntryRegex = /<entry>([\s\S]*?)<\/entry>/gi
+    const atomMatches = [...xmlText.matchAll(atomEntryRegex)]
+
+    if (atomMatches.length > 0) {
+      console.log(`   📰 Found ${atomMatches.length} Atom entries`)
+      for (let i = 0; i < Math.min(atomMatches.length, 10); i++) {
+        const entryXml = atomMatches[i][1]
+
+        const title = extractTagContent(entryXml, 'title')
+        const description = extractTagContent(entryXml, 'summary') ||
+                          extractTagContent(entryXml, 'content')
+
+        // Extract href from link tag
+        const linkMatch = entryXml.match(/<link[^>]*href=["']([^"']+)["']/i)
+        const link = linkMatch ? linkMatch[1] : extractTagContent(entryXml, 'link')
+
+        const pubDate = extractTagContent(entryXml, 'published') ||
+                       extractTagContent(entryXml, 'updated') ||
+                       new Date().toISOString()
+
+        if (title && link) {
+          items.push({ title, description, link, pubDate })
         }
-      })
+      }
+      return items
     }
 
-    return items
+    console.log(`   ⚠️ No RSS or Atom items found in feed`)
+    return []
+
   } catch (error) {
-    console.error(`Error parsing feed ${url}:`, error.message)
+    console.error(`   ❌ Error parsing feed ${url}:`, error.message)
     return []
   }
 }
@@ -96,6 +128,8 @@ async function parseRSSFeed(url: string): Promise<any[]> {
  */
 async function loadNewsSources(supabase: any, organizationId: string) {
   try {
+    console.log(`🔍 Looking for news sources with organization_id: ${organizationId}`)
+
     const { data, error } = await supabase
       .from('news_sources')
       .select('name, url, category, country')
@@ -103,12 +137,19 @@ async function loadNewsSources(supabase: any, organizationId: string) {
       .eq('is_active', true)
       .order('name')
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Database error loading news sources:', error)
+      throw error
+    }
 
-    console.log(`📊 Loaded ${data.length} active sources from database`)
+    console.log(`📊 Loaded ${data?.length || 0} active sources from database`)
+    if (data && data.length > 0) {
+      console.log(`📰 Sources: ${data.map((s: any) => s.name).join(', ')}`)
+    }
+
     return data || []
   } catch (error) {
-    console.error('Error loading news sources:', error)
+    console.error('❌ Error loading news sources:', error)
     return []
   }
 }
@@ -174,13 +215,18 @@ async function storeEvents(
   organizationId: string
 ) {
   let stored = 0
+  let filteredOld = 0
+  let filteredNoKeywords = 0
+  let duplicates = 0
   const storedEvents: any[] = []
   const allItems: any[] = []
 
   const cutoffDate = new Date()
   cutoffDate.setDate(cutoffDate.getDate() - maxAgeDays)
+  console.log(`📅 Cutoff date: ${cutoffDate.toISOString()} (articles must be from last ${maxAgeDays} days)`)
 
   for (const feedData of parsedFeeds.events) {
+    console.log(`\n📰 Processing ${feedData.items.length} items from ${feedData.source.name}`)
     for (const item of feedData.items) {
       const keywords = extractKeywords(item.title + ' ' + item.description, riskKeywords)
       const category = categorizeEvent(item.title, item.description)
@@ -201,17 +247,31 @@ async function storeEvents(
       }
 
       if (publishedDate < cutoffDate) {
+        const daysOld = Math.floor((Date.now() - publishedDate.getTime()) / (1000 * 60 * 60 * 24))
         itemDetail.status = 'filtered'
-        itemDetail.reason = `Too old (published ${Math.floor((Date.now() - publishedDate.getTime()) / (1000 * 60 * 60 * 24))} days ago)`
+        itemDetail.reason = `Too old (published ${daysOld} days ago)`
         allItems.push(itemDetail)
+        filteredOld++
+        console.log(`   ⏰ FILTERED (too old): "${item.title.substring(0, 50)}..." - ${daysOld} days old`)
         continue
       }
 
-      if (keywords.length === 0) {
+      // Accept articles with risk keywords OR relevant categories
+      const isRelevantCategory = ['cybersecurity', 'regulatory', 'market', 'operational', 'environmental'].includes(category)
+
+      if (keywords.length === 0 && !isRelevantCategory) {
         itemDetail.status = 'filtered'
-        itemDetail.reason = 'No risk-related keywords found'
+        itemDetail.reason = 'No risk-related keywords or relevant category'
         allItems.push(itemDetail)
+        filteredNoKeywords++
+        console.log(`   🚫 FILTERED (no keywords/category): "${item.title.substring(0, 50)}..." - Category: ${category}`)
         continue
+      }
+
+      if (keywords.length > 0) {
+        console.log(`   ✅ PASSED (keywords): "${item.title.substring(0, 50)}..." - Keywords: ${keywords.join(', ')}`)
+      } else {
+        console.log(`   ✅ PASSED (category): "${item.title.substring(0, 50)}..." - Category: ${category}`)
       }
 
       // Check for duplicates by URL
@@ -226,6 +286,8 @@ async function storeEvents(
         itemDetail.status = 'duplicate'
         itemDetail.reason = 'Event URL already exists in database'
         allItems.push(itemDetail)
+        duplicates++
+        console.log(`   🔁 DUPLICATE: "${item.title.substring(0, 50)}..."`)
         continue
       }
 
@@ -253,19 +315,29 @@ async function storeEvents(
         storedEvents.push(data[0])
         itemDetail.status = 'stored'
         itemDetail.eventId = data[0].id
+        console.log(`   💾 STORED: "${item.title.substring(0, 50)}..."`)
       } else if (error?.code === '23505') {
         itemDetail.status = 'duplicate'
         itemDetail.reason = 'Already exists in database'
+        duplicates++
+        console.log(`   🔁 DUPLICATE (DB constraint): "${item.title.substring(0, 50)}..."`)
       } else {
         itemDetail.status = 'error'
         itemDetail.reason = error?.message || 'Unknown error'
+        console.log(`   ❌ ERROR storing: "${item.title.substring(0, 50)}..." - ${error?.message}`)
       }
 
       allItems.push(itemDetail)
     }
   }
 
-  console.log(`✅ Stored ${stored} events in database`)
+  console.log(`\n📊 FILTERING SUMMARY:`)
+  console.log(`   ✅ Stored: ${stored}`)
+  console.log(`   ⏰ Filtered (too old): ${filteredOld}`)
+  console.log(`   🚫 Filtered (no keywords): ${filteredNoKeywords}`)
+  console.log(`   🔁 Duplicates: ${duplicates}`)
+  console.log(`   📊 Total processed: ${filteredOld + filteredNoKeywords + duplicates + stored}`)
+
   return { stored, events: storedEvents, allItems }
 }
 
@@ -584,6 +656,8 @@ serve(async (req) => {
     }
 
     // Get user's organization
+    console.log(`👤 Getting profile for user: ${user.id}`)
+
     const { data: profile, error: profileError } = await supabaseClient
       .from('user_profiles')
       .select('organization_id')
@@ -591,6 +665,7 @@ serve(async (req) => {
       .single()
 
     if (profileError || !profile) {
+      console.error('❌ User profile not found:', profileError)
       return new Response(
         JSON.stringify({ error: 'User profile not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -598,6 +673,7 @@ serve(async (req) => {
     }
 
     const organizationId = profile.organization_id
+    console.log(`🏢 User organization_id: ${organizationId}`)
 
     // Parse request body for action
     const body = await req.json()
@@ -685,6 +761,49 @@ serve(async (req) => {
           message: 'Analysis complete',
           events_analyzed: events.length,
           alerts_created: alertsCreated
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Handle clearUnanalyzed action
+    if (action === 'clearUnanalyzed') {
+      const { count, error: deleteError } = await supabaseClient
+        .from('external_events')
+        .delete()
+        .eq('organization_id', organizationId)
+        .is('analyzed_at', null)
+
+      if (deleteError) throw deleteError
+
+      console.log(`🗑️ Cleared ${count || 0} unanalyzed events for organization ${organizationId}`)
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Cleared ${count || 0} unanalyzed events`,
+          events_cleared: count || 0
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Handle clearAll action
+    if (action === 'clearAll') {
+      const { count, error: deleteError } = await supabaseClient
+        .from('external_events')
+        .delete()
+        .eq('organization_id', organizationId)
+
+      if (deleteError) throw deleteError
+
+      console.log(`🗑️ Cleared ALL ${count || 0} events for organization ${organizationId}`)
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Cleared ${count || 0} events`,
+          events_cleared: count || 0
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
