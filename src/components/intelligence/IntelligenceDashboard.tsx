@@ -227,12 +227,37 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
 
   const handleScanNews = async (keywordsToUse?: string[]) => {
     setScanning(true);
-    setScanMessage('Scanning news feeds...');
+
+    // Show progress updates with estimated timing
+    const progressSteps = [
+      { message: '📡 Loading news sources...', delay: 1000 },
+      { message: '🔍 Scanning RSS feeds...', delay: 8000 },
+      { message: '📊 Filtering relevant events...', delay: 15000 },
+      { message: '🤖 Analyzing events with AI...', delay: 25000 },
+      { message: '✨ Creating risk alerts...', delay: 40000 },
+      { message: '⏳ Finalizing results...', delay: 50000 },
+    ];
+
+    let progressTimeout: NodeJS.Timeout;
+    let currentStep = 0;
+
+    const updateProgress = () => {
+      if (currentStep < progressSteps.length) {
+        setScanMessage(progressSteps[currentStep].message);
+        currentStep++;
+        if (currentStep < progressSteps.length) {
+          progressTimeout = setTimeout(updateProgress, progressSteps[currentStep].delay - progressSteps[currentStep - 1].delay);
+        }
+      }
+    };
+
+    updateProgress();
 
     try {
       // Get user session for auth
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
+        clearTimeout(progressTimeout);
         setScanMessage('❌ Not authenticated. Please log in.');
         setScanning(false);
         return;
@@ -244,6 +269,8 @@ export function IntelligenceDashboard({ riskCode }: IntelligenceDashboardProps) 
           selectedKeywords: keywordsToUse,
         },
       });
+
+      clearTimeout(progressTimeout);
 
       if (error) {
         throw error;
