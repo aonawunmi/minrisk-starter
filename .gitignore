@@ -26,3 +26,6 @@ src/**/*.js
 src/**/*.jsx
 !src/**/*.test.js
 !src/**/*.spec.js
+
+# TypeScript build info
+tsconfig.tsbuildinfo
