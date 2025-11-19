@@ -4,6 +4,7 @@
 import { supabase } from './supabase';
 import type { RiskRow } from './database';
 import { askClaude } from './ai';
+import Parser from 'rss-parser';
 
 // =====================================================
 // TYPES
@@ -676,14 +677,18 @@ export async function parseRSSFeed(url: string): Promise<{
   error: any;
 }> {
   try {
-    // TODO: Install and use rss-parser npm package
-    // const Parser = require('rss-parser');
-    // const parser = new Parser();
-    // const feed = await parser.parseURL(url);
+    const parser = new Parser();
+    const feed = await parser.parseURL(url);
 
-    // Placeholder implementation
-    console.log('RSS parsing not yet implemented. Install rss-parser package.');
-    return { items: [], error: null };
+    // Map RSS feed items to our expected format
+    const items = feed.items.map(item => ({
+      title: item.title || '',
+      description: item.contentSnippet || item.content || item.description || '',
+      link: item.link || '',
+      pubDate: item.pubDate || item.isoDate || new Date().toISOString()
+    }));
+
+    return { items, error: null };
   } catch (error) {
     console.error('Error parsing RSS feed:', error);
     return { items: [], error };
